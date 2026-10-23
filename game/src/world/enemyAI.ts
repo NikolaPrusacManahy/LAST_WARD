@@ -78,6 +78,8 @@ export interface PlayerSense {
   crouching: boolean;
   /** Update 0.9 — sprinting (it sees you further). */
   running?: boolean;
+  /** Update 0.9.5 — in a locker it didn't see you get into: it can't see you or catch you. */
+  hidden?: boolean;
 }
 
 export interface Noise {
@@ -233,6 +235,7 @@ function tryTeleport(level: Level, e: EnemyState, player: Vec2, rng: Rng): boole
 
 /** 0 = can't see you, 1 = sees you clearly. */
 export function visibility(level: Level, e: EnemyState, p: PlayerSense): number {
+  if (p.hidden) return 0;
   const d = dist(e.pos, p.pos);
   let view = p.flashlightOn ? ENEMY.viewDistLight : ENEMY.viewDistDark;
   if (p.crouching) view *= ENEMY.crouchSightMul;
@@ -484,6 +487,6 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
     }
   }
 
-  if (dist(e.pos, player.pos) <= ENEMY.catchRadius) events.push('caught');
+  if (!player.hidden && dist(e.pos, player.pos) <= ENEMY.catchRadius) events.push('caught');
   return events;
 }

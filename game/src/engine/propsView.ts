@@ -18,6 +18,8 @@ export interface PropsView {
   setSwitch(i: number, on: boolean): void;
   /** Orange sparks light at panel `i` (0 = off). One light, moved to whichever panel sparks. */
   setSpark(i: number, intensity: number): void;
+  /** Update 0.9.5 — locker i's door open by `rad` (0 = shut). */
+  setLockerDoor(i: number, rad: number): void;
   dispose(): void;
 }
 
@@ -32,6 +34,8 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
   let disposed = false;
   // Update 0.9 — several panels: doors / levers in level order.
   const doors: { node: THREE.Object3D; rest: number }[] = [];
+  const lockerDoors: { node: THREE.Object3D; rest: number }[] = [];
+  const lockerOpen: number[] = [];
   const levers: { node: THREE.Object3D; rest: number }[] = [];
   const open: number[] = [];
   const on: boolean[] = [];
@@ -67,8 +71,9 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
   // Placed props (+ Update 0.9: brick lining the brick rooms).
   let boxes = 0;
   let switches = 0;
+  let lockers = 0;
   for (const p of [...placedProps(level), ...brickLining(level)]) {
-    const slot = p.kind === 'breaker_box' ? boxes++ : p.kind === 'power_switch' ? switches++ : -1;
+    const slot = p.kind === 'breaker_box' ? boxes++ : p.kind === 'power_switch' ? switches++ : p.kind === 'locker' ? lockers++ : -1;
     load(p.kind)
       .then((scene) => {
         if (disposed) return;
@@ -86,6 +91,10 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
           const node = obj.getObjectByName('BoxDoorPivot');
           if (node) doors[slot] = { node, rest: node.rotation.y };
           applyPanel(slot);
+        } else if (p.kind === 'locker') {
+          const node = obj.getObjectByName('LockerDoor');
+          if (node) lockerDoors[slot] = { node, rest: node.rotation.z };
+          applyLocker(slot);
         } else if (p.kind === 'power_switch') {
           // three.js drops the '.' from node names on load (0.9.1: the lever never moved).
           const node = obj.getObjectByName('Switch001') ?? obj.getObjectByName('Switch.001');
@@ -138,6 +147,11 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
     const d = doors[i];
     if (d) d.node.rotation.y = d.rest - (open[i] ?? 0) * 1.9;
   }
+  // Update 0.9.5 — the door hangs on its hinge node's local z (the model is turned up from z-up).
+  function applyLocker(i: number) {
+    const d = lockerDoors[i];
+    if (d) d.node.rotation.z = d.rest + (lockerOpen[i] ?? 0);
+  }
   function applySwitch(i: number) {
     const l = levers[i];
     // 0.9.1: the model's rest pose is the lever up at ON; off swings it down to OFF.
@@ -149,6 +163,10 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
     setPanelOpen(i, k) {
       open[i] = Math.max(0, Math.min(1, k));
       applyPanel(i);
+    },
+    setLockerDoor(i, rad) {
+      lockerOpen[i] = rad;
+      applyLocker(i);
     },
     setSwitch(i, value) {
       on[i] = value;

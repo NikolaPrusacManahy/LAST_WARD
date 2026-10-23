@@ -5,7 +5,7 @@ import { Cell, FACE_DIR, Level, TILE, Vec2, WALL_HEIGHT, WallFace, cellCenter, i
 export type PropKind =
   | 'hospital_bed' | 'privacy_screen' | 'bedside_flowers' | 'bedside_drawing' | 'bedside_meds' | 'side_table'
   | 'medicine_shelf' | 'portrait' | 'child_drawing' | 'generator' | 'electrical_wall' | 'brick_wall' | 'breaker_box'
-  | 'power_switch' | 'radiator' | 'barrel' | 'barrel_lying' | 'toilet' | 'fluorescent';
+  | 'power_switch' | 'radiator' | 'barrel' | 'barrel_lying' | 'toilet' | 'fluorescent' | 'locker';
 
 /** Local axis a model's front points along. */
 type Front = 'x' | '-x' | 'z' | '-z';
@@ -38,6 +38,7 @@ export const PROPS: Record<PropKind, PropSpec> = {
   barrel_lying: { size: [0.63, 0.62, 0.93], front: 'z', blocks: true },
   toilet: { size: [0.45, 0.8, 0.59], front: 'z', blocks: true },
   fluorescent: { size: [1.52, 0.22, 0.66], front: 'z', blocks: false },
+  locker: { size: [0.68, 2.0, 0.75], front: 'z', blocks: true }, // 0.9.5: you can hide in it (state/hiding.ts)
 };
 
 /** How a level places a prop. `wall`: the side of the cell it backs onto (it faces away from it).
@@ -127,6 +128,18 @@ export function panelSpots(level: Level): PlacedProp[] {
 }
 export function panelSwitches(level: Level): PlacedProp[] {
   return level.props.filter((x) => x.kind === 'power_switch').map(placeProp);
+}
+
+/** Update 0.9.5 — the hiding lockers, in level order. */
+export function lockerSpots(level: Level): PlacedProp[] {
+  return level.props.filter((x) => x.kind === 'locker').map(placeProp);
+}
+
+/** Which way a placed prop faces (its front), as a unit vector on the ground. */
+export function propFront(p: PlacedProp): Vec2 {
+  const f = FRONT_DIR[PROPS[p.kind].front];
+  // three.js rotation about y by `yaw`: x' = x cos + z sin, z' = -x sin + z cos.
+  return { x: f.x * Math.cos(p.yaw) + f.z * Math.sin(p.yaw), z: -f.x * Math.sin(p.yaw) + f.z * Math.cos(p.yaw) };
 }
 
 /**

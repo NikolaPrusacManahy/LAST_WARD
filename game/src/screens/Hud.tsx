@@ -87,6 +87,16 @@ export function Hud({ store, hidden, onBegin }: Props) {
           <span className="lw-banner-text">{h.banner.text}</span>
         </div>
       )}
+      {h.hiding && (
+        <div className="lw-hide-hint">
+          <span>
+            Hold <InputIcon code={h.bindings.skillCheck} size="sm" /> + <InputIcon code={h.bindings.forward} size="sm" /> to peek
+          </span>
+          <span>
+            Press <InputIcon code={h.bindings.interact} size="sm" /> to get out
+          </span>
+        </div>
+      )}
       {h.toast && <div className="lw-hud-toast" key={h.toast}>{h.toast}</div>}
       {h.note && (
         <div className="lw-note">

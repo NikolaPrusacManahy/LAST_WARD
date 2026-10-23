@@ -14,7 +14,7 @@ import { createRng } from '../world/rng';
 import { findTarget, Target } from '../world/interact';
 import { CONTROLS_CARD_SECONDS, Prompt, promptFor, samePrompt, tickControlsCard } from '../state/prompts';
 import { LIGHT, atmosphereFor, blendAtmosphere } from '../state/lightLevels';
-import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, toggleFlashlight } from '../state/playerRules';
+import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, tickStatus, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
 import { mixVolumes } from '../state/settings';
 import { DIFFICULTY, DifficultyRules } from '../state/difficulty';
@@ -22,7 +22,8 @@ import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/sessi
 import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
 import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
 import { RepairState, SKILL, cancelCheck, createRepair, stepRepair } from '../state/skillCheck';
-import { panelSpots, panelSwitches } from '../world/props';
+import { lockerSpots, panelSpots, panelSwitches, propFront } from '../world/props';
+import { HideState, LOCKER, clampLook, doorOpen, hiddenFrom, insideness, requestExit, startHide, stepHide } from '../state/hiding';
 import { createPropsView, PropsView } from './propsView';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
@@ -102,6 +103,10 @@ export class Game {
   /** World clock: runs slower during the look-back slow motion (this.t stays real time). */
   private worldT = 0;
   private realDt = 0;
+  /** Update 0.9.5 — hiding in a locker (null when not), and the way you were facing as you got in. */
+  private hide: HideState | null = null;
+  private hideFromYaw = 0;
+  private hideWasCrouching = false;
   /** Update 0.9.4 — the last worked-out way its sound reaches you. */
   private sound: SoundPath | null = null;
   private soundIn = 0;
@@ -246,6 +251,7 @@ export class Game {
     this.world.add(this.props.root);
     this.repair = createRepair(this.rng);
     this.panelOpen = [];
+    this.hide = null;
     this.banner = null;
     this.lastObjective = '';
     this.lastObjectiveShown = '';
@@ -442,7 +448,7 @@ export class Game {
     }
     this.player.lookBackYaw = lookBackYaw(this.lookBack);
     const scripted = this.phase === 'caught' || this.phase === 'waking';
-    if (!scripted) this.body?.setVisible(!hideBodyWhileLookingBack(this.lookBack));
+    if (!scripted) this.body?.setVisible(!hideBodyWhileLookingBack(this.lookBack) && !this.hide); // 0.9.5: not in a locker
     this.worldT += wdt;
     this.realDt = dt;
 
@@ -504,10 +510,11 @@ export class Game {
     this.playTime += dt;
     const { input, player, status } = this;
     player.look(input, this.settings);
-    const step = player.step(this.level, input, status, dt);
+    // Update 0.9.5 — in a locker you don't walk: you're placed in it, and can peek or get out.
+    const step = this.hide ? this.stepHiding(dt) : player.step(this.level, input, status, dt);
     // Update 0.7 — walked onto / off the stairs' portal: you're on the other floor now.
     const crossed = crossPortal(this.level, player.pos);
-    if (crossed.crossed) player.pos = crossed.pos;
+    if (crossed.crossed && !this.hide) player.pos = crossed.pos;
     this.syncFloor();
     player.rise = stairRise(this.level, player.pos);
     this.gait = step.gait;
@@ -520,22 +527,31 @@ export class Game {
     }
 
     // Update 0.5 — rebindable: right click flashlight, left click collect / interact by default.
-    if (input.actionPressed('flashlight') && toggleFlashlight(status)) {
+    if (!this.hide && input.actionPressed('flashlight') && toggleFlashlight(status)) {
       // Update 0.9.3 — on Easy the key is the night vision goggles: their own sound going on.
       if (this.rules.nightVision && status.flashlightOn) this.audio.nightVisionOn();
       else this.audio.click();
     }
     this.controlsLeft = tickControlsCard(this.controlsLeft, dt, input.wasPressed('Enter') || input.wasPressed('NumpadEnter'));
-    if (input.actionPressed('interact')) this.interact();
-    this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected);
-    this.workPanel(this.realDt, input.action('interact'), input.actionPressed('skillCheck'));
+    if (this.hide) {
+      // Update 0.9.5 — left click (interact) gets you out once you're all the way in.
+      if (input.actionPressed('interact') && this.hide.phase === 'inside') {
+        this.hide = requestExit(this.hide);
+        this.audio.lockerEnter(this.lockerSound());
+      }
+      this.target = null;
+    } else {
+      if (input.actionPressed('interact')) this.interact();
+      this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected);
+    }
+    this.workPanel(this.realDt, !this.hide && input.action('interact'), input.actionPressed('skillCheck'));
 
     // Enemy.
     const before = this.enemy.pos;
     const events = this.enemyFrozen ? [] : stepEnemy(
       this.level,
       this.enemy,
-      { dt, player: { pos: player.pos, flashlightOn: this.lightShows(), crouching: player.crouching, running: step.gait === 'sprint' }, noise: this.noise, fuses: this.progress.fuses },
+      { dt, player: { pos: this.hide ? this.lockerDoorPos() : player.pos, flashlightOn: this.lightShows(), crouching: player.crouching, running: step.gait === 'sprint', hidden: hiddenFrom(this.hide) }, noise: this.noise, fuses: this.progress.fuses },
       this.rng,
     );
     this.noise = null;
@@ -556,6 +572,9 @@ export class Game {
       this.audio.stinger();
     }
     if (events.includes('caught')) {
+      // Update 0.9.5 — it saw you get in: it drags you out. You're put outside the locker first so the
+      // grab and throw never start inside a prop.
+      if (this.hide) this.leaveLockerNow(true);
       // Update 0.6 — first catch: thrown, injured. Last life: the old jumpscare.
       if (this.lives > 1) this.startCaught();
       else this.startDying();
@@ -566,7 +585,8 @@ export class Game {
     this.fear += (targetFear - this.fear) * (1 - Math.exp(-dt * 3));
     // Camera + flashlight follow in real time, so the look-back swing isn't slowed by its own slow motion.
     player.injured = this.injured; // Update 0.9.1 — heavier bob and a limp
-    player.updateView(this.realDt, step.gait, status, this.t, 0);
+    // Update 0.9.5 — shut in a locker it's nearly black: only a trace of the glow around your eyes.
+    player.updateView(this.realDt, step.gait, status, this.t, 0, this.hide ? 0.1 + 0.9 * (1 - insideness(this.hide)) : 1);
     this.easeCameraBack(this.realDt);
     // Update 0.6 — injured: a grunt every 5–7 s.
     if (this.injured) {
@@ -580,6 +600,86 @@ export class Game {
     this.audio.updateEnemy(heardAt, chasing, mix);
     this.audio.tickFear(dt, this.fear, chasing);
     this.audio.tickAmbient(dt, this.camAbs());
+  }
+
+  /** Update 0.9.5 — one frame in a locker: getting in / out, peeking, the camera and the door. */
+  private stepHiding(dt: number) {
+    const h = this.hide!;
+    const l = lockerSpots(this.level)[h.locker];
+    const f = propFront(l);
+    const { input, player } = this;
+    // Getting in while it can see you gives you away.
+    const seen = h.phase === 'entering' && visibility(this.level, this.enemy, { pos: player.pos, flashlightOn: false, crouching: false }) > 0;
+    const r = stepHide(h, { dt, peekHeld: input.action('skillCheck') && input.action('forward'), seen });
+    this.hide = r.state;
+    if (r.events.includes('peekStart')) this.audio.lockerPeek(this.lockerSound());
+    if (r.events.includes('out')) {
+      this.leaveLockerNow(false);
+    } else {
+      const inside = { x: l.x - f.x * LOCKER.eyeBack, z: l.z - f.z * LOCKER.eyeBack };
+      const outside = { x: l.x + f.x * LOCKER.exitOut, z: l.z + f.z * LOCKER.exitOut };
+      const k = insideness(this.hide);
+      player.pos = { x: outside.x + (inside.x - outside.x) * k, z: outside.z + (inside.z - outside.z) * k };
+      const facing = Math.atan2(-f.x, -f.z); // looking out of the locker
+      if (this.hide.phase === 'entering') {
+        // Step in and turn round to face the door.
+        let d = facing - this.hideFromYaw;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        player.yaw = this.hideFromYaw + d * k;
+        player.pitch *= 0.9;
+      } else {
+        const c = clampLook(player.yaw, player.pitch, facing);
+        player.yaw = c.yaw;
+        player.pitch = c.pitch;
+      }
+      this.props.setLockerDoor(h.locker, doorOpen(this.hide));
+    }
+    tickStatus(this.status, 'idle', dt); // still catching your breath in there
+    return { gait: 'idle' as Gait, moved: 0, footstep: null };
+  }
+
+  /** Update 0.9.5 — step into locker i: the light goes off, the door shuts behind you. */
+  private enterLocker(i: number) {
+    const seen = visibility(this.level, this.enemy, { pos: this.player.pos, flashlightOn: this.lightShows(), crouching: this.player.crouching }) > 0;
+    this.hide = startHide(i, seen, this.status.flashlightOn);
+    this.hideFromYaw = this.player.yaw;
+    this.status.flashlightOn = false;
+    // Crouched down inside, so your head is well under the locker's roof (eases to crouch eye height).
+    this.hideWasCrouching = this.player.crouching;
+    this.player.crouching = true;
+    this.repair = cancelCheck(this.repair);
+    this.audio.lockerEnter(this.lockerSound());
+  }
+
+  /** Out of the locker, standing in front of it; `grabbed`: it pulled you out (face it, light stays off). */
+  private leaveLockerNow(grabbed: boolean) {
+    const h = this.hide;
+    if (!h) return;
+    const l = lockerSpots(this.level)[h.locker];
+    const f = propFront(l);
+    this.player.pos = { x: l.x + f.x * LOCKER.exitOut, z: l.z + f.z * LOCKER.exitOut };
+    this.props.setLockerDoor(h.locker, 0);
+    this.player.crouching = grabbed ? false : this.hideWasCrouching;
+    if (grabbed) {
+      const d = dist(this.player.pos, this.enemy.pos) || 1;
+      this.player.yaw = Math.atan2(-(this.enemy.pos.x - this.player.pos.x) / d, -(this.enemy.pos.z - this.player.pos.z) / d);
+    } else if (h.lightWas && this.status.battery > 0) {
+      this.status.flashlightOn = true;
+    }
+    this.hide = null;
+  }
+
+  /** Where it goes for you when it saw you hide: right at the locker door. */
+  private lockerDoorPos() {
+    const l = lockerSpots(this.level)[this.hide!.locker];
+    const f = propFront(l);
+    return { x: l.x + f.x * 0.55, z: l.z + f.z * 0.55 };
+  }
+
+  private lockerSound() {
+    const l = lockerSpots(this.level)[this.hide?.locker ?? 0];
+    const w = this.toWorld(l);
+    return { x: w.x, y: w.y + 1.2, z: w.z };
   }
 
   private camForward() {
@@ -643,6 +743,8 @@ export class Game {
           this.toastMsg('It needs a fuse.');
         }
       }
+    } else if (t.type === 'locker') {
+      this.enterLocker(t.index); // Update 0.9.5
     } else if (t.type === 'switch') {
       // Update 0.9.1 — throw the switch of a repaired panel. It clacks: The Patient walks over if it's near.
       const i = t.index;
@@ -915,6 +1017,7 @@ export class Game {
       battery: Math.round(s.battery),
       flashlightOn: s.flashlightOn,
       nightVision: this.rules.nightVision,
+      hiding: this.hide?.phase === 'inside',
       stamina: Math.round((s.stamina / 4.5) * 100) / 100,
       exhausted: s.exhausted,
       objective: objectiveText(this.progress),
@@ -990,7 +1093,7 @@ export class Game {
     else this.startDying();
   }
   debugState() {
-    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, level: this.levelIndex + 1, floor: this.curFloor, enemyFloor: floorAt(this.level, this.enemy.pos), rise: this.player.rise, enemy: { ...this.enemy, path: undefined }, progress: this.progress, repair: this.repair, status: this.status, pos: this.player.pos };
+    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, level: this.levelIndex + 1, floor: this.curFloor, enemyFloor: floorAt(this.level, this.enemy.pos), rise: this.player.rise, enemy: { ...this.enemy, path: undefined }, progress: this.progress, repair: this.repair, hide: this.hide, status: this.status, pos: this.player.pos };
   }
 
   /** Update 0.3 — F2: full light, no fog or screen FX, enemy marked through walls. */

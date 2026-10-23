@@ -71,5 +71,13 @@ export const LEVEL_01: LevelDef = {
     { kind: 'barrel', cell: { col: 1, row: 11 }, wall: 'west', along: 0.6 },
     // The washroom off the bottom-left corridor.
     { kind: 'toilet', cell: { col: 4, row: 13 }, wall: 'north' },
+    // Update 0.9.5 — lockers to hide in, spread round the ward (state/hiding.ts).
+    { kind: 'locker', cell: { col: 11, row: 2 }, wall: 'east' },
+    { kind: 'locker', cell: { col: 17, row: 2 }, wall: 'east' },
+    { kind: 'locker', cell: { col: 5, row: 8 }, wall: 'east' },
+    { kind: 'locker', cell: { col: 19, row: 8 }, wall: 'west' },
+    { kind: 'locker', cell: { col: 8, row: 15 }, wall: 'west' },
+    { kind: 'locker', cell: { col: 16, row: 15 }, wall: 'east' },
+    { kind: 'locker', cell: { col: 14, row: 17 }, wall: 'south' },
   ],
 };

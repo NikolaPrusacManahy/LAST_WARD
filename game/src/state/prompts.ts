@@ -3,7 +3,7 @@
 import type { Target } from '../world/interact';
 import { Progress, allPanelsOn, fusesHeld, panelsOn } from './objectives';
 
-export type PromptVerb = 'collect' | 'read' | 'interact' | 'repair' | 'fit a fuse' | 'switch on' | 'start';
+export type PromptVerb = 'collect' | 'read' | 'interact' | 'repair' | 'fit a fuse' | 'switch on' | 'start' | 'hide';
 
 export interface Prompt {
   /** What you're looking at. */
@@ -36,6 +36,7 @@ export function promptFor(t: Target | null, p: Progress, noteOpen: boolean): Pro
     if (!panel.fixed) return { title, verb: 'repair', hold: true };
     return { title, verb: null, info: 'Repaired. Throw its switch.' };
   }
+  if (t.type === 'locker') return { title: 'Locker', verb: 'hide' }; // Update 0.9.5
   if (t.type === 'switch') {
     // Update 0.9.1 — the switch is its own thing to look at and press.
     const panel = p.panels[t.index];

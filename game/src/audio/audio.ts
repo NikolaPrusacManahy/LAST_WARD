@@ -591,6 +591,14 @@ export class AudioEngine {
     if (!this.playSample('night_vision_on', { gain: NIGHT_VISION_SFX_GAIN })) this.click();
   }
 
+  /** Update 0.9.5 — getting into / out of a locker, and easing its door open to peek. */
+  lockerEnter(p: V3) {
+    if (!this.playSample('locker_enter', { at: p, ref: 2, rolloff: 1.2, gain: 0.8 })) this.panelClunk(p);
+  }
+  lockerPeek(p: V3) {
+    this.playSample('locker_peek', { at: p, ref: 2, rolloff: 1.2, gain: 0.7 });
+  }
+
   /** Update 0.9 — a fuse pushed into an electrical panel. */
   fuseInsert(p: V3) {
     if (!this.playSample('fuse_insert', { at: p, ref: 2, rolloff: 1.2, gain: 1 * PANEL_SFX_GAIN })) this.panelClunk(p);

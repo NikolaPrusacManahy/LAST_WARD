@@ -37,6 +37,8 @@ export interface HudState {
   repair: { progress: number; dead: boolean; check: { spinAtMs: number; zone: number } | null } | null;
   /** Update 0.9.3 — Easy: the light is night vision goggles (battery bar + controls card say so). */
   nightVision: boolean;
+  /** Update 0.9.5 — inside a locker: show how to peek and get out. */
+  hiding: boolean;
 }
 
 export const initialHud: HudState = {
@@ -59,6 +61,7 @@ export const initialHud: HudState = {
   controls: 0,
   objectiveDetail: '',
   nightVision: false,
+  hiding: false,
   banner: null,
   repair: null,
 };

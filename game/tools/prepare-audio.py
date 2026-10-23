@@ -53,6 +53,8 @@ PLAN = {
     'electric_panel_logic/panel_explode': ('oneshot', -10),
     'electric_panel_logic/breaker_switch': ('oneshot', -15),
     'night_vision/deploy': ('oneshot', -16),  # Update 0.9.3 — Easy: goggles on
+    'locker/enter_locker': ('oneshot', -16),  # Update 0.9.5 — getting in / out of a locker
+    'locker/peeking': ('oneshot', -20),  # Update 0.9.5 — easing the locker door open
 }
 OUT_NAMES = {
     'footSteps_player': 'step_player',
@@ -69,6 +71,8 @@ OUT_NAMES = {
     'electric_panel_logic/panel_explode': 'panel_explode',
     'electric_panel_logic/breaker_switch': 'breaker_switch',
     'night_vision/deploy': 'night_vision_on',
+    'locker/enter_locker': 'locker_enter',
+    'locker/peeking': 'locker_peek',
 }
 
 

@@ -1,6 +1,15 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.4
+## Current version: 0.9.5
+
+- **Lockers to hide in** (`state/hiding.ts`; seven in Ward 13, at least one in every quarter). Look at one and left click to step in: the door swings open, you turn round, it shuts. Inside it's nearly black: the flashlight / goggles go off (and come back on when you get out). You crouch down in there (eyes at crouch height, well under the roof), and stand back up as you were when you get out.
+  - **Peek:** hold Space and W together and the door creaks open slowly, up to 60°, then stops. Let go and it swings shut.
+  - **Get out:** left click.
+  - **Seen or not:** if The Patient could see you while you got in, it knows: it comes to the locker door and grabs you. You're put outside the locker first, then the usual catch (thrown on your first life, dead on your last). If it couldn't see you, you're invisible in there and it can't catch you, even standing right outside; peeking doesn't give you away.
+- Locker model: "Dirty Locker (256x256 Retro)" by xylvnking (CC BY 4.0). It came with the door welded to the body; `tools/prepare-locker.mjs` cuts the door off, hangs it on a hinge node (`LockerDoor`) and scales it to 2 m. Credits link is a Sketchfab search until the model page link is filled in (`state/credits.ts`).
+- Sounds from `ASSETS/audio/locker/`: getting in / out (`locker_enter`), the door creaking open to peek (`locker_peek`).
+
+## 0.9.4
 
 - **The Patient's sounds behind walls are now the right loudness** (`world/soundPath.ts`, `audio/spatial.ts` `enemyHearing`). Before, a wall only took off 45% and footsteps got a 1.5× boost back through it, so two walls away it sounded nearly as close as in the open. Now its steps and breathing take the louder of two ways to you:
   - straight through the walls: each wall keeps only 30% (about −10 dB) and turns it into a dull thud;

@@ -80,5 +80,11 @@
   ],
   "night_vision_on": [
     "night_vision_on.mp3"
+  ],
+  "locker_enter": [
+    "locker_enter.mp3"
+  ],
+  "locker_peek": [
+    "locker_peek.mp3"
   ]
 }
