@@ -58,6 +58,9 @@ section('Saves');
   const r = recordEscape(recordEscape(defaultSave(), 300), 200);
   check('best time keeps the fastest', r.bestTime === 200 && r.escapes === 2);
   check('formats time', formatTime(125.7) === '2:05');
+  check('FOV defaults to 72', defaultSave().settings.fov === 72 && hydrateSave({ settings: {} }).settings.fov === 72);
+  check('FOV clamps to 60–100', hydrateSave({ settings: { fov: 20 } }).settings.fov === 60 && hydrateSave({ settings: { fov: 140 } }).settings.fov === 100);
+  check('FOV keeps a valid value', hydrateSave({ settings: { fov: 90 } }).settings.fov === 90);
 }
 
 section('Interaction');

@@ -1,4 +1,4 @@
-import type { Settings } from '../state/settings';
+import { FOV_MAX, FOV_MIN, Settings } from '../state/settings';
 
 interface Props {
   settings: Settings;
@@ -16,6 +16,11 @@ export function SettingsPanel({ settings: s, onChange, onClose }: Props) {
           <span>Mouse sensitivity</span>
           <input type="range" min={0.2} max={3} step={0.05} value={s.sensitivity} onChange={(e) => set('sensitivity', +e.target.value)} />
           <output>{s.sensitivity.toFixed(2)}</output>
+        </label>
+        <label className="lw-set-row">
+          <span>Field of view</span>
+          <input type="range" min={FOV_MIN} max={FOV_MAX} step={1} value={s.fov} onChange={(e) => set('fov', +e.target.value)} />
+          <output>{s.fov}°</output>
         </label>
         <label className="lw-set-row">
           <span>Volume</span>

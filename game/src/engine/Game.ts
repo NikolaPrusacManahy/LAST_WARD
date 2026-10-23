@@ -11,13 +11,15 @@ import { debugLines } from '../state/debugInfo';
 import { FUSES_NEEDED, Progress, activateGenerator, createProgress, objectiveText, tryExit } from '../state/objectives';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
+import { enemyMix } from '../audio/spatial';
+import { lineOfSight } from '../world/lineOfSight';
 import { buildLevel, LevelView } from './buildLevel';
 import { createEnemyView, EnemyView } from './enemyView';
 import { loadEnemyModel } from './enemyModel';
 import { createLighting, Lighting } from './lighting';
 import { createPostFx, PostFx } from './postfx';
 import { Input } from './input';
-import { BASE_FOV, PlayerController } from './playerController';
+import { PlayerController } from './playerController';
 import { HudStore } from './hudStore';
 import { loadPlayerBody, PlayerBody } from './playerBody';
 import { createDebugView, DebugView } from './debugView';
@@ -87,7 +89,7 @@ export class Game {
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.className = 'lw-canvas';
 
-    this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 80);
+    this.camera = new THREE.PerspectiveCamera(settings.fov, 1, 0.05, 80);
     this.scene.background = new THREE.Color(0x020203);
     this.scene.fog = new THREE.FogExp2(0x020203, 0.085);
     this.ambient = new THREE.HemisphereLight(0x2a3040, 0x0a0806, 0.12);
@@ -98,6 +100,7 @@ export class Game {
     this.scene.add(this.view.root);
     this.lights = createLighting(this.view);
     this.player = new PlayerController(this.level, this.camera, this.scene);
+    this.player.baseFov = settings.fov;
     this.enemy = createEnemy(this.level);
     this.enemyView = createEnemyView();
     this.scene.add(this.enemyView.root);
@@ -153,6 +156,7 @@ export class Game {
     this.settings = s;
     this.audio.setVolume(s.volume);
     this.fx.set({ grain: s.grain ? 1 : 0 });
+    this.player.baseFov = s.fov;
   }
 
   private onLockChange = () => {
@@ -262,9 +266,11 @@ export class Game {
     this.enemyView.update(this.enemy.pos, this.enemy.dir, this.enemy.mode, moved, this.t, this.enemy.windup > 0);
     this.enemyStepAccum += moved;
     const chasing = this.enemy.mode === 'chase';
+    // Update 0.4.1 — enemy sounds get darker with distance and muffled behind walls.
+    const mix = enemyMix(dist(this.enemy.pos, player.pos), !lineOfSight(this.level, this.enemy.pos, player.pos));
     if (this.enemyStepAccum > (chasing ? 1.4 : 1.0)) {
       this.enemyStepAccum = 0;
-      this.audio.enemyStep(this.enemy3D(), chasing);
+      this.audio.enemyStep(this.enemy3D(), chasing, mix);
     }
     if (events.includes('spotted')) {
       this.audio.enemyScream(this.enemy3D());
@@ -279,7 +285,7 @@ export class Game {
     this.fear += (targetFear - this.fear) * (1 - Math.exp(-dt * 3));
     player.updateView(dt, step.gait, status, this.t, 0);
     this.audio.setListener(this.camera.position, this.camForward());
-    this.audio.updateEnemy(this.enemy3D(), chasing);
+    this.audio.updateEnemy(this.enemy3D(), chasing, mix);
     this.audio.tickFear(dt, this.fear, chasing);
     this.audio.tickAmbient(dt, this.camera.position);
   }

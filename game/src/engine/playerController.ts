@@ -7,8 +7,7 @@ import { Gait, PLAYER, PlayerStatus, chooseGait, flickerAmount, gaitNoise, gaitS
 import { Input } from './input';
 import { flashlightCookie } from './textures';
 import { BOB, BobAmp, blendAmp, bobOffset } from '../state/cameraBob';
-
-export const BASE_FOV = 72;
+import { DEFAULT_SETTINGS } from '../state/settings';
 import type { Settings } from '../state/settings';
 
 export interface StepResult {
@@ -35,6 +34,8 @@ export class PlayerController {
   private readonly tmpV = new THREE.Vector3();
   private readonly tmpAim = new THREE.Vector3();
   private bobAmp: BobAmp = { ...BOB.idle };
+  /** Update 0.4.1 — from the FOV setting. */
+  baseFov = DEFAULT_SETTINGS.fov;
   private readonly tmpM = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
 
@@ -119,7 +120,7 @@ export class PlayerController {
     const rz = -Math.sin(this.yaw);
     this.camera.position.set(this.pos.x + rx * b.side, this.eye + b.y + jy, this.pos.z + rz * b.side);
     this.camera.rotation.set(this.pitch - b.nod + jy * 0.5, this.yaw + jx, -b.roll + jx * 0.5, 'YXZ');
-    const fov = BASE_FOV + this.bobAmp.fov;
+    const fov = this.baseFov + this.bobAmp.fov;
     if (Math.abs(this.camera.fov - fov) > 0.01) {
       this.camera.fov = fov;
       this.camera.updateProjectionMatrix();

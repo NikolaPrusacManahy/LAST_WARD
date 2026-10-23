@@ -15,4 +15,4 @@ Raw sounds. `game/tools/prepare-audio.py` turns them into `game/public/audio/` (
 | `generator_start.mp3`, `generator_hum.mp3` | Generator (hum loops, 3D) |
 | `door_open.mp3`, `pickup.mp3`, `paper.mp3`, `flashlight_click.mp3` | One-shots |
 
-Optional (still synthesised): `stinger`, chase music, distant clanks. Keep licence/credit info in `CREDITS.txt` here.
+Optional (still synthesised): `ui_hover.mp3`, `ui_click.mp3` (menu sounds), `stinger`, chase music, distant clanks. Keep licence/credit info in `CREDITS.txt` here.

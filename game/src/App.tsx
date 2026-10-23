@@ -6,6 +6,7 @@ import { PauseMenu } from './screens/PauseMenu';
 import { EndScreen } from './screens/EndScreen';
 import { SettingsPanel } from './screens/SettingsPanel';
 import { Settings, loadSave, recordEscape, writeSave, SaveData } from './state/settings';
+import { useUiSounds } from './hooks/useUiSounds';
 
 type Screen = 'menu' | 'game';
 type Overlay = null | 'pause' | 'settings' | { end: 'dead' | 'escaped'; time: number };
@@ -19,6 +20,7 @@ export default function App() {
   const game = useRef<GameHandle>(null);
 
   useEffect(() => writeSave(save), [save]);
+  useUiSounds(save.settings.volume);
 
   const updateSettings = useCallback((s: Settings) => {
     setSave((d) => ({ ...d, settings: s }));

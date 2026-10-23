@@ -1,6 +1,7 @@
-// All sound is synthesised with the Web Audio API — no audio files yet.
-// Positional sounds use PannerNodes, so the enemy can be heard behind walls / behind you.
-// Real recorded audio can replace any of these later (CLAUDE.md §6).
+// Sound engine. Recorded samples from public/audio (see manifest.json) with a synthesised
+// fallback per sound. Enemy and generator sounds are 3D (PannerNode, HRTF); enemy sounds are
+// also filtered by distance and walls (audio/spatial.ts).
+import { ENEMY_STEP_GAIN, EnemyMix } from './spatial';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -12,7 +13,7 @@ export class AudioEngine {
   private noiseBuf: AudioBuffer;
   private ambience: GainNode;
   private tension: GainNode;
-  private breath: { panner: PannerNode; gain: GainNode } | null = null;
+  private breath: { panner: PannerNode; gain: GainNode; filter?: BiquadFilterNode } | null = null;
   private hum: { panner: PannerNode; gain: GainNode } | null = null;
   private heartTimer = 0;
   /** Update 0.4 — recorded sounds from public/audio (see manifest.json); synth fallback per sound. */
@@ -62,7 +63,7 @@ export class AudioEngine {
   }
 
   /** Plays a random variant of a sample. Returns false if it isn't loaded (caller falls back to synth). */
-  private playSample(name: string, o: { gain?: number; rate?: number; at?: V3; ref?: number; rolloff?: number; loop?: boolean; to?: AudioNode; when?: number } = {}): AudioBufferSourceNode | null {
+  private playSample(name: string, o: { gain?: number; rate?: number; at?: V3; ref?: number; rolloff?: number; loop?: boolean; to?: AudioNode; when?: number; cutoff?: number } = {}): AudioBufferSourceNode | null {
     const bufs = this.samples.get(name);
     if (!bufs?.length) return null;
     const src = this.ctx.createBufferSource();
@@ -76,7 +77,12 @@ export class AudioEngine {
     }
     const g = this.ctx.createGain();
     g.gain.value = o.gain ?? 1;
-    src.connect(g);
+    if (o.cutoff !== undefined) {
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = o.cutoff;
+      src.connect(lp).connect(g);
+    } else src.connect(g);
     if (o.at) g.connect(this.panner(o.at, o.ref ?? 2, o.rolloff ?? 1.3)).connect(o.to ?? this.master);
     else g.connect(o.to ?? this.master);
     src.start(o.when ?? this.now, o.loop ? src.loopStart : 0);
@@ -106,9 +112,12 @@ export class AudioEngine {
       const pn = this.panner(p, 1.5, 1.6);
       const gain = this.ctx.createGain();
       gain.gain.value = 0.6;
-      gain.connect(pn).connect(this.master);
-      this.playSample('enemy_breath', { loop: true, to: gain });
-      this.breath = { panner: pn, gain };
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 16000;
+      lp.connect(gain).connect(pn).connect(this.master);
+      this.playSample('enemy_breath', { loop: true, to: lp });
+      this.breath = { panner: pn, gain, filter: lp };
     });
   }
 
@@ -118,8 +127,10 @@ export class AudioEngine {
     if (!this.playSample('step_player', { gain, rate })) this.synthFootstep(kind);
   }
 
-  enemyStep(p: V3, heavy: boolean) {
-    if (!this.playSample('step_patient', { at: p, ref: 2.5, rolloff: 1.3, gain: heavy ? 1 : 0.7, rate: 0.9 * this.jitter(0.06) })) this.synthEnemyStep(p, heavy);
+  /** 3D footstep at its position, darker with distance and muffled behind walls. */
+  enemyStep(p: V3, heavy: boolean, mix: EnemyMix = { cutoff: 16000, gain: 1 }) {
+    const gain = (heavy ? 1 : 0.7) * ENEMY_STEP_GAIN * mix.gain;
+    if (!this.playSample('step_patient', { at: p, ref: 2.5, rolloff: 1.3, gain, cutoff: mix.cutoff, rate: 0.9 * this.jitter(0.06) })) this.synthEnemyStep(p, heavy);
   }
 
   /** Update 0.4 — its scream from where it stands (on spotting you). */
@@ -203,7 +214,11 @@ export class AudioEngine {
     pn.refDistance = ref;
     pn.rolloffFactor = rolloff;
     pn.maxDistance = 60;
-    this.place(pn, p);
+    // Update 0.4.1 — set the position immediately. Gliding there from (0,0,0) put the attack of
+    // every footstep at the map corner, which is what made them sound mono / directionless.
+    pn.positionX.value = p.x;
+    pn.positionY.value = p.y;
+    pn.positionZ.value = p.z;
     return pn;
   }
 
@@ -319,10 +334,11 @@ export class AudioEngine {
     this.breath = { panner: pn, gain };
   }
 
-  updateEnemy(p: V3, chasing: boolean) {
+  updateEnemy(p: V3, chasing: boolean, mix: EnemyMix = { cutoff: 16000, gain: 1 }) {
     if (!this.breath) return;
     this.place(this.breath.panner, p);
-    this.breath.gain.gain.setTargetAtTime(chasing ? 1.1 : 0.55, this.now, 0.3);
+    this.breath.gain.gain.setTargetAtTime((chasing ? 1.1 : 0.55) * mix.gain, this.now, 0.3);
+    this.breath.filter?.frequency.setTargetAtTime(mix.cutoff, this.now, 0.15);
   }
 
   private synthFootstep(kind: 'walk' | 'sprint' | 'crouch') {

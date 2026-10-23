@@ -36,6 +36,9 @@ PLAN = {
     'pickup': ('oneshot', -20),
     'paper': ('oneshot', -22),
     'flashlight_click': ('oneshot', -20),
+    # Optional menu sounds (synthesised in audio/uiSounds.ts when missing).
+    'ui_hover': ('oneshot', -26),
+    'ui_click': ('oneshot', -20),
 }
 OUT_NAMES = {'footSteps_player': 'step_player', 'footSteps_patient': 'step_patient'}
 

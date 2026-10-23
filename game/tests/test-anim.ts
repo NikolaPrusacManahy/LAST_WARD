@@ -24,7 +24,8 @@ check('crouching wins', choosePlayerClip('walk', true) === 'crouch' && choosePla
 check('crouch still = frozen pose', playerClipTimeScale('crouch', 0) === 0);
 check('arms hidden while running', armScaleFor('run') === 0);
 check('arms shown otherwise', armScaleFor('walk') === 1 && armScaleFor('idle') === 1 && armScaleFor('crouch') === 1);
-check('walk speed clamped', playerClipTimeScale('walk', 3.0) <= 1.7 && playerClipTimeScale('walk', 1.6) === 1);
+check('walk plays at half speed', playerClipTimeScale('walk', 1.6) === 0.5 && Math.abs(playerClipTimeScale('walk', 3.0) - 0.85) < 1e-9);
+check('run speed not halved', playerClipTimeScale('run', 3.2) === 1);
 
 section('Debug panel');
 {

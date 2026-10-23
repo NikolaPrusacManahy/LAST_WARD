@@ -18,10 +18,14 @@ export function armScaleFor(clip: PlayerClip): number {
   return clip === 'run' ? 0 : 1;
 }
 
+/** Update 0.4.1 — the walk looked rushed; it plays at half the matched speed. */
+export const WALK_ANIM_SLOWDOWN = 0.5;
+
 /** Crouching still = crouch pose frozen; otherwise match feet to ground speed (clamped). */
 export function playerClipTimeScale(clip: PlayerClip, speed: number): number {
   const ref = PLAYER_CLIP_SPEED[clip];
   if (!ref) return 1;
   if (speed < 0.2) return clip === 'crouch' ? 0 : 1;
-  return Math.min(1.7, Math.max(0.6, speed / ref));
+  const matched = Math.min(1.7, Math.max(0.6, speed / ref));
+  return clip === 'walk' ? matched * WALK_ANIM_SLOWDOWN : matched;
 }
