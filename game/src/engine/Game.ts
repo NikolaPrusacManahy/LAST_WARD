@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { LEVEL_01 } from '../world/content/level01';
 import { Level, cellCenter, dist, itemPos, parseLevel, worldToCell } from '../world/level';
 import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, teleportAway, visibility } from '../world/enemyAI';
-import { CAUGHT, LIVES, dazedBlink, injuredTint, nextGruntDelay } from '../state/caughtSequence';
+import { CAUGHT, LIVES, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
 import { CaughtScene, createCaughtScene } from './caughtScene';
 import { shuffleItems } from '../world/itemShuffle';
 import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackTimeScale, lookBackYaw, stepLookBack } from '../state/lookBack';
@@ -447,9 +447,13 @@ export class Game {
         this.audio.floorImpact();
         this.impactT = this.t;
         this.injured = true; // the red creeps in while you're still on the floor
+      } else if (cue === 'getUp') {
+        // Update 0.6.1 — the first grunt as you start getting up; then every 15–25 s.
+        this.audio.grunt();
+        this.gruntIn = nextGruntDelay(this.rng);
       } else if (cue === 'teleport') {
         // Gone before you're back on your feet.
-        teleportAway(this.level, this.enemy, scene.landing);
+        teleportAway(this.level, this.enemy, scene.endPos);
         scene.enemyMoved({ ...this.enemy.pos });
       } else if (cue === 'done') {
         this.endCaught(scene);
@@ -457,20 +461,19 @@ export class Game {
       }
     }
     this.player.updateLight(dt, this.status);
-    this.fx.set({ black: dazedBlink(scene.t) });
+    this.fx.set({ lids: eyelids(scene.t) });
     this.audio.setListener(this.camera.position, this.camForward());
     this.audio.updateEnemy(this.enemy3D(), false);
   }
 
   private endCaught(scene: CaughtScene) {
     const view = scene.lastView();
-    this.fx.set({ black: 0 });
-    this.player.pos = { ...scene.landing };
+    this.fx.set({ lids: 0 });
+    this.player.pos = { ...scene.endPos };
     this.player.yaw = scene.bodyYaw;
     this.player.pitch = 0;
     this.caught = null;
     this.injured = true;
-    this.gruntIn = 1.5; // first grunt soon after getting up
     this.camReturn = { pos: view.pos, quat: view.quat, t: 0 };
     this.noise = null;
     this.input.clear();
@@ -618,7 +621,7 @@ export class Game {
     else this.startDying();
   }
   debugState() {
-    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, phase: this.phase, enemy: { ...this.enemy, path: undefined }, progress: this.progress, status: this.status, pos: this.player.pos };
+    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, enemy: { ...this.enemy, path: undefined }, progress: this.progress, status: this.status, pos: this.player.pos };
   }
 
   /** Update 0.3 — F2: full light, no fog or screen FX, enemy marked through walls. */

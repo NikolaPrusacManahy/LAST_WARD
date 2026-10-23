@@ -93,12 +93,12 @@ export async function loadEnemyModel(url = PATIENT_URL): Promise<EnemyView> {
       play(clip, clipTimeScale(clip, speed));
       mixer.update(dt);
     },
-    pose(pos, yawNow, clip, t) {
+    pose(pos, yawNow, clip, t, timeScale = 1) {
       const dt = tick(t);
       root.position.set(pos.x, 0, pos.z);
       yaw = yawNow;
       root.rotation.y = yawNow;
-      play((actions.has(clip as EnemyClip) ? clip : 'idle') as EnemyClip, 1);
+      play((actions.has(clip as EnemyClip) ? clip : 'idle') as EnemyClip, timeScale);
       mixer.update(dt);
     },
     lunge(_k, t) {

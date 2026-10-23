@@ -1,7 +1,16 @@
-// Update 0.5.1 — boot credit screen over the main menu: full-screen tip, headphones, developer credit.
-// Holds 3 s then fades (state/creditIntro.ts); clicking anywhere cuts the fade to 0.5 s.
+// Update 0.5.1 — boot credit screen over the main menu.
+// Update 0.6.2 — two cards: the studio title (its typing GIF, plays once), then the full-screen +
+// headphones tips. Timing in state/creditIntro.ts; a click fades the current card within 0.5 s.
 import { useEffect, useRef, useState } from 'react';
-import { createCreditIntro, creditDone, creditOpacity, skipCreditIntro, stepCreditIntro } from '../state/creditIntro';
+import {
+  CREDIT_CARDS,
+  createCreditSequence,
+  creditCard,
+  creditOpacity,
+  creditSequenceDone,
+  skipCreditSequence,
+  stepCreditSequence,
+} from '../state/creditIntro';
 import { InputIcon } from './InputIcon';
 
 interface Props {
@@ -22,40 +31,65 @@ function HeadphonesIcon() {
 }
 
 export function CreditIntro({ onDone }: Props) {
-  const state = useRef(createCreditIntro());
-  const [opacity, setOpacity] = useState(1);
+  const seq = useRef(createCreditSequence());
+  const [view, setView] = useState({ card: creditCard(seq.current), opacity: 1 });
   const done = useRef(onDone);
   done.current = onDone;
+  // The studio card's clock starts when its GIF has loaded (and so starts typing), not at mount.
+  const started = useRef(false);
 
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
+    const mounted = last;
     const frame = (now: number) => {
-      // Real time, not capped per frame: the menu loading its 3D model behind this can stall frames.
-      state.current = stepCreditIntro(state.current, (now - last) / 1000);
+      if (!started.current && now - mounted > 1500) started.current = true; // never stuck if the GIF can't load
+      // Real time, but one stall (the menu loading its 3D model behind this) counts at most 0.25 s.
+      const dt = started.current ? Math.min(0.25, Math.max(0, (now - last) / 1000)) : 0;
+      seq.current = stepCreditSequence(seq.current, dt);
       last = now;
-      setOpacity(creditOpacity(state.current));
-      if (creditDone(state.current)) done.current();
-      else raf = requestAnimationFrame(frame);
+      if (creditSequenceDone(seq.current)) {
+        done.current();
+        return;
+      }
+      setView({ card: creditCard(seq.current), opacity: creditOpacity(seq.current.intro) });
+      raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // Black stays solid between cards; only the last card fades the whole screen into the menu.
+  const lastCard = view.card === CREDIT_CARDS[CREDIT_CARDS.length - 1].id;
   return (
-    <div className="lw-credit" style={{ opacity }} onPointerDown={() => (state.current = skipCreditIntro(state.current))}>
-      <div className="lw-credit-tips">
-        <p className="lw-credit-tip">
-          <InputIcon code="F11" />
-          <span>Play in full screen for a better experience</span>
-        </p>
-        <p className="lw-credit-tip">
-          <HeadphonesIcon />
-          <span>Headphones recommended</span>
-        </p>
-      </div>
-      <p className="lw-credit-by">Developed by</p>
-      <p className="lw-credit-studio">NIKO GAME COLLECTION</p>
+    <div
+      className="lw-credit"
+      style={{ opacity: lastCard ? view.opacity : 1 }}
+      onPointerDown={() => (seq.current = skipCreditSequence(seq.current))}
+    >
+      {view.card === 'studio' && (
+        <img
+          className="lw-credit-studio-gif"
+          src="/ui/studio.gif"
+          alt="Developed by NIKO GAME COLLECTION"
+          draggable={false}
+          onLoad={() => (started.current = true)}
+          onError={() => (started.current = true)}
+          style={{ opacity: view.opacity }}
+        />
+      )}
+      {view.card === 'tips' && (
+        <div className="lw-credit-tips">
+          <p className="lw-credit-tip">
+            <InputIcon code="F11" />
+            <span>Play in full screen for a better experience</span>
+          </p>
+          <p className="lw-credit-tip">
+            <HeadphonesIcon />
+            <span>Headphones recommended</span>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

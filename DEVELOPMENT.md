@@ -58,7 +58,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/caughtScene.ts` | Films the caught sequence: camera in its hands, then your body's eyes (`PlayerBody.cinematic` / `eyes`) | no |
 | `state/lookBack.ts` | Look back on the run: 180° camera swing, slow-mo burst + cooldown, body hide (0.5.4) | yes |
 | `world/itemShuffle.ts` | Shuffles fuses / batteries / notes across the item cabinets each run (0.5.4) | yes |
-| `state/creditIntro.ts` + `screens/CreditIntro.tsx` | Boot credit screen: 3 s hold, 1 s fade, click → 0.5 s fade (real time, not frame-capped) | yes / no |
+| `state/creditIntro.ts` + `screens/CreditIntro.tsx` | Boot credit cards: studio GIF (3.2 s + 0.8 s fade), then the tips (3 s + 1 s fade); click → 0.5 s fade of the current card | yes / no |
 | `screens/InputIcon.tsx`, `ControlsCard.tsx`, `KeyBindings.tsx` | Icon (or text key cap), the 10 s controls box, the rebind list in Settings | no |
 | `engine/hudStore.ts` | External store between the engine and React | no |
 | `state/menuScare.ts` | Main-menu loop: lit (stare) → stutter out → dark (gone) → face strobe → dark (gone) → stutter in; pose swaps only in the dark | yes |

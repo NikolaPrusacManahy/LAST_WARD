@@ -13,15 +13,18 @@ export const CAUGHT = {
   launchAfterThrow: 1.5,
   /** Floor impact 2.5 s after the throw starts → 1.0 s in the air. */
   impactAfterThrow: 2.5,
-  /** It vanishes this long after you hit the floor (camera still tumbling, red flash). */
-  teleportAfterImpact: 0.4,
-  /** Lying there, then the get-up clip. */
-  lie: 1.0,
+  /** Update 0.6.1 — it vanishes while your eyes are shut (you black out against the wall). */
+  teleportAfterImpact: 1.5,
+  /** Lying there: eyelids close over 1.2 s, stay shut, then the get-up clip opens them. */
+  lie: 2.0,
   /** Get-up clip until standing (the clip itself runs on to 7.6 s standing still). */
   getUp: 5.0,
   /** Camera eases from your body's eyes back to normal first person. */
   cameraReturn: 0.45,
 };
+
+/** Update 0.6.1 — its throw clip plays 1.5× slower so the throwing motion carries on while you fly. */
+export const ENEMY_THROW_SPEED = 1 / 1.5;
 
 /** Clip times in the player's `thrown` clip: the flip starts at 2.4 s and lands at 3.4 s. */
 export const THROWN_CLIP = { flipStart: 2.4, land: 3.4 };
@@ -76,22 +79,32 @@ export function thrownClipTime(t: number): number {
   return THROWN_CLIP.flipStart + (t - caughtTimes.launchAt) * ((THROWN_CLIP.land - THROWN_CLIP.flipStart) / (caughtTimes.impactAt - caughtTimes.launchAt));
 }
 
+/** Update 0.6.1 — blacking out against the wall: how long the lids take to close / to open again. */
+export const EYELIDS = { close: 1.2, open: 0.9 };
+
 /**
- * Dazed blink around the switch from lying on your back (thrown clip) to face down (get-up clip):
- * blending those two poses dragged the head through the floor, so the eyes close, the pose cuts,
- * the eyes open. 0 = open, 1 = shut.
+ * Update 0.6.1 — eyelids (0 = open, 1 = shut). After the wall they drift shut, fluttering like you're
+ * fighting it; they stay shut while it vanishes and while your pose switches from on-your-back to
+ * face-down (a blend of those sank the head into the floor); the get-up opens them, heavy at first.
  */
-export function dazedBlink(t: number): number {
-  const d = t - caughtTimes.getUpAt;
-  if (d < -0.2 || d > 0.45) return 0;
-  if (d < 0) return (d + 0.2) / 0.2;
-  if (d < 0.1) return 1;
-  return 1 - (d - 0.1) / 0.35;
+export function eyelids(t: number): number {
+  const d = t - caughtTimes.impactAt;
+  const sinceUp = t - caughtTimes.getUpAt;
+  if (d < 0) return 0;
+  if (sinceUp < 0) {
+    const k = Math.min(1, d / EYELIDS.close);
+    const flutter = 0.3 * Math.sin(k * Math.PI * 3) * (1 - k); // half-close, drag open, give in
+    return Math.max(0, Math.min(1, k * k * (3 - 2 * k) + flutter));
+  }
+  const k = Math.min(1, sinceUp / EYELIDS.open);
+  if (k >= 1) return 0;
+  const bump = 0.22 * Math.sin(k * Math.PI * 2) * (1 - k); // first crack of light, droop, then open
+  return Math.max(0, Math.min(1, 1 - k * k * (3 - 2 * k) + bump));
 }
 
-/** Injured: a grunt every 5–7 s. */
+/** Injured: a grunt every 15–25 s (Update 0.6.1, was 5–7), plus one as you start getting up. */
 export function nextGruntDelay(rng: Rng): number {
-  return 5 + rng() * 2;
+  return 15 + rng() * 10;
 }
 
 /** Red at the screen edges: a steady tint when injured, a hard flash on impact. */

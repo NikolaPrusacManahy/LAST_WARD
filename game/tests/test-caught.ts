@@ -36,33 +36,41 @@ section('Injured (0.6)');
 {
   const r = createRng(3);
   const delays = Array.from({ length: 200 }, () => nextGruntDelay(r));
-  check('grunts every 5–7 s', Math.min(...delays) >= 5 && Math.max(...delays) <= 7);
+  check('grunts every 15–25 s', Math.min(...delays) >= 15 && Math.max(...delays) <= 25 && Math.max(...delays) - Math.min(...delays) > 8);
   check('red tint while injured, a hard red flash on impact', injuredTint(true, 99) > 0.3 && injuredTint(false, 0) === 1 && injuredTint(false, 99) === 0);
 }
 
-section('Throw landing (0.6)');
+section('Thrown until a wall (0.6.1)');
 {
   const cells = floorCells(level);
   const rng = createRng(6);
   let bad = 0;
-  let behind = 0;
+  let notBehind = 0;
+  let notStopped = 0;
   let n = 0;
   for (let i = 0; i < 300; i++) {
     const c = cellCenter(cells[Math.floor(rng() * cells.length)]);
     const from = { x: c.x + (rng() - 0.5) * TILE * 0.7, z: c.z + (rng() - 0.5) * TILE * 0.7 };
-    if (overlapsWall(level, from, 0.4)) continue;
+    if (overlapsWall(level, from, THROW.bodyRadius)) continue;
     const a = rng() * Math.PI * 2;
     const facing = { x: Math.sin(a), z: Math.cos(a) };
-    const { at, dir } = throwLanding(level, from, facing);
+    const r = throwLanding(level, from, facing);
     n++;
-    if (overlapsWall(level, at, 0.4) || !clearLine(level, from, at, 0.3)) bad++;
-    if (dir.x * -facing.x + dir.z * -facing.z > 0.7) behind++; // within ~45° of straight back
+    if (overlapsWall(level, r.at, THROW.bodyRadius) || !clearLine(level, from, r.at, THROW.bodyRadius - 0.01)) bad++;
+    if (Math.abs(r.dir.x + facing.x) > 1e-9 || Math.abs(r.dir.z + facing.z) > 1e-9) notBehind++;
+    // Stopped by a wall: one more step would touch it (unless the 10 m cap stopped it).
+    const next = { x: r.at.x + r.dir.x * 0.1, z: r.at.z + r.dir.z * 0.1 };
+    if (r.distance < THROW.maxDistance - 0.06 && !overlapsWall(level, next, THROW.bodyRadius)) notStopped++;
   }
-  check('never lands in a wall or through one (300 random throws)', bad === 0, `${bad}/${n}`);
-  check('mostly behind it (within 45° of 180° from where it faces)', behind / n > 0.75, `${behind}/${n}`);
-  const open = cellCenter({ col: 12, row: 11 }); // middle of the long corridor
-  const r1 = throwLanding(level, open, { x: 1, z: 0 });
-  check('in the open: thrown the full 3 m straight back', Math.abs(dist(open, r1.at) - THROW.distance) < 1e-6 && r1.dir.x < -0.99);
+  check('always straight out behind it (exactly 180° from where it looks)', notBehind === 0, `${notBehind}/${n}`);
+  check('flies until a wall stops it (300 random throws)', notStopped === 0, `${notStopped}/${n}`);
+  check('never ends inside a wall or passes through one', bad === 0, `${bad}/${n}`);
+  // Long corridor (row 11) facing along it: capped at 10 m.
+  const open = cellCenter({ col: 4, row: 11 });
+  const far = throwLanding(level, open, { x: -1, z: 0 });
+  check('a long empty corridor is capped at 10 m', Math.abs(far.distance - THROW.maxDistance) < 0.06, `${far.distance.toFixed(2)} m`);
+  const short = throwLanding(level, cellCenter({ col: 1, row: 11 }), { x: 1, z: 0 }); // wall right behind it
+  check('a wall right there stops you short', short.distance < 1.2, `${short.distance.toFixed(2)} m`);
 }
 
 section('Vanishes after the throw (0.6)');
@@ -88,10 +96,23 @@ section('Vanishes after the throw (0.6)');
   check('…the farthest hidden one from where you landed', dist(e.pos, cellCenter(corners[0])) > 20);
 }
 
-section('Dazed blink (0.6)');
+section('Blacking out (0.6.1)');
 {
-  const { dazedBlink } = await import('../src/state/caughtSequence');
-  check('eyes shut exactly when the pose switches to the get-up', dazedBlink(caughtTimes.getUpAt) === 1);
-  check('open before and after', dazedBlink(caughtTimes.getUpAt - 0.5) === 0 && dazedBlink(caughtTimes.getUpAt + 0.6) === 0);
-  check('opens gradually (dazed)', dazedBlink(caughtTimes.getUpAt + 0.3) > 0 && dazedBlink(caughtTimes.getUpAt + 0.3) < 1);
+  const { eyelids, EYELIDS, ENEMY_THROW_SPEED } = await import('../src/state/caughtSequence');
+  check('eyes open until you hit the wall', eyelids(caughtTimes.impactAt - 0.01) === 0 && eyelids(caughtTimes.launchAt + 0.5) === 0);
+  check('lids drift shut after the wall (not a snap)', eyelids(caughtTimes.impactAt + 0.3) > 0 && eyelids(caughtTimes.impactAt + 0.3) < 1 && eyelids(caughtTimes.impactAt + EYELIDS.close) === 1);
+  let monotonic = true;
+  let prev = 0;
+  let dips = 0;
+  for (let t = caughtTimes.impactAt; t <= caughtTimes.impactAt + EYELIDS.close; t += 0.02) {
+    const v = eyelids(t);
+    if (v < prev - 1e-9) dips++;
+    if (v < 0 || v > 1) monotonic = false;
+    prev = v;
+  }
+  check('they flutter (fighting to stay awake) but stay in range', dips > 0 && monotonic);
+  check('it vanishes while your eyes are shut', eyelids(caughtTimes.teleportAt) === 1);
+  check('the pose switch to the get-up happens with eyes shut', eyelids(caughtTimes.getUpAt - 0.01) === 1 && eyelids(caughtTimes.getUpAt) === 1);
+  check('the get-up opens them again', eyelids(caughtTimes.getUpAt + EYELIDS.open + 0.01) === 0 && eyelids(caughtTimes.getUpAt + 0.4) < 1);
+  check('its throw clip plays 1.5x slower', Math.abs(ENEMY_THROW_SPEED - 1 / 1.5) < 1e-12);
 }

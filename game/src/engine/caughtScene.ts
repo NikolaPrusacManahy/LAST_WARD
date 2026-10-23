@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import type { Level, Vec2 } from '../world/level';
 import { throwLanding } from '../world/throwLanding';
-import { caughtTimes, cuesBetween, flightProgress, THROWN_CLIP, CaughtCue } from '../state/caughtSequence';
+import { ENEMY_THROW_SPEED, caughtTimes, cuesBetween, flightProgress, THROWN_CLIP, CaughtCue } from '../state/caughtSequence';
+import { overlapsWall } from '../world/collision';
 import type { EnemyView } from './enemyView';
 import type { PlayerBody } from './playerBody';
 
@@ -58,10 +59,16 @@ export function createCaughtScene(i: CaughtSceneInput) {
   const eyePos = new THREE.Vector3();
   const eyeQ = new THREE.Quaternion();
   let enemyGone = false;
+  let wallPush = 0;
+  let endAt: Vec2 = { ...landing.at };
   let enemyAt: Vec2 = { ...i.enemyPos };
 
   return {
     landing: landing.at,
+    /** Where your body actually ended (landing, slid off the wall if needed). */
+    get endPos() {
+      return endAt;
+    },
     bodyYaw,
     get t() {
       return t;
@@ -80,7 +87,8 @@ export function createCaughtScene(i: CaughtSceneInput) {
       const body = i.body();
 
       // The Patient: grab → throw in place, facing you; after vanishing, idling at its corner.
-      if (!enemyGone) i.enemyView.pose(i.enemyPos, enemyYaw, t < caughtTimes.throwAt ? 'grab' : 'throw', clock);
+      // Update 0.6.1 — the throw clip plays 1.5× slower so it is still throwing while you fly.
+      if (!enemyGone) i.enemyView.pose(i.enemyPos, enemyYaw, t < caughtTimes.throwAt ? 'grab' : 'throw', clock, t < caughtTimes.throwAt ? 1 : ENEMY_THROW_SPEED);
       else i.enemyView.pose(enemyAt, enemyYaw, 'idle', clock);
 
       if (t < caughtTimes.launchAt || !body) {
@@ -111,15 +119,18 @@ export function createCaughtScene(i: CaughtSceneInput) {
       } else {
         // Thrown: your body flies and flips; the camera is its eyes.
         body.setVisible(true);
-        if (t < caughtTimes.getUpAt) {
-          const f = flightProgress(t);
-          const at = { x: i.playerPos.x + (landing.at.x - i.playerPos.x) * f, z: i.playerPos.z + (landing.at.z - i.playerPos.z) * f };
-          body.cinematic({ clip: 'thrown', startAt: THROWN_CLIP.flipStart, fade: 0.05, pos: at, yaw: bodyYaw, dt });
-        } else {
-          // Hard cut (hidden by the dazed blink): a blend from on-your-back to face-down sank the head into the floor.
-          body.cinematic({ clip: 'getUp', startAt: 0, fade: 0, pos: landing.at, yaw: bodyYaw, dt });
-        }
+        const f = t < caughtTimes.getUpAt ? flightProgress(t) : 1;
+        // Update 0.6.1 — the wall stops you; if your head would end up in it, the body slides back off it.
+        const at = {
+          x: i.playerPos.x + (landing.at.x - i.playerPos.x) * f - landing.dir.x * wallPush,
+          z: i.playerPos.z + (landing.at.z - i.playerPos.z) * f - landing.dir.z * wallPush,
+        };
+        if (t < caughtTimes.getUpAt) body.cinematic({ clip: 'thrown', startAt: THROWN_CLIP.flipStart, fade: 0.05, pos: at, yaw: bodyYaw, dt });
+        // Hard cut while your eyes are shut: a blend from on-your-back to face-down sank the head into the floor.
+        else body.cinematic({ clip: 'getUp', startAt: 0, fade: 0, pos: at, yaw: bodyYaw, dt });
         body.eyes(eyePos, eyeQ);
+        if (wallPush < 1.2 && overlapsWall(i.level, { x: eyePos.x, z: eyePos.z }, 0.15)) wallPush += 0.04;
+        endAt = at;
         cam.position.copy(eyePos);
         cam.position.y = Math.max(0.1, cam.position.y); // never below the floor
         cam.quaternion.copy(eyeQ);

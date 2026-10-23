@@ -12,7 +12,7 @@ export interface EnemyView {
   /** Jumpscare: the neck stretches and the face lunges at the camera. k: 0 → 1. */
   lunge(k: number, t: number): void;
   /** Update 0.4.3b — menu: place it exactly (no turning lerp) and loop a named clip, e.g. 'stare'. */
-  pose(pos: { x: number; z: number }, yaw: number, clip: string, t: number): void;
+  pose(pos: { x: number; z: number }, yaw: number, clip: string, t: number, timeScale?: number): void;
   dispose(): void;
 }
 

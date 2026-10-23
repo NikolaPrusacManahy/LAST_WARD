@@ -1,6 +1,19 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.6
+## Current version: 0.6.2
+
+- **Studio intro:** the credit screen is now two cards. First your studio GIF (`studio_gif.gif` at the project root → `public/ui/studio.gif`): "DEVELOPED BY / NIKO GAME COLLECTION" types itself out (done at 1.6 s), holds, and fades (4.0 s in all). Then the full-screen [F11] and headphones tips fade in, hold 3 s and fade into the main menu. Black stays solid between the cards. A click fades whichever card is up within 0.5 s.
+- The GIF was cropped to the text (420×64, shown at up to 720 px wide), set to **play once** (the original loops forever and would restart before the fade), 61 KB. Its background is exactly the game's black, so it sits seamlessly. The studio card's clock starts when the GIF has loaded (fallback 1.5 s); one stalled frame counts at most 0.25 s.
+- `logo.png` (a still version of the same title) is not used yet.
+
+## 0.6.1
+
+- **Really thrown:** you fly straight out behind The Patient (180° from where it looks) until your body hits a wall, which stops you (capped at 10 m down a long corridor). Same 1.0 s flight, so longer throws are faster. If your head would end up in the wall, the body slides back off it. `world/throwLanding.ts`.
+- **Blacking out:** after the wall your eyelids drift shut over ~1.2 s, fluttering like you're fighting it (top and bottom lids in a curve, centre closes last, warm-dark edge). Shut for ~0.8 s, while it vanishes (now 1.5 s after the impact) and while your pose switches to face-down. The get-up opens them, heavy at first. Lying time is now 2.0 s (was 1.0), so control returns at 11.5 s. `eyelids()` in `state/caughtSequence.ts`, lids drawn in `engine/postfx.ts`. Replaces the 0.6 dazed blink.
+- **Grunts:** one as the get-up starts, then every 15–25 s (was 5–7).
+- **Its throw clip plays 1.5× slower**, so it's still throwing while you fly; the slam at the end of the clip is never reached before it vanishes. You still leave its hands 1.5 s into the throw.
+
+## 0.6
 
 - **Two lives.** The first time The Patient catches you, you survive injured; the second time it's the old jumpscare and death. F2 shows `lives`.
 - **Caught sequence** (`state/caughtSequence.ts` timeline, `engine/caughtScene.ts` camera, `world/throwLanding.ts`), seconds after the catch:
