@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { Gait } from '../state/playerRules';
-import { PlayerClip, armScaleFor, bodyBackOffset, bodyRootFor, choosePlayerClip, limitBodyBack, playerClipTimeScale } from './playerAnim';
+import { PlayerClip, armScaleFor, bodyBackOffset, bodyRootFor, bodyTurnFor, choosePlayerClip, limitBodyBack, localVelocity, playerClipTimeScale, strafeSide } from './playerAnim';
 
 export const PLAYER_URL = '/models/player.glb';
 const FADE = 0.2;
@@ -19,6 +19,8 @@ export interface BodyInput {
   gait: Gait;
   crouching: boolean;
   speed: number;
+  /** Update 0.5.3 — world velocity (m/s), for strafe left / right. */
+  velocity?: { x: number; z: number };
   camera: THREE.Camera;
   dt: number;
   flashlightOn: boolean;
@@ -92,11 +94,17 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
 
   const headPos = new THREE.Vector3();
   const headDelta = { x: 0, z: 0 };
+  let turn = 0;
 
   return {
     root,
     update(i) {
-      const clip = choosePlayerClip(i.gait, i.crouching);
+      const local = i.velocity ? localVelocity(i.velocity, i.yaw) : { side: 0, ahead: 0 };
+      const strafe = strafeSide(local.side, local.ahead);
+      const clip = choosePlayerClip(i.gait, i.crouching, strafe);
+      // Update 0.5.3 — diagonal moves turn the body up to 45° toward the move (eased).
+      const turnTo = clip === 'idle' ? 0 : bodyTurnFor(local.side, local.ahead, strafe !== null);
+      turn += (turnTo - turn) * Math.min(1, i.dt * 10);
       play(clip, playerClipTimeScale(clip, i.speed));
       mixer.update(i.dt);
 
@@ -104,7 +112,7 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
       // just behind the camera (crouch/run lean forward; a fixed offset put the camera in the collar).
       const fwd = { x: -Math.sin(i.yaw), z: -Math.cos(i.yaw) };
       root.position.set(i.pos.x, 0, i.pos.z);
-      root.rotation.y = i.yaw + Math.PI; // Mixamo faces +Z
+      root.rotation.y = i.yaw + turn + Math.PI; // Mixamo faces +Z
       root.updateWorldMatrix(true, true);
       head.getWorldPosition(headPos);
       const k = Math.min(1, i.dt * 12);

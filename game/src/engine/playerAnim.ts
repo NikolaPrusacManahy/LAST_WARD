@@ -1,16 +1,48 @@
 // Update 0.3 — which clip the first-person body plays for a gait. Pure (tested).
 import type { Gait } from '../state/playerRules';
 
-export type PlayerClip = 'idle' | 'walk' | 'run' | 'crouch';
+/** Update 0.5.3 — strafeLeft / strafeRight for sideways walking. */
+export type PlayerClip = 'idle' | 'walk' | 'run' | 'crouch' | 'strafeLeft' | 'strafeRight';
 
 /** Ground speed each clip was authored at (stance foot), m/s. */
-export const PLAYER_CLIP_SPEED: Record<PlayerClip, number> = { idle: 0, walk: 1.6, run: 3.2, crouch: 1.25 };
+export const PLAYER_CLIP_SPEED: Record<PlayerClip, number> = { idle: 0, walk: 1.6, run: 3.2, crouch: 1.25, strafeLeft: 1.6, strafeRight: 1.6 };
 
-export function choosePlayerClip(gait: Gait, crouching: boolean): PlayerClip {
+/**
+ * Update 0.5.3 — which way you're stepping, from your velocity in your own frame (+side = right).
+ * Strafe only when moving more sideways than forward/back; diagonals keep the walk.
+ */
+export function strafeSide(side: number, ahead: number): 'left' | 'right' | null {
+  if (Math.abs(side) < 0.2 || Math.abs(side) <= Math.abs(ahead)) return null;
+  return side > 0 ? 'right' : 'left';
+}
+
+export function choosePlayerClip(gait: Gait, crouching: boolean, strafe: 'left' | 'right' | null = null): PlayerClip {
   if (crouching) return 'crouch';
   if (gait === 'sprint') return 'run';
-  if (gait === 'walk') return 'walk';
+  if (gait === 'walk') return strafe === 'left' ? 'strafeLeft' : strafe === 'right' ? 'strafeRight' : 'walk';
   return 'idle';
+}
+
+/** Update 0.5.3 — most the body turns toward a diagonal move (W+A etc.). */
+export const MAX_BODY_TURN = Math.PI / 4;
+
+/**
+ * Update 0.5.3 — W+A / W+D: turn the body (not the camera) up to 45° so the legs walk along the
+ * move instead of straight ahead. + = turn left. Only forward diagonals (designer's call); 0 when
+ * moving back, strafing (the strafe clips already step sideways) or barely moving.
+ */
+export function bodyTurnFor(side: number, ahead: number, strafing: boolean): number {
+  if (strafing || ahead <= 0 || Math.hypot(side, ahead) < 0.2) return 0;
+  const t = Math.atan(-side / ahead);
+  return Math.max(-MAX_BODY_TURN, Math.min(MAX_BODY_TURN, t));
+}
+
+/** Your velocity in your own frame: +side = right, +ahead = where you're looking. */
+export function localVelocity(vel: { x: number; z: number }, yaw: number): { side: number; ahead: number } {
+  return {
+    side: vel.x * Math.cos(yaw) - vel.z * Math.sin(yaw),
+    ahead: -vel.x * Math.sin(yaw) - vel.z * Math.cos(yaw),
+  };
 }
 
 /** Update 0.3.1 — arms shrink away while running so the pumping hands stay out of view. */
@@ -66,7 +98,7 @@ export function playerClipTimeScale(clip: PlayerClip, speed: number): number {
   if (!ref) return 1;
   if (speed < 0.2) return clip === 'crouch' ? 0 : 1;
   const matched = Math.min(1.7, Math.max(0.6, speed / ref));
-  if (clip === 'walk') return matched * WALK_ANIM_SLOWDOWN;
+  if (clip === 'walk' || clip === 'strafeLeft' || clip === 'strafeRight') return matched * WALK_ANIM_SLOWDOWN;
   if (clip === 'run') return matched * RUN_ANIM_SLOWDOWN;
   return matched;
 }

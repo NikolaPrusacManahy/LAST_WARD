@@ -23,6 +23,10 @@ export class PlayerController {
   yaw = Math.PI; // facing +z (down the map)
   pitch = 0;
   private vel = { x: 0, z: 0 };
+  /** Update 0.5.3 — for the body's strafe clips. */
+  get velocity(): Vec2 {
+    return this.vel;
+  }
   private eye = PLAYER.eyeHeight;
   private bobPhase = 0;
   private stepAccum = 0;

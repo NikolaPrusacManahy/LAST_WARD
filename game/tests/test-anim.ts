@@ -59,3 +59,32 @@ section('Camera bob');
   const half = blendAmp(BOB.walk, BOB.sprint, 0.5);
   check('gait change blends smoothly', half.y > BOB.walk.y && half.y < BOB.sprint.y);
 }
+
+section('Strafe (0.5.3)');
+{
+  const { strafeSide, localVelocity, choosePlayerClip: pick, playerClipTimeScale: ts } = await import('../src/engine/playerAnim');
+  check('A alone → strafe left, D alone → strafe right', strafeSide(-3, 0) === 'left' && strafeSide(3, 0) === 'right');
+  check('forward / back / diagonal → normal walk', strafeSide(0, 3) === null && strafeSide(0, -3) === null && strafeSide(2, 2) === null);
+  check('standing still is not a strafe', strafeSide(0.1, 0) === null);
+  check('walking sideways picks the strafe clips', pick('walk', false, 'left') === 'strafeLeft' && pick('walk', false, 'right') === 'strafeRight');
+  check('running and crouching keep their own clips', pick('sprint', false, 'left') === 'run' && pick('walk', true, 'right') === 'crouch');
+  // Facing -Z (yaw 0): right is +X. Facing +X (yaw -π/2): right is +Z.
+  const a = localVelocity({ x: 3, z: 0 }, 0);
+  const b = localVelocity({ x: 0, z: 3 }, -Math.PI / 2);
+  const c = localVelocity({ x: 0, z: -3 }, 0);
+  check('local velocity: moving to your right is +side', Math.abs(a.side - 3) < 1e-9 && Math.abs(b.side - 3) < 1e-9);
+  check('local velocity: moving where you look is +ahead', Math.abs(c.ahead - 3) < 1e-9 && Math.abs(c.side) < 1e-9);
+  check('strafe plays at the walk pace (half speed)', ts('strafeLeft', 1.6) === 0.5 && ts('strafeRight', 1.6) === 0.5);
+}
+
+section('Diagonal body turn (0.5.3)');
+{
+  const { bodyTurnFor, MAX_BODY_TURN } = await import('../src/engine/playerAnim');
+  const deg = (r: number) => Math.round((r * 180) / Math.PI);
+  check('W+A turns the body 45° left', deg(bodyTurnFor(-2, 2, false)) === 45);
+  check('W+D turns the body 45° right', deg(bodyTurnFor(2, 2, false)) === -45);
+  check('S+A / S+D: no turn (forward diagonals only)', bodyTurnFor(-2, -2, false) === 0 && bodyTurnFor(2, -2, false) === 0);
+  check('straight forward / back: no turn', bodyTurnFor(0, 3, false) === 0 && bodyTurnFor(0, -3, false) === 0);
+  check('never more than 45°', Math.abs(bodyTurnFor(-3, 0.5, false)) <= MAX_BODY_TURN + 1e-9 && MAX_BODY_TURN === Math.PI / 4);
+  check('strafing / standing: no turn', bodyTurnFor(-3, 0, true) === 0 && bodyTurnFor(0.05, 0.05, false) === 0);
+}

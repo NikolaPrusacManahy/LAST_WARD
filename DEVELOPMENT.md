@@ -40,7 +40,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/enemyModel.ts` | Rigged Patient (`public/models/patient.glb`): GLTFLoader + AnimationMixer, crossfades, jumpscare attack clip | no |
 | `engine/playerBody.ts` | First-person body (`public/models/player.glb`): placed behind the camera, head hidden, arms shrink away while sprinting | no |
 | `state/cameraBob.ts` | `BOB` amplitudes per gait (dip, sway, roll, nod, FOV) + `bobOffset` | yes |
-| `engine/playerAnim.ts` | Player clip per gait + playback speed | yes |
+| `engine/playerAnim.ts` | Player clip per gait (+ strafe left / right from local velocity, 0.5.3) + playback speed, body placement | yes |
 | `engine/debugView.ts` | F2 view: sun/sky lights, enemy marker through walls, path line | no |
 | `state/debugInfo.ts` | F2 panel text | yes |
 | `engine/enemyAnim.ts` | Which clip to play for an AI mode/speed, and playback speed so feet match the ground | yes |

@@ -1,6 +1,12 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.5.2
+## Current version: 0.5.3
+
+- **Strafe animations:** walking sideways (A or D on its own) plays your new `player_strafe_left` / `player_strafe_right` clips; forward, back and diagonals keep the walk. Running and crouching keep their own clips. Strafe plays at the same half pace as the walk. Chosen from your velocity in your own frame (`strafeSide`, `localVelocity` in `engine/playerAnim.ts`, tested). `player.glb` reconverted with clips `idle walk run crouch strafeLeft strafeRight` (3.0 MB). Checked from the clip data that strafeLeft steps to the character's left and strafeRight to its right.
+- **W+A / W+D:** the body (not the camera) turns up to 45° toward the move, eased, so the legs walk along the diagonal instead of straight ahead (`bodyTurnFor`). Forward diagonals only; S+A / S+D, strafing and standing don't turn it.
+- Not used yet: `player_getting_thrown.fbx` is in `ASSETS/models/player` (no request for it).
+
+## 0.5.2
 
 - **Fix: The Patient got stuck on doorway corners mid-chase.** It charged straight at you whenever it could *see* you, but sight is a thin line and its body is wide, so past a corner it wedged and stopped. Now it only charges straight when its whole body fits along the line (`clearLine` in `world/collision.ts`); otherwise it takes the grid path. A test runs 150 random chases; all reach you.
 - **Fix: The Patient's shoulders went into walls.** Its collision size is now 0.55 m (`ENEMY.bodyRadius`, was 0.35), and anywhere it walks to (a noise you made against a wall, say) is pulled in until its body fits. Two minutes of simulated hunting with you hugging walls: never inside a wall.

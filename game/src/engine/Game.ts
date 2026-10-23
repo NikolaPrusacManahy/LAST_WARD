@@ -234,6 +234,7 @@ export class Game {
       gait: this.gait,
       crouching: this.player.crouching,
       speed: this.speed,
+      velocity: this.phase === 'playing' ? this.player.velocity : undefined,
       camera: this.camera,
       dt: this.phase === 'paused' ? 0 : dt,
       flashlightOn: this.status.flashlightOn,
