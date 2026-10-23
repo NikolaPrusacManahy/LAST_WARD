@@ -1,11 +1,23 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.3 "Hands"
+## Current version: 0.4 "Real Sound"
 
-- **First-person body:** the Mixamo player model (sweater + jeans) stands just behind the camera with its head hidden. Its right arm holds a torch toward where you look; the beam now starts at the torch. Look down to see your legs. Idle, walk, run and crouch-walk play by gait, with speed matched to movement.
+- Your recorded sounds replace the synth versions: player and Patient footsteps (cut into 6 single-step variants each, random pick + slight pitch change per step), Patient breathing loop (3D), its scream (3D, when it spots you, and in your face on the jumpscare), heartbeat (one beat played at fear-driven speed), hospital ambience loop, generator start + hum loop (3D), door, pickup, paper and flashlight click.
+- Still synthesised: the chase tension strings, the stinger, distant clanks, the "denied" buzz and a grit layer under the jumpscare scream.
+- Any missing sound file falls back to its synth version automatically.
+- `game/tools/prepare-audio.py` rebuilds `public/audio/` from `ASSETS/audio/` (slicing, loop crossfades, loudness matching, mono for 3D sounds). 3.2 MB total.
+
+## 0.3.1 "Hands" (fixes)
+
+- Torch model removed. The light comes from just beside the camera again, as you asked.
+- The arms shrink away while sprinting, so the pumping hands never swing into view; they come back when you slow down.
+- **Camera bob** (`state/cameraBob.ts`): a gentle dip and sway when walking. Sprinting is heavy, Outlast-style: a hard dip on every footstep, side-to-side sway, roll and a nod, plus about 7° wider FOV. Idle has slight breathing. Changes between gaits blend smoothly.
+
+## 0.3 "Hands"
+
+- **First-person body:** the Mixamo player model (sweater + jeans) stands just behind the camera with its head hidden. Look down to see your legs. Idle, walk, run and crouch-walk play by gait, with speed matched to movement.
 - Crouch eye height is now 1.25 m (was 1.0), to match the crouch-walk body.
 - **F2 debug view:** full light (sun + sky), no fog, no grain or vignette. The Patient gets a colour-coded marker visible through walls (green patrol, yellow investigate, blue search, red chase) and its planned path drawn as a line. A panel shows FPS, your cell, its mode, alert level, distance and whether it can see you. **F3** (while in debug) freezes or unfreezes it. The rules don't change in debug, so it can still catch you.
-- If `player.glb` fails to load, the old floating flashlight is used.
 
 ## 0.2 "It Has a Face"
 
@@ -32,13 +44,13 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + 88 rule tests) and `npm run verify` (adds the production build).
+From `game/`: `npm run verify:quick` (typecheck + 101 rule tests) and `npm run verify` (adds the production build).
 
 ## How to publish
 `npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready).
 
 ## Verified vs unverified
-- ✅ Typecheck, 88 rule tests and the production build pass.
+- ✅ Typecheck, 101 rule tests and the production build pass.
 - ✅ A headless browser test (software rendering, in Claude's cloud workspace) ran the full loop: menu → intro → all items → generator → exit, plus a caught → death screen run. Screenshots looked right.
 - ⚠️ **Not verified:** real-GPU frame rate, how the audio actually sounds, mouse feel under pointer lock, and Pause → Resume (the headless test ran without pointer lock). Check these first.
 - ⚠️ Difficulty is tuned on paper only. Expect to adjust `ENEMY` / `PLAYER` numbers after playing.
@@ -46,7 +58,7 @@ From `game/`: `npm run verify:quick` (typecheck + 88 rule tests) and `npm run ve
 ## Known limits / ideas for next
 - Hiding spots (lockers, under beds) would give the player an answer to a chase besides running.
 - Doors that open and close (and make noise).
-- Real audio and texture assets to replace the synth and canvas versions.
+- Real texture assets to replace the canvas ones. Optional extra sounds: stinger, chase music, distant clanks.
 - More levels, and a level-select or chapter flow.
 - A small bundle-size warning from Vite (three.js is about 730 kB). Harmless for now.
 

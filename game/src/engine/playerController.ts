@@ -6,6 +6,9 @@ import { moveWithCollision } from '../world/collision';
 import { Gait, PLAYER, PlayerStatus, chooseGait, flickerAmount, gaitNoise, gaitSpeed, tickStatus } from '../state/playerRules';
 import { Input } from './input';
 import { flashlightCookie } from './textures';
+import { BOB, BobAmp, blendAmp, bobOffset } from '../state/cameraBob';
+
+export const BASE_FOV = 72;
 import type { Settings } from '../state/settings';
 
 export interface StepResult {
@@ -31,8 +34,7 @@ export class PlayerController {
   private readonly cookie: THREE.Texture;
   private readonly tmpV = new THREE.Vector3();
   private readonly tmpAim = new THREE.Vector3();
-  /** Update 0.3 — set by the first-person body: the beam starts at the torch in your hand. */
-  lightOrigin: THREE.Vector3 | null = null;
+  private bobAmp: BobAmp = { ...BOB.idle };
   private readonly tmpM = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
 
@@ -108,20 +110,26 @@ export class PlayerController {
   updateView(dt: number, gait: Gait, status: PlayerStatus, t: number, shake = 0, lightMul = 1) {
     const targetEye = this.crouching ? PLAYER.crouchEyeHeight : PLAYER.eyeHeight;
     this.eye += (targetEye - this.eye) * (1 - Math.exp(-dt * 10));
-    const bobAmp = gait === 'sprint' ? 0.075 : gait === 'walk' ? 0.045 : 0.02;
-    const bob = Math.sin(this.bobPhase) * bobAmp;
-    const sway = Math.cos(this.bobPhase * 0.5) * bobAmp * 0.6;
+    // Update 0.3.1 — walk bob, heavy Outlast-style sprint bob (state/cameraBob.ts).
+    this.bobAmp = blendAmp(this.bobAmp, BOB[gait], 1 - Math.exp(-dt * 6));
+    const b = bobOffset(this.bobAmp, this.bobPhase, t);
     const jx = (Math.random() - 0.5) * shake * 0.08;
     const jy = (Math.random() - 0.5) * shake * 0.08;
-    this.camera.position.set(this.pos.x, this.eye + bob + jy, this.pos.z);
-    this.camera.rotation.set(this.pitch + jy * 0.5, this.yaw + jx, sway * 0.15 + jx * 0.5, 'YXZ');
+    const rx = Math.cos(this.yaw);
+    const rz = -Math.sin(this.yaw);
+    this.camera.position.set(this.pos.x + rx * b.side, this.eye + b.y + jy, this.pos.z + rz * b.side);
+    this.camera.rotation.set(this.pitch - b.nod + jy * 0.5, this.yaw + jx, -b.roll + jx * 0.5, 'YXZ');
+    const fov = BASE_FOV + this.bobAmp.fov;
+    if (Math.abs(this.camera.fov - fov) > 0.01) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.updateMatrixWorld();
 
     // Flashlight sits at the right hand and catches up with the view.
     // Aims at a point ahead of the crosshair so the beam converges on what you look at.
     const q = this.camera.quaternion;
-    if (this.lightOrigin) this.rig.position.copy(this.lightOrigin);
-    else this.rig.position.copy(this.camera.position).add(this.tmpV.set(0.22, -0.22, -0.1).applyQuaternion(q));
+    this.rig.position.copy(this.camera.position).add(this.tmpV.set(0.22, -0.22, -0.1).applyQuaternion(q));
     const aim = this.tmpAim.copy(this.camera.position).add(this.tmpV.set(0, 0, -6).applyQuaternion(q));
     this.tmpM.lookAt(this.rig.position, aim, this.camera.up);
     this.tmpQ.setFromRotationMatrix(this.tmpM);
@@ -134,7 +142,6 @@ export class PlayerController {
     const strength = on * (0.55 + 0.45 * Math.min(1, status.battery / 40));
     this.flashlight.intensity = 34 * strength * lightMul;
     this.spill.intensity = 0.35 + 0.9 * strength;
-    void t;
   }
 
   dispose(scene: THREE.Scene) {

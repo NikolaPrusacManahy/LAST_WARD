@@ -13,7 +13,7 @@ check('patrol walk plays near authored speed', Math.abs(clipTimeScale('walk', EN
 check('fastest chase stays under the clamp', clipTimeScale('run', ENEMY.speed.chase * 1.21) <= 1.9);
 check('idle ignores speed', clipTimeScale('idle', 3) === 1);
 
-import { choosePlayerClip, playerClipTimeScale } from '../src/engine/playerAnim';
+import { armScaleFor, choosePlayerClip, playerClipTimeScale } from '../src/engine/playerAnim';
 import { debugLines } from '../src/state/debugInfo';
 
 section('Player body animation');
@@ -22,6 +22,8 @@ check('walk → walk', choosePlayerClip('walk', false) === 'walk');
 check('idle → idle', choosePlayerClip('idle', false) === 'idle');
 check('crouching wins', choosePlayerClip('walk', true) === 'crouch' && choosePlayerClip('idle', true) === 'crouch');
 check('crouch still = frozen pose', playerClipTimeScale('crouch', 0) === 0);
+check('arms hidden while running', armScaleFor('run') === 0);
+check('arms shown otherwise', armScaleFor('walk') === 1 && armScaleFor('idle') === 1 && armScaleFor('crouch') === 1);
 check('walk speed clamped', playerClipTimeScale('walk', 3.0) <= 1.7 && playerClipTimeScale('walk', 1.6) === 1);
 
 section('Debug panel');
@@ -30,4 +32,19 @@ section('Debug panel');
   check('shows mode + scream', lines[1] === 'Patient: CHASE (screaming)');
   check('shows distance + sight', lines[2].includes('4.3 m') && lines[2].includes('SEES YOU'));
   check('lists the keys', lines[lines.length - 1].includes('F2') && lines[lines.length - 1].includes('F3'));
+}
+
+import { BOB, blendAmp, bobOffset } from '../src/state/cameraBob';
+
+section('Camera bob');
+{
+  const peak = (g: keyof typeof BOB) => Math.max(...Array.from({ length: 64 }, (_, i) => Math.abs(bobOffset(BOB[g], (i / 64) * Math.PI * 2, 0).y)));
+  check('sprint bobs harder than walk', peak('sprint') > peak('walk') * 2);
+  check('walk bobs harder than crouch', peak('walk') > peak('crouch'));
+  check('dip lands on the footstep', bobOffset(BOB.walk, Math.PI, 0).y < bobOffset(BOB.walk, Math.PI / 2, 0).y);
+  check('sway swaps sides each step', Math.sign(bobOffset(BOB.walk, Math.PI / 2, 0).side) === -Math.sign(bobOffset(BOB.walk, (3 * Math.PI) / 2, 0).side));
+  check('idle only breathes', peak('idle') < 0.01);
+  check('sprint widens the view', BOB.sprint.fov > 0 && BOB.walk.fov === 0);
+  const half = blendAmp(BOB.walk, BOB.sprint, 0.5);
+  check('gait change blends smoothly', half.y > BOB.walk.y && half.y < BOB.sprint.y);
 }

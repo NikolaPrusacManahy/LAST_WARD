@@ -1,0 +1,48 @@
+{
+  "step_player": [
+    "step_player_1.mp3",
+    "step_player_2.mp3",
+    "step_player_3.mp3",
+    "step_player_4.mp3",
+    "step_player_5.mp3",
+    "step_player_6.mp3"
+  ],
+  "step_patient": [
+    "step_patient_1.mp3",
+    "step_patient_2.mp3",
+    "step_patient_3.mp3",
+    "step_patient_4.mp3",
+    "step_patient_5.mp3",
+    "step_patient_6.mp3"
+  ],
+  "heartbeat": [
+    "heartbeat.mp3"
+  ],
+  "ambience": [
+    "ambience.mp3"
+  ],
+  "enemy_breath": [
+    "enemy_breath.mp3"
+  ],
+  "generator_hum": [
+    "generator_hum.mp3"
+  ],
+  "generator_start": [
+    "generator_start.mp3"
+  ],
+  "door_open": [
+    "door_open.mp3"
+  ],
+  "enemy_scream": [
+    "enemy_scream.mp3"
+  ],
+  "pickup": [
+    "pickup.mp3"
+  ],
+  "paper": [
+    "paper.mp3"
+  ],
+  "flashlight_click": [
+    "flashlight_click.mp3"
+  ]
+}

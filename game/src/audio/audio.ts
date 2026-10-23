@@ -4,6 +4,8 @@
 
 type V3 = { x: number; y: number; z: number };
 
+const SAMPLE_BASE = '/audio';
+
 export class AudioEngine {
   ctx: AudioContext;
   private master: GainNode;
@@ -13,6 +15,10 @@ export class AudioEngine {
   private breath: { panner: PannerNode; gain: GainNode } | null = null;
   private hum: { panner: PannerNode; gain: GainNode } | null = null;
   private heartTimer = 0;
+  /** Update 0.4 — recorded sounds from public/audio (see manifest.json); synth fallback per sound. */
+  private samples = new Map<string, AudioBuffer[]>();
+  private ready: Promise<void>;
+  private loops: AudioBufferSourceNode[] = [];
   private clankTimer = 12;
 
   constructor(volume: number) {
@@ -34,6 +40,126 @@ export class AudioEngine {
     this.tension = this.ctx.createGain();
     this.tension.gain.value = 0;
     this.tension.connect(this.master);
+    this.ready = this.loadSamples().catch((err) => console.warn('Sound files failed to load, using synth sounds.', err));
+  }
+
+  private async loadSamples() {
+    const res = await fetch(`${SAMPLE_BASE}/manifest.json`);
+    if (!res.ok) return;
+    const manifest = (await res.json()) as Record<string, string[]>;
+    await Promise.all(
+      Object.entries(manifest).map(async ([name, files]) => {
+        const bufs = await Promise.all(
+          files.map(async (f) => this.ctx.decodeAudioData(await (await fetch(`${SAMPLE_BASE}/${f}`)).arrayBuffer())),
+        );
+        this.samples.set(name, bufs);
+      }),
+    );
+  }
+
+  has(name: string) {
+    return this.samples.has(name);
+  }
+
+  /** Plays a random variant of a sample. Returns false if it isn't loaded (caller falls back to synth). */
+  private playSample(name: string, o: { gain?: number; rate?: number; at?: V3; ref?: number; rolloff?: number; loop?: boolean; to?: AudioNode; when?: number } = {}): AudioBufferSourceNode | null {
+    const bufs = this.samples.get(name);
+    if (!bufs?.length) return null;
+    const src = this.ctx.createBufferSource();
+    src.buffer = bufs[Math.floor(Math.random() * bufs.length)];
+    src.playbackRate.value = o.rate ?? 1;
+    if (o.loop) {
+      // Skip MP3 encoder padding at both ends so the loop seam is clean.
+      src.loop = true;
+      src.loopStart = Math.min(0.05, src.buffer.duration * 0.1);
+      src.loopEnd = src.buffer.duration - Math.min(0.05, src.buffer.duration * 0.1);
+    }
+    const g = this.ctx.createGain();
+    g.gain.value = o.gain ?? 1;
+    src.connect(g);
+    if (o.at) g.connect(this.panner(o.at, o.ref ?? 2, o.rolloff ?? 1.3)).connect(o.to ?? this.master);
+    else g.connect(o.to ?? this.master);
+    src.start(o.when ?? this.now, o.loop ? src.loopStart : 0);
+    if (o.loop) this.loops.push(src);
+    return src;
+  }
+
+  private jitter(spread: number) {
+    return 1 + (Math.random() * 2 - 1) * spread;
+  }
+
+  /** Room tone + tension layer. Recorded ambience replaces the synth drone when present. */
+  startAmbience() {
+    void this.ready.then(() => {
+      if (this.has('ambience')) {
+        this.playSample('ambience', { loop: true, gain: 0.9, to: this.ambience });
+        this.ambience.gain.setValueAtTime(0, this.now);
+        this.ambience.gain.linearRampToValueAtTime(0.7, this.now + 3);
+        this.synthTensionOnly();
+      } else this.synthAmbience();
+    });
+  }
+
+  startEnemyBreath(p: V3) {
+    void this.ready.then(() => {
+      if (!this.has('enemy_breath')) return this.synthBreath(p);
+      const pn = this.panner(p, 1.5, 1.6);
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0.6;
+      gain.connect(pn).connect(this.master);
+      this.playSample('enemy_breath', { loop: true, to: gain });
+      this.breath = { panner: pn, gain };
+    });
+  }
+
+  footstep(kind: 'walk' | 'sprint' | 'crouch') {
+    const gain = kind === 'sprint' ? 1 : kind === 'walk' ? 0.65 : 0.22;
+    const rate = (kind === 'sprint' ? 1.08 : 1) * this.jitter(0.06);
+    if (!this.playSample('step_player', { gain, rate })) this.synthFootstep(kind);
+  }
+
+  enemyStep(p: V3, heavy: boolean) {
+    if (!this.playSample('step_patient', { at: p, ref: 2.5, rolloff: 1.3, gain: heavy ? 1 : 0.7, rate: 0.9 * this.jitter(0.06) })) this.synthEnemyStep(p, heavy);
+  }
+
+  /** Update 0.4 — its scream from where it stands (on spotting you). */
+  enemyScream(p: V3) {
+    if (!this.playSample('enemy_scream', { at: p, ref: 4, rolloff: 0.9, gain: 1 })) this.stinger();
+  }
+
+  /** Jumpscare: the recorded scream right in your face, with the distorted synth layered under it. */
+  scream() {
+    // The recording leads; the synth layer underneath adds grit.
+    this.synthScream(this.playSample('enemy_scream', { gain: 1.2, rate: 0.85 }) ? 0.45 : 1);
+  }
+
+  pickup() {
+    if (!this.playSample('pickup', { gain: 0.8 })) this.synthPickup();
+  }
+
+  paper() {
+    if (!this.playSample('paper', { gain: 0.9 })) this.synthPaper();
+  }
+
+  click() {
+    if (!this.playSample('flashlight_click', { gain: 0.9 })) this.synthClick();
+  }
+
+  generatorStart(p: V3) {
+    const start = this.playSample('generator_start', { at: p, ref: 3, rolloff: 1, gain: 1 });
+    if (!start || !this.has('generator_hum')) return this.synthGeneratorStart(p);
+    // Hum fades in under the tail of the start-up.
+    const pn = this.panner(p, 3, 1);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, this.now);
+    gain.gain.linearRampToValueAtTime(0.8, this.now + 3.5);
+    gain.connect(pn).connect(this.master);
+    this.playSample('generator_hum', { loop: true, to: gain, when: this.now + 1.5 });
+    this.hum = { panner: pn, gain };
+  }
+
+  doorOpen() {
+    if (!this.playSample('door_open', { gain: 1 })) this.synthDoorOpen();
   }
 
   resume() {
@@ -108,7 +234,7 @@ export class AudioEngine {
   }
 
   /** Room tone: detuned sub drone + filtered air. Also the chase tension layer (silent until chased). */
-  startAmbience() {
+  private synthAmbience() {
     const t = this.now;
     const lp = this.ctx.createBiquadFilter();
     lp.type = 'lowpass';
@@ -136,8 +262,11 @@ export class AudioEngine {
     air.start();
     lfo.start();
     this.ambience.gain.linearRampToValueAtTime(0.5, t + 3);
+    this.synthTensionOnly();
+  }
 
-    // Tension: dissonant high strings with tremolo.
+  /** Tension: dissonant high strings with tremolo (silent until fear/chase raise it). */
+  private synthTensionOnly() {
     const tbp = this.ctx.createBiquadFilter();
     tbp.type = 'bandpass';
     tbp.frequency.value = 900;
@@ -160,7 +289,7 @@ export class AudioEngine {
   }
 
   /** Looping breath/growl that follows the enemy. */
-  startEnemyBreath(p: V3) {
+  private synthBreath(p: V3) {
     const pn = this.panner(p, 1.5, 1.6);
     const gain = this.ctx.createGain();
     gain.gain.value = 0.6;
@@ -196,7 +325,7 @@ export class AudioEngine {
     this.breath.gain.gain.setTargetAtTime(chasing ? 1.1 : 0.55, this.now, 0.3);
   }
 
-  footstep(kind: 'walk' | 'sprint' | 'crouch') {
+  private synthFootstep(kind: 'walk' | 'sprint' | 'crouch') {
     const t = this.now;
     const s = this.noise();
     const lp = this.ctx.createBiquadFilter();
@@ -208,7 +337,7 @@ export class AudioEngine {
     s.start(t, Math.random(), 0.2);
   }
 
-  enemyStep(p: V3, heavy: boolean) {
+  private synthEnemyStep(p: V3, heavy: boolean) {
     const t = this.now;
     const pn = this.panner(p, 2.5, 1.3);
     const o = this.osc('sine', 85);
@@ -257,6 +386,11 @@ export class AudioEngine {
     if (this.heartTimer > 0) return;
     const bpm = 70 + fear * 90;
     this.heartTimer = 60 / bpm;
+    // Update 0.4 — recorded heartbeat when available, a touch faster and louder with fear.
+    if (!this.playSample('heartbeat', { gain: 0.35 + 0.65 * fear, rate: 1 + fear * 0.15 })) this.synthHeartbeat(fear);
+  }
+
+  private synthHeartbeat(fear: number) {
     const t = this.now;
     for (const [off, amp] of [[0, 1], [0.16, 0.7]] as const) {
       const o = this.osc('sine', 58);
@@ -290,7 +424,7 @@ export class AudioEngine {
   }
 
   /** Jumpscare scream: detuned saws through distortion. */
-  scream() {
+  private synthScream(level: number) {
     const t = this.now;
     const shaper = this.ctx.createWaveShaper();
     const curve = new Float32Array(1024);
@@ -299,7 +433,7 @@ export class AudioEngine {
       curve[i] = Math.tanh(x * 6);
     }
     shaper.curve = curve;
-    const g = this.env(0.9, 0.01, 1.4);
+    const g = this.env(0.9 * level, 0.01, 1.4);
     shaper.connect(g).connect(this.master);
     for (const f of [420, 610, 890, 1290]) {
       const o = this.osc('sawtooth', f);
@@ -319,7 +453,7 @@ export class AudioEngine {
     s.start(t, 0, 1.4);
   }
 
-  pickup() {
+  private synthPickup() {
     const t = this.now;
     for (const [f, d] of [[660, 0], [990, 0.07]] as const) {
       const o = this.osc('sine', f);
@@ -330,7 +464,7 @@ export class AudioEngine {
     }
   }
 
-  paper() {
+  private synthPaper() {
     const s = this.noise();
     const hp = this.ctx.createBiquadFilter();
     hp.type = 'highpass';
@@ -340,7 +474,7 @@ export class AudioEngine {
     s.start(this.now, 0, 0.4);
   }
 
-  click() {
+  private synthClick() {
     const t = this.now;
     const o = this.osc('square', 2200);
     const g = this.env(0.06, 0.001, 0.03);
@@ -359,7 +493,7 @@ export class AudioEngine {
   }
 
   /** Generator starts: clunk, spin-up, then a positional hum loop. */
-  generatorStart(p: V3) {
+  private synthGeneratorStart(p: V3) {
     const t = this.now;
     const pn = this.panner(p, 3, 1);
     const clunk = this.osc('square', 60);
@@ -380,7 +514,7 @@ export class AudioEngine {
     this.hum = { panner: pn, gain };
   }
 
-  doorOpen() {
+  private synthDoorOpen() {
     const t = this.now;
     const s = this.noise();
     const lp = this.ctx.createBiquadFilter();
@@ -396,6 +530,13 @@ export class AudioEngine {
   }
 
   dispose() {
+    for (const l of this.loops) {
+      try {
+        l.stop();
+      } catch {
+        /* already stopped */
+      }
+    }
     this.hum = null;
     this.breath = null;
     void this.ctx.close();

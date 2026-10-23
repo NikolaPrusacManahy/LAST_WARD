@@ -1,10 +1,11 @@
 // Update 0.3 — first-person body ("full body awareness"): the Mixamo player model stands just
-// behind the camera with its head hidden. Legs and torso show when you look down; the right
-// arm is posed every frame to hold the flashlight toward where you look.
+// behind the camera with its head hidden, so legs and torso show when you look down.
+// Update 0.3.1 — no torch model (the light comes from the camera); arms tuck away while sprinting
+// so the pumping hands never swing into view.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { Gait } from '../state/playerRules';
-import { PlayerClip, choosePlayerClip, playerClipTimeScale } from './playerAnim';
+import { PlayerClip, armScaleFor, choosePlayerClip, playerClipTimeScale } from './playerAnim';
 
 export const PLAYER_URL = '/models/player.glb';
 const FADE = 0.2;
@@ -23,8 +24,6 @@ export interface BodyInput {
 
 export interface PlayerBody {
   root: THREE.Group;
-  /** World position of the flashlight lens (the beam starts here). */
-  lens: THREE.Vector3;
   update(i: BodyInput): void;
   setVisible(v: boolean): void;
   dispose(): void;
@@ -39,23 +38,6 @@ const find = (root: THREE.Object3D, re: RegExp) => {
   return hit;
 };
 
-const vA = new THREE.Vector3();
-const vB = new THREE.Vector3();
-const qA = new THREE.Quaternion();
-const qB = new THREE.Quaternion();
-const qC = new THREE.Quaternion();
-
-/** Rotates `bone` (in world space) so the direction bone → child points along `dir`. */
-function aim(bone: THREE.Object3D, child: THREE.Object3D, dir: THREE.Vector3) {
-  bone.updateWorldMatrix(true, true);
-  const cur = child.getWorldPosition(vA).sub(bone.getWorldPosition(vB)).normalize();
-  qA.setFromUnitVectors(cur, dir);
-  const world = bone.getWorldQuaternion(qB).premultiply(qA);
-  const parent = bone.parent!.getWorldQuaternion(qC).invert();
-  bone.quaternion.copy(parent.multiply(world));
-  bone.updateWorldMatrix(false, true);
-}
-
 export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
   const gltf = await new GLTFLoader().loadAsync(PLAYER_URL);
   const model = gltf.scene;
@@ -65,7 +47,7 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
   model.traverse((o) => {
     const m = o as THREE.SkinnedMesh;
     if (!m.isMesh) return;
-    m.castShadow = false; // the flashlight sits inside the hand: its own arm must not block the beam
+    m.castShadow = false; // the flashlight sits at the eyes: the body must not block the beam
     m.receiveShadow = false;
     m.frustumCulled = false;
     const mats = Array.isArray(m.material) ? m.material : [m.material];
@@ -79,10 +61,8 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
   });
 
   const head = find(model, /Head$/);
-  const arm = find(model, /RightArm$/);
-  const fore = find(model, /RightForeArm$/);
-  const hand = find(model, /RightHand$/);
-  const finger = find(model, /RightHandMiddle1$/);
+  const arms = [find(model, /LeftArm$/), find(model, /RightArm$/)];
+  let armScale = 1;
 
   const mixer = new THREE.AnimationMixer(model);
   const actions = new Map<PlayerClip, THREE.AnimationAction>();
@@ -96,22 +76,6 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
   model.scale.setScalar(eyeHeight / (headY + 0.1));
   head.scale.setScalar(0.001); // hides head, hair and eyelashes (all skinned to it)
 
-  // A simple torch in the right hand. Bone axis (+Y) points toward the fingers.
-  const torch = new THREE.Group();
-  const metal = new THREE.MeshStandardMaterial({ color: 0x5a5e62, metalness: 0.5, roughness: 0.35 });
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.2, 12), metal);
-  const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.024, 0.06, 14), metal);
-  bezel.position.y = 0.125;
-  const lensMat = new THREE.MeshBasicMaterial({ color: 0xfff3d6 });
-  const lensMesh = new THREE.Mesh(new THREE.CircleGeometry(0.032, 14), lensMat);
-  lensMesh.rotation.x = -Math.PI / 2;
-  lensMesh.position.y = 0.156;
-  torch.add(body, bezel, lensMesh);
-  torch.position.set(0.0, 0.05, 0.03);
-  // Undo the model scale so the torch keeps real size.
-  torch.scale.setScalar(1 / model.scale.x);
-  hand.add(torch);
-
   let current: PlayerClip | null = null;
   const play = (clip: PlayerClip, timeScale: number) => {
     const next = actions.get(clip) ?? actions.get('idle');
@@ -124,15 +88,8 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
     current = clip;
   };
 
-  const fwd = new THREE.Vector3();
-  const right = new THREE.Vector3();
-  const down = new THREE.Vector3();
-  const dir = new THREE.Vector3();
-  const lens = new THREE.Vector3();
-
   return {
     root,
-    lens,
     update(i) {
       const clip = choosePlayerClip(i.gait, i.crouching);
       play(clip, playerClipTimeScale(clip, i.speed));
@@ -144,17 +101,11 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
       const fz = -Math.cos(i.yaw);
       root.position.set(i.pos.x - fx * back, 0, i.pos.z - fz * back);
       root.rotation.y = i.yaw + Math.PI; // Mixamo faces +Z
-      root.updateWorldMatrix(true, true);
 
-      // Flashlight arm: upper arm down-forward, forearm and hand along the view.
-      i.camera.getWorldDirection(fwd);
-      right.set(1, 0, 0).applyQuaternion(i.camera.quaternion);
-      down.set(0, -1, 0).applyQuaternion(i.camera.quaternion);
-      aim(arm, fore, dir.copy(fwd).multiplyScalar(0.9).addScaledVector(down, 0.3).addScaledVector(right, 0.05).normalize());
-      aim(fore, hand, dir.copy(fwd).multiplyScalar(0.9).addScaledVector(down, -0.32).addScaledVector(right, -0.22).normalize());
-      aim(hand, finger, fwd);
-      lensMesh.getWorldPosition(lens);
-      lensMat.color.setHex(i.flashlightOn ? 0xfff3d6 : 0x222222);
+      // Tuck the arms away (shrink into the shoulders) while sprinting, ease back after.
+      armScale += (armScaleFor(clip) - armScale) * Math.min(1, i.dt * 12);
+      const s = Math.max(0.001, armScale);
+      for (const a of arms) a.scale.setScalar(s);
     },
     setVisible(v) {
       root.visible = v;

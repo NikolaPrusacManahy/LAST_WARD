@@ -38,7 +38,8 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/buildLevel.ts` | Walls (instanced), floor, ceiling, lamps, cabinets, items, generator, exit door | no |
 | `engine/enemyView.ts` | `EnemyView` contract + the primitive fallback figure (shown until the GLB loads, or if it fails) | no |
 | `engine/enemyModel.ts` | Rigged Patient (`public/models/patient.glb`): GLTFLoader + AnimationMixer, crossfades, jumpscare attack clip | no |
-| `engine/playerBody.ts` | First-person body (`public/models/player.glb`): placed behind the camera, head hidden, right arm posed to hold the torch, gives the beam origin (`lens`) | no |
+| `engine/playerBody.ts` | First-person body (`public/models/player.glb`): placed behind the camera, head hidden, arms shrink away while sprinting | no |
+| `state/cameraBob.ts` | `BOB` amplitudes per gait (dip, sway, roll, nod, FOV) + `bobOffset` | yes |
 | `engine/playerAnim.ts` | Player clip per gait + playback speed | yes |
 | `engine/debugView.ts` | F2 view: sun/sky lights, enemy marker through walls, path line | no |
 | `state/debugInfo.ts` | F2 panel text | yes |
@@ -48,7 +49,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, signs, flashlight cookie) | no |
 | `engine/input.ts` | Keys by `code`, mouse deltas under pointer lock | no |
 | `engine/hudStore.ts` | External store between the engine and React | no |
-| `audio/audio.ts` | Web Audio synth: ambience, tension, enemy breath, steps, heartbeat, stinger, scream, pickups | no |
+| `audio/audio.ts` | Sound engine: loads `public/audio/manifest.json` samples, plays them (3D via PannerNode for enemy/generator), synth fallback per sound; synth tension, stinger, clanks | no |
 
 ## Contracts
 

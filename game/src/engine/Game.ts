@@ -17,7 +17,7 @@ import { loadEnemyModel } from './enemyModel';
 import { createLighting, Lighting } from './lighting';
 import { createPostFx, PostFx } from './postfx';
 import { Input } from './input';
-import { PlayerController } from './playerController';
+import { BASE_FOV, PlayerController } from './playerController';
 import { HudStore } from './hudStore';
 import { loadPlayerBody, PlayerBody } from './playerBody';
 import { createDebugView, DebugView } from './debugView';
@@ -87,7 +87,7 @@ export class Game {
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.className = 'lw-canvas';
 
-    this.camera = new THREE.PerspectiveCamera(72, 1, 0.05, 80);
+    this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 80);
     this.scene.background = new THREE.Color(0x020203);
     this.scene.fog = new THREE.FogExp2(0x020203, 0.085);
     this.ambient = new THREE.HemisphereLight(0x2a3040, 0x0a0806, 0.12);
@@ -266,7 +266,10 @@ export class Game {
       this.enemyStepAccum = 0;
       this.audio.enemyStep(this.enemy3D(), chasing);
     }
-    if (events.includes('spotted')) this.audio.stinger();
+    if (events.includes('spotted')) {
+      this.audio.enemyScream(this.enemy3D());
+      this.audio.stinger();
+    }
     if (events.includes('caught')) {
       this.startDying();
       return;
@@ -474,14 +477,13 @@ export class Game {
     this.fx.set({ clean: dbg });
   }
 
-  /** Update 0.3 — first-person body; until it loads (or if it fails) the flashlight floats as before. */
+  /** Update 0.3 — first-person body (loads in the background; the game plays fine without it). */
   private loadBody() {
     loadPlayerBody(PLAYER.eyeHeight)
       .then((b) => {
         if (this.disposed) return b.dispose();
         this.body = b;
         this.scene.add(b.root);
-        this.player.lightOrigin = b.lens;
       })
       .catch((err) => console.warn('Player body failed to load, using the floating flashlight.', err));
   }

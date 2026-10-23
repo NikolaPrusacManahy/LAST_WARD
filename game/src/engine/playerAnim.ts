@@ -13,6 +13,11 @@ export function choosePlayerClip(gait: Gait, crouching: boolean): PlayerClip {
   return 'idle';
 }
 
+/** Update 0.3.1 — arms shrink away while running so the pumping hands stay out of view. */
+export function armScaleFor(clip: PlayerClip): number {
+  return clip === 'run' ? 0 : 1;
+}
+
 /** Crouching still = crouch pose frozen; otherwise match feet to ground speed (clamped). */
 export function playerClipTimeScale(clip: PlayerClip, speed: number): number {
   const ref = PLAYER_CLIP_SPEED[clip];
