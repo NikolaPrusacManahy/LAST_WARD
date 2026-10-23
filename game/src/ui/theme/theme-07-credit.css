@@ -1,0 +1,19 @@
+/* theme-07 — Update 0.5.1: boot credit screen (full screen tip, headphones, developer). */
+.lw-credit {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--lw-black); cursor: pointer; text-align: center;
+}
+.lw-credit > * { opacity: 0; animation: lw-fade-in 0.7s ease-out forwards; }
+.lw-credit-tips { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin-bottom: 72px; }
+.lw-credit-tip { display: flex; align-items: center; gap: 14px; margin: 0; font-size: 15px; letter-spacing: 0.06em; color: var(--lw-bone); }
+.lw-credit-tip .lw-input-icon { width: 44px; height: 44px; }
+.lw-credit-by {
+  margin: 0 0 10px; font-size: 11px; letter-spacing: 0.4em; text-transform: uppercase; color: var(--lw-bone-dim);
+  animation-delay: 0.25s;
+}
+.lw-credit-studio {
+  margin: 0; font-family: var(--lw-type); font-size: 44px; letter-spacing: 0.12em; color: var(--lw-bone);
+  text-shadow: 0 0 24px rgba(163, 18, 15, 0.35);
+  animation-delay: 0.4s;
+}

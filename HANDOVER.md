@@ -1,6 +1,17 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.5
+## Current version: 0.5.2
+
+- **Fix: The Patient got stuck on doorway corners mid-chase.** It charged straight at you whenever it could *see* you, but sight is a thin line and its body is wide, so past a corner it wedged and stopped. Now it only charges straight when its whole body fits along the line (`clearLine` in `world/collision.ts`); otherwise it takes the grid path. A test runs 150 random chases; all reach you.
+- **Fix: The Patient's shoulders went into walls.** Its collision size is now 0.55 m (`ENEMY.bodyRadius`, was 0.35), and anywhere it walks to (a noise you made against a wall, say) is pulled in until its body fits. Two minutes of simulated hunting with you hugging walls: never inside a wall.
+- **Fix: your own body showed inside walls.** Looking down pushes the body back so the chest stays out of view; with your back to a wall that put it in the wall. It now only goes back as far as there's room (`freeBehind`, `limitBodyBack`).
+- **Menu ambience:** the ward ambience plays under the credit screen and main menu (fades in over 2.5 s, out over 0.8 s when a run starts, follows the volume setting). Browsers block sound until the first click or key press, so it starts on that first click (the credit screen click counts). `audio/menuAmbience.ts`, `state/menuAudio.ts`.
+
+## 0.5.1
+
+- **Credit screen on boot:** black screen with "[F11] Play in full screen for a better experience", "[headphones] Headphones recommended", then "Developed by NIKO GAME COLLECTION". Holds 3 s, fades out over 1 s and reveals the main menu (already loaded behind it). Clicking anywhere cuts the fade to 0.5 s. Once per page load; `?debug` skips it, `?debug&credits` shows it. Timing in `state/creditIntro.ts` (tested), screen in `screens/CreditIntro.tsx`, styles in `theme-07-credit.css`. The headphones mark is drawn in code (the Kenney pack has none).
+
+## 0.5
 
 - **New controls:** left click collects / interacts, right click toggles the flashlight. WASD, Shift run and Ctrl crouch are unchanged. Arrow keys no longer move you unless you bind them.
 - **Key bindings in Settings:** settings now has two columns, general on the left and Controls on the right. Each action shows its key or mouse icon; click it, then press a key or mouse button to rebind (mouse side buttons work too). Binding a key that another action already uses swaps the two, so nothing is left unbound. Esc cancels. "Reset controls" restores the defaults. Esc, F2, F3 and the Windows key can't be bound. Saved with the other settings (`Settings.bindings`, `state/bindings.ts`); old saves get the defaults.

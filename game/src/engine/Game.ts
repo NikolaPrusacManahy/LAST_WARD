@@ -16,6 +16,8 @@ import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
 import { enemyMix } from '../audio/spatial';
 import { lineOfSight } from '../world/lineOfSight';
+import { freeBehind } from '../world/collision';
+import { BODY_RADIUS } from './playerAnim';
 import { buildLevel, LevelView } from './buildLevel';
 import { createEnemyView, EnemyView } from './enemyView';
 import { loadEnemyModel } from './enemyModel';
@@ -235,6 +237,8 @@ export class Game {
       camera: this.camera,
       dt: this.phase === 'paused' ? 0 : dt,
       flashlightOn: this.status.flashlightOn,
+      // Update 0.5.2 — keep the body out of the wall behind you.
+      roomBehind: freeBehind(this.level, this.player.pos, this.player.forward, 1.2, BODY_RADIUS),
     });
     this.debugView.update(this.enemy, this.t);
     this.lights.update(this.t);

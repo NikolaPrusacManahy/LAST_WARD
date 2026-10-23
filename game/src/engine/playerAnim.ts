@@ -37,6 +37,24 @@ export function bodyBackOffset(pitch: number): number {
   return 0.12 + 0.3 * Math.max(0, -pitch);
 }
 
+/** Update 0.5.2 — half the body's depth/width: how far it must stay from a wall. */
+export const BODY_RADIUS = 0.22;
+
+/**
+ * Update 0.5.2 — never stand the body further behind the camera than there is room (`room` metres,
+ * measured backwards from the camera). With your back to a wall it used to be drawn inside it.
+ */
+export function limitBodyBack(
+  root: { x: number; z: number },
+  camera: { x: number; z: number },
+  forward: { x: number; z: number },
+  room: number,
+): { x: number; z: number } {
+  const behind = (camera.x - root.x) * forward.x + (camera.z - root.z) * forward.z;
+  const excess = behind - room;
+  return excess > 0 ? { x: root.x + forward.x * excess, z: root.z + forward.z * excess } : root;
+}
+
 /** Update 0.4.1 — the walk looked rushed; it plays at half the matched speed. */
 export const WALK_ANIM_SLOWDOWN = 0.5;
 /** Update 0.4.3 — same for the new run clip. */

@@ -7,6 +7,9 @@ import { EndScreen } from './screens/EndScreen';
 import { SettingsPanel } from './screens/SettingsPanel';
 import { Settings, loadSave, recordEscape, writeSave, SaveData } from './state/settings';
 import { useUiSounds } from './hooks/useUiSounds';
+import { CreditIntro } from './screens/CreditIntro';
+import { setMenuAmbience } from './audio/menuAmbience';
+import { wantsMenuAmbience } from './state/menuAudio';
 
 type Screen = 'menu' | 'game';
 type Overlay = null | 'pause' | 'settings' | { end: 'dead' | 'escaped'; time: number };
@@ -18,9 +21,16 @@ export default function App() {
   const [settingsFrom, setSettingsFrom] = useState<'menu' | 'pause'>('menu');
   const [runId, setRunId] = useState(0);
   const game = useRef<GameHandle>(null);
+  // Update 0.5.1 — credit screen once per page load. ?debug skips it (automated checks), ?debug&credits shows it.
+  const [credits, setCredits] = useState(() => {
+    const q = new URLSearchParams(location.search);
+    return !q.has('debug') || q.has('credits');
+  });
 
   useEffect(() => writeSave(save), [save]);
   useUiSounds(save.settings.volume);
+  // Update 0.5.2 — ambience under the credit screen + main menu; fades out when a run starts.
+  useEffect(() => setMenuAmbience(wantsMenuAmbience(screen), save.settings.volume), [screen, save.settings.volume]);
 
   const updateSettings = useCallback((s: Settings) => {
     setSave((d) => ({ ...d, settings: s }));
@@ -95,6 +105,7 @@ export default function App() {
           }}
         />
       )}
+      {credits && <CreditIntro onDone={() => setCredits(false)} />}
     </div>
   );
 }

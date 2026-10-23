@@ -9,5 +9,7 @@ import './test-audio';
 import './test-menu';
 import './test-light';
 import './test-input';
+import './test-credit';
+import './test-stuck';
 
 process.exit(summary() > 0 ? 1 : 0);

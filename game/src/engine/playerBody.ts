@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { Gait } from '../state/playerRules';
-import { PlayerClip, armScaleFor, bodyBackOffset, bodyRootFor, choosePlayerClip, playerClipTimeScale } from './playerAnim';
+import { PlayerClip, armScaleFor, bodyBackOffset, bodyRootFor, choosePlayerClip, limitBodyBack, playerClipTimeScale } from './playerAnim';
 
 export const PLAYER_URL = '/models/player.glb';
 const FADE = 0.2;
@@ -14,6 +14,8 @@ export interface BodyInput {
   pos: { x: number; z: number };
   yaw: number;
   pitch: number;
+  /** Update 0.5.2 — free space behind the camera (m); the body is never placed further back. */
+  roomBehind?: number;
   gait: Gait;
   crouching: boolean;
   speed: number;
@@ -108,7 +110,8 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
       const k = Math.min(1, i.dt * 12);
       headDelta.x += (headPos.x - i.pos.x - headDelta.x) * k;
       headDelta.z += (headPos.z - i.pos.z - headDelta.z) * k;
-      const at = bodyRootFor(i.pos, headDelta, fwd, bodyBackOffset(i.pitch));
+      const ideal = bodyRootFor(i.pos, headDelta, fwd, bodyBackOffset(i.pitch));
+      const at = i.roomBehind === undefined ? ideal : limitBodyBack(ideal, i.pos, fwd, i.roomBehind);
       root.position.set(at.x, 0, at.z);
 
       // Tuck the arms away (shrink into the shoulders) while sprinting, ease back after.

@@ -38,4 +38,29 @@ export function moveWithCollision(level: Level, pos: Vec2, dx: number, dz: numbe
   return p;
 }
 
+/**
+ * Update 0.5.2 — can a body of this radius travel the straight line a → b? Line of sight is a thin
+ * ray; a wide body could see past a doorway corner yet snag on it and stop.
+ */
+export function clearLine(level: Level, a: Vec2, b: Vec2, radius: number): boolean {
+  const d = Math.hypot(b.x - a.x, b.z - a.z);
+  const steps = Math.max(1, Math.ceil(d / (radius * 0.25)));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    if (overlapsWall(level, { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t }, radius)) return false;
+  }
+  return true;
+}
+
+/**
+ * Update 0.5.2 — how far behind `pos` (opposite `forward`) a body of `radius` can stand, up to `max`.
+ * The first-person body sits behind the camera; with your back to a wall it was drawn inside it.
+ */
+export function freeBehind(level: Level, pos: Vec2, forward: Vec2, max: number, radius: number): number {
+  const step = 0.02;
+  let d = 0;
+  while (d + step <= max && !overlapsWall(level, { x: pos.x - forward.x * (d + step), z: pos.z - forward.z * (d + step) }, radius)) d += step;
+  return d;
+}
+
 export { overlapsWall };

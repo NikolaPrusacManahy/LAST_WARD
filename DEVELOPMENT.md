@@ -23,10 +23,10 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | Module | Owns | Pure? |
 |---|---|---|
 | `world/level.ts` | Level type, ASCII legend + parser, `TILE`, cell ↔ world maths, `itemPos` (cabinet placement) | yes |
-| `world/collision.ts` | Circle-vs-grid movement with wall sliding, round prop blockers | yes |
 | `world/pathfinding.ts` | A* (8-way, no corner cutting), flood-fill `reachable` | yes |
 | `world/lineOfSight.ts` | Grid line-of-sight | yes |
 | `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise` | yes |
+| `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2) | yes |
 | `world/interact.ts` | What's in reach and in front of the player | yes |
 | `world/rng.ts` | Seeded RNG | yes |
 | `world/content/level01.ts` | Ward 13 map + notes | data |
@@ -52,6 +52,8 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/bindings.ts` | Actions, `DEFAULT_BINDINGS` (left click interact, right click flashlight), `rebind` (clash = swap), reserved keys, `hydrateBindings` | yes |
 | `state/inputIcons.ts` | Code → Kenney icon name + label (`glyphFor`), the icon list `tools/prepare-input-icons.ts` ships | yes |
 | `state/prompts.ts` | Crosshair prompt words (`promptFor`: collect / read / interact / what's missing) + controls-card timer | yes |
+| `audio/menuAmbience.ts` + `state/menuAudio.ts` | Ambience under the credit screen + main menu (own AudioContext, starts on the first gesture) | no / yes |
+| `state/creditIntro.ts` + `screens/CreditIntro.tsx` | Boot credit screen: 3 s hold, 1 s fade, click → 0.5 s fade (real time, not frame-capped) | yes / no |
 | `screens/InputIcon.tsx`, `ControlsCard.tsx`, `KeyBindings.tsx` | Icon (or text key cap), the 10 s controls box, the rebind list in Settings | no |
 | `engine/hudStore.ts` | External store between the engine and React | no |
 | `state/menuScare.ts` | Main-menu loop: lit (stare) → stutter out → dark (gone) → face strobe → dark (gone) → stutter in; pose swaps only in the dark | yes |

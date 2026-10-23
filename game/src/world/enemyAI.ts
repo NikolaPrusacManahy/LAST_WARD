@@ -3,7 +3,7 @@
 import { Cell, Level, TILE, Vec2, cellCenter, dist, floorCells, worldToCell, sameCell } from './level';
 import { findPath } from './pathfinding';
 import { lineOfSight } from './lineOfSight';
-import { moveWithCollision } from './collision';
+import { clearLine, moveWithCollision, overlapsWall } from './collision';
 import { Rng } from './rng';
 
 export type EnemyMode = 'patrol' | 'investigate' | 'chase' | 'search';
@@ -14,6 +14,8 @@ export const ENEMY = {
   /** Each fuse collected makes it this much faster (it knows what you're doing). */
   ragePerFuse: 0.07,
   catchRadius: 1.1,
+  /** Update 0.5.2 — collision size of its body (was 0.35, its shoulders went into walls). */
+  bodyRadius: 0.55,
   fovHalf: (65 * Math.PI) / 180,
   /** Update 0.4.4 — brighter ward + 1.3× flashlight: it sees you 1.3× further (was 16 / 8). */
   viewDistLight: 16 * 1.3,
@@ -106,10 +108,23 @@ function setMode(e: EnemyState, mode: EnemyMode) {
   }
 }
 
+/** Update 0.5.2 — pull a point in from the walls so its body fits there (a noise right by a wall). */
+function roomFor(level: Level, p: Vec2): Vec2 {
+  const r = ENEMY.bodyRadius;
+  if (!overlapsWall(level, p, r)) return { ...p };
+  const c = cellCenter(worldToCell(p));
+  for (let t = 0.1; t <= 1; t += 0.1) {
+    const q = { x: p.x + (c.x - p.x) * t, z: p.z + (c.z - p.z) * t };
+    if (!overlapsWall(level, q, r)) return q;
+  }
+  return c;
+}
+
 function goTo(level: Level, e: EnemyState, target: Vec2) {
-  e.goal = { ...target };
+  e.goal = roomFor(level, target);
   e.path = findPath(level, worldToCell(e.pos), worldToCell(target));
-  e.pathIndex = 1;
+  // Skip its own cell's centre only if it can walk straight to the next one without clipping a corner.
+  e.pathIndex = e.path.length > 1 && clearLine(level, e.pos, cellCenter(e.path[1]), ENEMY.bodyRadius) ? 1 : 0;
   e.repath = ENEMY.repathSeconds;
   if (!e.path.length) e.goal = null; // unreachable: never walk through walls
 
@@ -209,13 +224,14 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
         if (d > 0.01) turnToward(e, { x: (player.pos.x - e.pos.x) / d, z: (player.pos.z - e.pos.z) / d }, dt);
         break;
       }
-      if (vis > 0 && lineOfSight(level, e.pos, player.pos)) {
-        // Direct pursuit while it can see you — smoother than grid paths.
+      if (vis > 0 && clearLine(level, e.pos, player.pos, ENEMY.bodyRadius)) {
+        // Direct pursuit while its whole body fits along the line to you — smoother than grid paths.
+        // Update 0.5.2 — seeing you isn't enough: past a doorway corner it used to snag and stop.
         const d = dist(e.pos, player.pos);
         if (d > 0.01) {
           const dir = { x: (player.pos.x - e.pos.x) / d, z: (player.pos.z - e.pos.z) / d };
           const step = Math.min(speed * dt, d);
-          e.pos = moveWithCollision(level, e.pos, dir.x * step, dir.z * step, 0.35);
+          e.pos = moveWithCollision(level, e.pos, dir.x * step, dir.z * step, ENEMY.bodyRadius);
           turnToward(e, dir, dt);
         }
         e.path = [];
