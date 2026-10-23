@@ -9,6 +9,6 @@ npm run verify:quick # typecheck + rule tests
 npm run verify       # + production build
 ```
 
-Controls: WASD move · mouse look · Shift run · C crouch · F flashlight · E interact · Esc pause.
+Controls: WASD move, mouse look, Shift run, Ctrl crouch, right click flashlight, left click collect / interact, Q look back while running, Esc pause.
 
-See `../CLAUDE.md`, `../DEVELOPMENT.md` and `../HANDOVER.md`.
+See `../README.md` for the full overview, plus `../DEVELOPMENT.md` and `../HANDOVER.md`.
