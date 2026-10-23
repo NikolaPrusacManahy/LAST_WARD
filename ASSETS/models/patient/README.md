@@ -14,5 +14,6 @@ Suggested names (one file per animation is fine):
 | `patient_search.fbx` | Looking around after losing you (optional) |
 | `patient_scream.fbx` | Spotting you (optional) |
 | `patient_attack.fbx` | The jumpscare when it catches you |
+| `Patient_menu_stare.fbx` | Main menu only: standing, staring at the player (clip `stare`) |
 
 Mixamo tips: tick **In Place** for walk/run; download extra animations **Without Skin**; 30 fps is fine.

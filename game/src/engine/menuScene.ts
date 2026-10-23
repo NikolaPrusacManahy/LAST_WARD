@@ -1,24 +1,22 @@
-// Update 0.4.3 — the main menu's right side: The Patient standing under one failing tube light.
-// The light schedule and poses come from state/menuScare.ts; this file only draws them.
+// Update 0.4.3b — main menu backdrop. The Patient stands on the right under one failing tube,
+// staring at you. The light dies, it's gone, then its face is right in front of the screen under
+// a crazy strobe, dark again, and it's back where it was. Schedule: state/menuScare.ts.
 import * as THREE from 'three';
 import { loadEnemyModel } from './enemyModel';
 import type { EnemyView } from './enemyView';
 import { floorTexture, wallTexture } from './textures';
-import { LightPhase, MenuPose, createMenuScare, stepMenuScare } from '../state/menuScare';
+import { LightPhase, createMenuScare, stepMenuScare } from '../state/menuScare';
 
-// Looking a little left of it keeps it on the right, clear of the title.
-const CAMERA = new THREE.Vector3(-0.5, 1.5, 7.6);
-const LOOK = new THREE.Vector3(-0.85, 1.3, 0);
-
-/** Where it stands for each pose (x, z) and which AI mode drives its animation. */
-const POSES: Record<Exclude<MenuPose, 'gone'>, { x: number; z: number; turn: number; mode: 'patrol' | 'search' }> = {
-  idle: { x: 0, z: 0, turn: 0, mode: 'patrol' },
-  near: { x: 0.25, z: 1.7, turn: 0, mode: 'patrol' },
-  search: { x: -0.35, z: 0.3, turn: 0.7, mode: 'search' },
-  scream: { x: 0.1, z: 1.1, turn: 0, mode: 'patrol' },
-};
+// Wide shot: looking left of it keeps it on the right, clear of the title.
+const CAMERA = new THREE.Vector3(-0.6, 1.5, 7.6);
+const LOOK = new THREE.Vector3(-1.9, 1.35, 0);
+const STAND = { x: 0, z: 0 };
+// Face shot: the camera sits this far in front of its head and tracks it every frame.
+const FACE_DIST = 0.66;
+const FACE_UP = 0.07;
 
 export interface MenuSceneOptions {
+  /** Light changes worth a sound: stutter out / in, and the scare. */
   onFlicker?(phase: LightPhase): void;
 }
 
@@ -34,9 +32,7 @@ export function createMenuScene(container: HTMLElement, opts: MenuSceneOptions =
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x050506, 0.09);
-  const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 40);
-  camera.position.copy(CAMERA);
-  camera.lookAt(LOOK);
+  const camera = new THREE.PerspectiveCamera(34, 1, 0.05, 40);
   scene.add(new THREE.HemisphereLight(0x30364a, 0x050403, 0.04));
 
   const floorTex = floorTexture();
@@ -51,7 +47,7 @@ export function createMenuScene(container: HTMLElement, opts: MenuSceneOptions =
   wall.receiveShadow = true;
   scene.add(floor, wall);
 
-  // The failing tube: an emissive strip + a spotlight straight down onto the spot it stands.
+  // The failing tube over the spot it stands on.
   const tubeMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xdde8ff, emissiveIntensity: 2 });
   const tube = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.12), tubeMat);
   tube.position.set(0.1, 3.05, 0.7);
@@ -61,9 +57,11 @@ export function createMenuScene(container: HTMLElement, opts: MenuSceneOptions =
   lamp.castShadow = true;
   lamp.shadow.mapSize.set(1024, 1024);
   lamp.shadow.bias = -0.0005;
-  const spill = new THREE.PointLight(0xcfdcff, 0, 6, 2); // soft fill so the wall catches some light
+  const spill = new THREE.PointLight(0xcfdcff, 0, 6, 2);
   spill.position.set(0.1, 2.6, 1.2);
-  scene.add(tube, lamp, lamp.target, spill);
+  // The strobe for the face shot: from just below the lens, harsh and cold.
+  const strobe = new THREE.SpotLight(0xe8f0ff, 0, 1.7, 0.75, 0.5, 2);
+  scene.add(tube, lamp, lamp.target, spill, strobe, strobe.target);
 
   let enemy: EnemyView | null = null;
   let disposed = false;
@@ -76,10 +74,14 @@ export function createMenuScene(container: HTMLElement, opts: MenuSceneOptions =
     .catch((err) => console.warn('Menu: Patient model failed to load.', err));
 
   const scare = createMenuScare((Date.now() & 0xffff) + 1);
+  // ?debug: expose the schedule so automated checks can jump to a phase.
+  if (new URLSearchParams(location.search).has('debug')) (window as unknown as { __lastWardMenu: unknown }).__lastWardMenu = scare;
   let lastPhase: LightPhase = scare.phase;
   let t = 0;
   let last = performance.now();
   let raf = 0;
+  const head = new THREE.Vector3();
+  const standYaw = Math.atan2(CAMERA.x - STAND.x, CAMERA.z - STAND.z); // face the camera
 
   const resize = () => {
     const w = container.clientWidth || 1;
@@ -99,26 +101,33 @@ export function createMenuScene(container: HTMLElement, opts: MenuSceneOptions =
     t += dt;
     stepMenuScare(scare, dt);
     if (scare.phase !== lastPhase) {
-      if (scare.phase === 'out' || scare.phase === 'in') opts.onFlicker?.(scare.phase);
+      if (scare.phase === 'out' || scare.phase === 'in' || scare.phase === 'scare') opts.onFlicker?.(scare.phase);
       lastPhase = scare.phase;
     }
 
-    lamp.intensity = 45 * scare.light;
-    spill.intensity = 1.6 * scare.light;
-    tubeMat.emissiveIntensity = 0.05 + 2.2 * scare.light;
+    const face = scare.pose === 'face';
+    container.classList.toggle('lw-menu-scene-face', face);
+    const tubeLight = face ? 0 : scare.light;
+    lamp.intensity = 45 * tubeLight;
+    spill.intensity = 1.6 * tubeLight;
+    tubeMat.emissiveIntensity = 0.05 + 2.2 * tubeLight;
+    strobe.intensity = face ? 3.2 * scare.light : 0;
 
+    camera.position.copy(CAMERA);
+    camera.lookAt(LOOK);
     if (enemy) {
-      const pose = scare.pose;
-      enemy.root.visible = pose !== 'gone';
-      if (pose !== 'gone') {
-        const p = POSES[pose];
-        const toCam = new THREE.Vector2(CAMERA.x - p.x, CAMERA.z - p.z).normalize();
-        const c = Math.cos(p.turn);
-        const s = Math.sin(p.turn);
-        const dir = { x: toCam.x * c - toCam.y * s, z: toCam.x * s + toCam.y * c };
-        // The scream starts as the light comes back, so you catch it mid-roar.
-        const screaming = pose === 'scream' && scare.phase !== 'dark';
-        enemy.update({ x: p.x, z: p.z }, dir, p.mode, 0, t, screaming);
+      enemy.root.visible = scare.pose !== 'gone';
+      if (scare.pose !== 'gone') {
+        // Same spot and stare either way; only the camera changes for the face shot.
+        enemy.pose(STAND, face ? 0 : standYaw, 'stare', t);
+        if (face) {
+          enemy.head.getWorldPosition(head);
+          const jx = (Math.random() - 0.5) * 0.012; // tiny shake while the strobe goes
+          camera.position.set(head.x + jx, head.y + FACE_UP, head.z + FACE_DIST);
+          camera.lookAt(head.x, head.y + FACE_UP - 0.03, head.z);
+          strobe.position.set(camera.position.x, camera.position.y - 0.25, camera.position.z);
+          strobe.target.position.set(head.x, head.y + FACE_UP, head.z);
+        }
       }
     }
     renderer.render(scene, camera);
@@ -130,6 +139,7 @@ export function createMenuScene(container: HTMLElement, opts: MenuSceneOptions =
       disposed = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
+      container.classList.remove('lw-menu-scene-face');
       enemy?.dispose();
       scene.traverse((o) => {
         const m = o as THREE.Mesh;
@@ -141,6 +151,7 @@ export function createMenuScene(container: HTMLElement, opts: MenuSceneOptions =
       });
       lamp.dispose();
       spill.dispose();
+      strobe.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },

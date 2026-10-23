@@ -118,7 +118,7 @@ export function uiClick() {
 }
 
 /** Update 0.4.3 — electrical buzz when the menu light stutters (silent until audio is unlocked). */
-export function flickerBuzz() {
+export function flickerBuzz(seconds = 0.5, level = 0.05) {
   const c = ctx;
   if (!c || c.state !== 'running' || !out) return;
   const t = c.currentTime;
@@ -132,9 +132,10 @@ export function flickerBuzz() {
   const g = c.createGain();
   g.gain.setValueAtTime(0, t);
   // Chopped on/off like a dying ballast.
-  for (let i = 0; i < 8; i++) g.gain.setValueAtTime(Math.random() < 0.6 ? 0.05 : 0, t + i * 0.06);
-  g.gain.setValueAtTime(0, t + 0.5);
+  const steps = Math.ceil(seconds / 0.06);
+  for (let i = 0; i < steps; i++) g.gain.setValueAtTime(Math.random() < 0.6 ? level : 0, t + i * 0.06);
+  g.gain.setValueAtTime(0, t + seconds);
   o.connect(bp).connect(g).connect(out);
   o.start(t);
-  o.stop(t + 0.55);
+  o.stop(t + seconds + 0.05);
 }

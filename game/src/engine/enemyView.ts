@@ -9,6 +9,8 @@ export interface EnemyView {
   update(pos: { x: number; z: number }, dir: { x: number; z: number }, mode: EnemyMode, moved: number, t: number, windingUp?: boolean): void;
   /** Jumpscare: the neck stretches and the face lunges at the camera. k: 0 → 1. */
   lunge(k: number, t: number): void;
+  /** Update 0.4.3b — menu: place it exactly (no turning lerp) and loop a named clip, e.g. 'stare'. */
+  pose(pos: { x: number; z: number }, yaw: number, clip: string, t: number): void;
   dispose(): void;
 }
 
@@ -114,6 +116,10 @@ export function createEnemyView(): EnemyView {
       const jerk = Math.sin(t * 13.7) > 0.96 ? (Math.random() - 0.5) * 0.9 : 0;
       head.rotation.z = Math.sin(t * 0.7) * 0.35 + jerk;
       head.rotation.y = Math.sin(t * 0.43) * 0.25 + (mode === 'search' ? Math.sin(t * 3) * 0.6 : 0);
+    },
+    pose(pos, yaw) {
+      root.position.set(pos.x, 0, pos.z);
+      root.rotation.y = yaw;
     },
     lunge(k, t) {
       body.rotation.x = 0.1 * k;

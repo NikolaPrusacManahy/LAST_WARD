@@ -1,36 +1,34 @@
-// Update 0.4.3 — main menu light / pose schedule.
+// Update 0.4.3b — main menu loop: stare → gone → face → gone → stare.
 import { check, section } from './harness';
-import { MENU_TIMING, MenuPose, createMenuScare, nextPose, stepMenuScare } from '../src/state/menuScare';
-import { createRng } from '../src/world/rng';
+import { MenuPose, createMenuScare, stepMenuScare } from '../src/state/menuScare';
 
-section('Main menu tease');
+section('Main menu loop');
 {
   const s = createMenuScare(5);
-  let litPoseSwap = false;
+  const order: MenuPose[] = [s.pose];
+  let swapWhileLit = false;
+  let prevLight = s.light;
   let darkLight = 0;
-  const poses = new Set<MenuPose>();
-  let prev = s.pose;
-  let repeats = 0;
+  let faceLitFrames = 0;
+  let faceFrames = 0;
   for (let i = 0; i < 60 * 180; i++) {
     stepMenuScare(s, 1 / 60);
-    if (s.poseChanged && s.phase !== 'dark') litPoseSwap = true;
-    if (s.phase === 'dark') darkLight = Math.max(darkLight, s.light);
     if (s.poseChanged) {
-      if (s.pose === prev) repeats++;
-      prev = s.pose;
-      poses.add(s.pose);
+      order.push(s.pose);
+      // Each swap happens at a cut to or from black, never on a steadily lit frame.
+      if (prevLight > 0 && s.light > 0) swapWhileLit = true;
     }
+    if (s.phase === 'dark' || s.phase === 'dark2') darkLight = Math.max(darkLight, s.light);
+    if (s.pose === 'face') {
+      faceFrames++;
+      if (s.light > 0) faceLitFrames++;
+    }
+    prevLight = s.light;
   }
-  check('it only moves while the light is out', !litPoseSwap);
-  check('fully dark while dark', darkLight === 0);
-  check('blacks out regularly (≥ 10 times in 3 min)', s.blackouts >= 10, `${s.blackouts}`);
-  check('never the same pose twice in a row', repeats === 0);
-  check('shows several different poses', poses.size >= 4, [...poses].join(','));
-}
-{
-  const rng = createRng(9);
-  let ok = true;
-  for (let i = 0; i < 500; i++) for (const p of ['idle', 'near', 'search', 'gone', 'scream'] as MenuPose[]) if (nextPose(p, rng) === p) ok = false;
-  check('nextPose never repeats', ok);
-  check('light holds for 5–10 s', MENU_TIMING.lit[0] === 5 && MENU_TIMING.lit[1] === 10);
+  const seq = order.slice(0, 5).join(' → ');
+  check('loop order is stare → gone → face → gone → stare', seq === 'stare → gone → face → gone → stare', seq);
+  check('what you see only changes in the dark', !swapWhileLit);
+  check('gone means fully dark', darkLight === 0);
+  check('the face strobes (mostly lit, never steady)', faceLitFrames / faceFrames > 0.45 && faceLitFrames < faceFrames);
+  check('scares keep coming (≥ 10 in 3 min)', s.scares >= 10, `${s.scares}`);
 }

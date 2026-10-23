@@ -7,7 +7,9 @@ export function MenuScene() {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!host.current) return;
-    const scene = createMenuScene(host.current, { onFlicker: () => flickerBuzz() });
+    const scene = createMenuScene(host.current, {
+      onFlicker: (phase) => (phase === 'scare' ? flickerBuzz(1.3, 0.09) : flickerBuzz()),
+    });
     return () => scene.dispose();
   }, []);
   return <div className="lw-menu-scene" ref={host} aria-hidden="true" />;

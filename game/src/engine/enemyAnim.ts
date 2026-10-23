@@ -1,7 +1,8 @@
 // Update 0.2 — which Mixamo clip The Patient plays, and how fast. Pure (no three.js) so it's tested.
 import type { EnemyMode } from '../world/enemyAI';
 
-export type EnemyClip = 'idle' | 'walk' | 'run' | 'search' | 'scream' | 'attack';
+/** 'stare' is menu-only (Update 0.4.3b). */
+export type EnemyClip = 'idle' | 'walk' | 'run' | 'search' | 'scream' | 'attack' | 'stare';
 
 /** Ground speed each clip was authored at (measured from the stance foot), m/s. */
 export const CLIP_GROUND_SPEED: Record<EnemyClip, number> = {
@@ -11,6 +12,7 @@ export const CLIP_GROUND_SPEED: Record<EnemyClip, number> = {
   search: 0,
   scream: 0,
   attack: 0,
+  stare: 0,
 };
 
 export const MOVING_THRESHOLD = 0.25; // m/s

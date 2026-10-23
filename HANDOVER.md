@@ -2,7 +2,7 @@
 
 ## Current version: 0.4.3
 
-- **Main menu:** The Patient now stands on the right under one failing tube light (`engine/menuScene.ts`, `screens/MenuScene.tsx`). The light holds for 5–10 s, stutters out, stays dark for 1–3 s, then flickers back. It only moves in the dark, so each time the light returns it may be standing further back, closer, looking around, mid-scream, or gone (`state/menuScare.ts`). A faint electrical buzz plays on each flicker once audio is unlocked. The menu text is unchanged.
+- **Main menu:** The Patient stands on the right under one failing tube light, staring at you (`engine/menuScene.ts`, `screens/MenuScene.tsx`), using its own `stare` clip (`Patient_menu_stare.fbx`, merged into `patient.glb`). The loop (`state/menuScare.ts`): lit 5–9 s → the tube stutters out → dark, it's gone → its face fills the screen under a crazy cold strobe for 1–1.6 s → dark, gone again → the tube stutters back on and it's standing there again. What's on screen only changes while the light is off. A faint buzz plays on each flicker and a harsher, longer one on the face scare (once audio is unlocked). The menu text is unchanged and stays clickable throughout.
 - **Player run animation** plays at half speed (`RUN_ANIM_SLOWDOWN`).
 - **Enemy footsteps heard through a wall are 1.5× louder** (`OCCLUDED_STEP_BOOST`). Steps in the open and the breathing are unchanged.
 

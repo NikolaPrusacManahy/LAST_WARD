@@ -36,7 +36,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring | no |
 | `engine/playerController.ts` | Camera, head bob, footsteps, flashlight rig | no |
 | `engine/buildLevel.ts` | Walls (instanced), floor, ceiling, lamps, cabinets, items, generator, exit door | no |
-| `engine/enemyView.ts` | `EnemyView` contract + the primitive fallback figure (shown until the GLB loads, or if it fails) | no |
+| `engine/enemyView.ts` | `EnemyView` contract (`update`, `pose` for fixed poses like the menu, `lunge`) + the primitive fallback figure (shown until the GLB loads, or if it fails) | no |
 | `engine/enemyModel.ts` | Rigged Patient (`public/models/patient.glb`): GLTFLoader + AnimationMixer, crossfades, jumpscare attack clip | no |
 | `engine/playerBody.ts` | First-person body (`public/models/player.glb`): placed behind the camera, head hidden, arms shrink away while sprinting | no |
 | `state/cameraBob.ts` | `BOB` amplitudes per gait (dip, sway, roll, nod, FOV) + `bobOffset` | yes |
@@ -49,8 +49,8 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, signs, flashlight cookie) | no |
 | `engine/input.ts` | Keys by `code`, mouse deltas under pointer lock | no |
 | `engine/hudStore.ts` | External store between the engine and React | no |
-| `state/menuScare.ts` | Main-menu light/pose schedule (lit → stutter out → dark → stutter in; pose swaps only in the dark) | yes |
-| `engine/menuScene.ts` + `screens/MenuScene.tsx` | Main-menu 3D backdrop: Patient model, tube light, floor + wall; disposed when leaving the menu | no |
+| `state/menuScare.ts` | Main-menu loop: lit (stare) → stutter out → dark (gone) → face strobe → dark (gone) → stutter in; pose swaps only in the dark | yes |
+| `engine/menuScene.ts` + `screens/MenuScene.tsx` | Main-menu 3D backdrop: Patient model (`EnemyView.pose`, `stare` clip), tube light, face-shot camera + strobe; disposed when leaving the menu | no |
 | `audio/spatial.ts` | `enemyMix(distance, occluded)`: low-pass cutoff + gain for enemy sounds; `ENEMY_STEP_GAIN` | yes |
 | `audio/uiSounds.ts` + `hooks/useUiSounds.ts` | Menu hover/click sounds (own AudioContext, document-level listener on `.lw-menu-btn`) | no (throttle `hoverAllowed` is tested) |
 | `audio/audio.ts` | Sound engine: loads `public/audio/manifest.json` samples, plays them (3D via PannerNode for enemy/generator), synth fallback per sound; synth tension, stinger, clanks | no |
@@ -82,4 +82,4 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 - Pipeline: Mixamo FBX in `ASSETS/models/<name>/` → `node tools/convert-character.mjs` (see its header) → `public/models/<name>.glb` with named clips, root motion stripped, 1024 px WebP textures. Patient: 15.7 MB of FBX → 1.3 MB GLB.
 - three.js strips `:` from node names, so Mixamo bones are `mixamorigHips`, `mixamorigHead`, …
 - Player clips: `idle walk run crouch` (bones `mixamorig9…`). Authored speeds: walk 1.6, run ≈3.2, crouch 1.25 m/s.
-- Patient clips: `idle walk run search scream attack`. AI → clip mapping lives in `enemyAnim.ts` (tested). Authored ground speeds: walk 1.47 m/s, run ≈2.6 m/s.
+- Patient clips: `idle walk run search scream attack stare` (`stare` is menu-only). AI → clip mapping lives in `enemyAnim.ts` (tested). Authored ground speeds: walk 1.47 m/s, run ≈2.6 m/s.
