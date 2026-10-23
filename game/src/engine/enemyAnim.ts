@@ -19,11 +19,14 @@ export const CLIP_GROUND_SPEED: Record<EnemyClip, number> = {
 };
 
 export const MOVING_THRESHOLD = 0.25; // m/s
+/** Update 0.6.4 — this fast it runs whatever its mode (sprinting to the generator). */
+export const RUN_THRESHOLD = 3.4; // m/s
 
 export function chooseEnemyClip(mode: EnemyMode, speed: number, windingUp: boolean): EnemyClip {
   if (windingUp) return 'scream';
   const moving = speed > MOVING_THRESHOLD;
   if (mode === 'chase') return moving ? 'run' : 'idle';
+  if (speed > RUN_THRESHOLD) return 'run';
   if (moving) return 'walk';
   return mode === 'search' ? 'search' : 'idle';
 }

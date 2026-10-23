@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { LEVEL_01 } from '../world/content/level01';
 import { Level, cellCenter, dist, itemPos, parseLevel, worldToCell } from '../world/level';
-import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, teleportAway, visibility } from '../world/enemyAI';
+import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, summonToGenerator, teleportAway, visibility } from '../world/enemyAI';
 import { CAUGHT, LIVES, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
 import { CaughtScene, createCaughtScene } from './caughtScene';
 import { WakeScene, createWakeScene } from './wakeScene';
@@ -16,7 +16,7 @@ import { CONTROLS_CARD_SECONDS, Prompt, promptFor, samePrompt, tickControlsCard 
 import { LIGHT, atmosphereFor } from '../state/lightLevels';
 import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
-import { RunPhase, guardLeave } from '../state/session';
+import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
 import { FUSES_NEEDED, Progress, activateGenerator, createProgress, objectiveText, tryExit } from '../state/objectives';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
@@ -70,7 +70,7 @@ export class Game {
   private noise: Noise | null = null;
   private target: Target | null = null;
   private toast: { text: string; until: number } | null = null;
-  private note: { text: string; until: number } | null = null;
+  private note: { text: string } | null = null;
   private lastPrompt: Prompt | null = null;
   /** Update 0.5.4 — look over your shoulder on the run + slow-motion burst. */
   private lookBack: LookBack = createLookBack();
@@ -235,7 +235,7 @@ export class Game {
     const locked = document.pointerLockElement === this.renderer.domElement;
     if (locked && this.phase === 'paused') {
       this.phase = this.resumePhase;
-    } else if (!locked && (this.phase === 'playing' || this.phase === 'caught' || this.phase === 'waking')) {
+    } else if (!locked && (this.phase === 'playing' || this.phase === 'reading' || this.phase === 'caught' || this.phase === 'waking')) {
       this.resumePhase = this.phase;
       this.phase = 'paused';
       this.input.clear();
@@ -274,7 +274,7 @@ export class Game {
     }
 
     // Update 0.5.4 — Q while running: camera swings round, time slows for a moment.
-    let wdt = dt;
+    let wdt = dt * worldTimeScale(this.phase); // Update 0.6.4 — 0 while a note is open
     if (this.phase === 'playing') {
       this.lookBack = stepLookBack(this.lookBack, dt, this.input.action('lookBack'), this.gait === 'sprint');
       wdt = dt * lookBackTimeScale(this.lookBack);
@@ -288,6 +288,7 @@ export class Game {
     this.realDt = dt;
 
     if (this.phase === 'playing') this.updatePlaying(wdt);
+    else if (this.phase === 'reading') this.updateReading();
     else if (this.phase === 'waking') this.updateWaking(dt);
     else if (this.phase === 'caught') this.updateCaught(dt);
     else if (this.phase === 'dying') this.updateDying(dt);
@@ -306,7 +307,7 @@ export class Game {
       speed: this.speed,
       velocity: this.phase === 'playing' ? this.player.velocity : undefined,
       camera: this.camera,
-      dt: this.phase === 'paused' ? 0 : wdt,
+      dt: this.phase === 'paused' ? 0 : wdt, // (wdt is 0 while reading)
       flashlightOn: this.status.flashlightOn,
       // Update 0.5.2 — keep the body out of the wall behind you.
       roomBehind: freeBehind(this.level, this.player.pos, this.player.forward, 1.2, BODY_RADIUS),
@@ -325,6 +326,16 @@ export class Game {
     }
   };
 
+  /** Update 0.6.4 — a note is open: nothing moves (world time is 0) until you put it down. */
+  private updateReading() {
+    const { input } = this;
+    if (input.wasPressed('F2')) this.setDebugView(!this.debugView.enabled);
+    if (closesNote({ interact: input.actionPressed('interact'), enter: input.wasPressed('Enter') || input.wasPressed('NumpadEnter'), escape: input.wasPressed('Escape') })) {
+      this.note = null;
+      this.phase = 'playing';
+    }
+  }
+
   private updatePlaying(dt: number) {
     this.playTime += dt;
     const { input, player, status } = this;
@@ -342,11 +353,7 @@ export class Game {
     // Update 0.5 — rebindable: right click flashlight, left click collect / interact by default.
     if (input.actionPressed('flashlight') && toggleFlashlight(status)) this.audio.click();
     this.controlsLeft = tickControlsCard(this.controlsLeft, dt, input.wasPressed('Enter') || input.wasPressed('NumpadEnter'));
-    if (this.note && (input.actionPressed('interact') || input.wasPressed('Escape') || this.t > this.note.until)) {
-      this.note = null;
-    } else if (input.actionPressed('interact')) {
-      this.interact();
-    }
+    if (input.actionPressed('interact')) this.interact();
     this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected);
 
     // Enemy.
@@ -421,7 +428,10 @@ export class Game {
       } else {
         this.audio.paper();
         p.notesRead.push(t.item.noteIndex!);
-        this.note = { text: this.level.notes[t.item.noteIndex!], until: this.t + 14 };
+        // Update 0.6.4 — reading pauses the whole game (updateReading) until you put it down.
+        this.note = { text: this.level.notes[t.item.noteIndex!] };
+        this.phase = 'reading';
+        this.target = null;
       }
     } else if (t.type === 'generator') {
       const r = activateGenerator(p);
@@ -431,8 +441,11 @@ export class Game {
         this.lights.setPowered(this.t);
         this.applyAtmosphere(); // with the lights back you can see further down the halls
         this.toastMsg('The lights come on. Something screams in the dark.', 5);
-        // The noise of the generator draws it in from anywhere.
-        this.noise = { pos: { x: g.x, z: g.z }, radius: 999 };
+        // Update 0.6.4 — it vanishes to a random corner, screams, and sprints for the generator:
+        // your window to get out of the room. (The old 999 m noise aimed at the solid machine, so
+        // no path reached it and it wandered off instead.)
+        summonToGenerator(this.level, this.enemy, this.player.pos, this.rng);
+        this.audio.powerScream();
         this.stingerTimer = window.setTimeout(() => this.audio.stinger(), 1200);
       } else if (r === 'need-fuses') {
         this.audio.denied();

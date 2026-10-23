@@ -14,5 +14,6 @@ import './test-stuck';
 import './test-patient';
 import './test-caught';
 import './test-wake';
+import './test-hunt';
 
 process.exit(summary() > 0 ? 1 : 0);

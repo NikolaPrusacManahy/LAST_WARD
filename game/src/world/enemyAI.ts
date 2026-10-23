@@ -1,6 +1,6 @@
 // "The Patient" — enemy brain. Pure state machine: patrol → investigate → chase → search.
 // The engine calls stepEnemy() every frame and only renders the result.
-import { Cell, Level, TILE, Vec2, cellCenter, dist, floorCells, worldToCell, sameCell } from './level';
+import { Cell, Level, TILE, Vec2, cellCenter, dist, floorCells, isSolid, worldToCell, sameCell } from './level';
 import { findPath } from './pathfinding';
 import { lineOfSight } from './lineOfSight';
 import { clearLine, moveWithCollision, overlapsWall } from './collision';
@@ -31,12 +31,17 @@ export const ENEMY = {
   muffledNoiseMul: 0.6, // noise through walls carries less
   /** Update 0.2 — it screams before it charges: your head start. */
   windupSeconds: 1.0,
-  /** Update 0.5.4 — a minute without spotting you: it vanishes and turns up at another corner. */
-  teleportAfter: 60,
+  /** Update 0.5.4 — without spotting you for this long it vanishes and turns up at another corner (0.6.4: 35 s, was 60). */
+  teleportAfter: 35,
   /** Never teleports from or to anywhere you can see, or closer than this to you (m). */
   teleportMinDist: 14,
-  /** Patrols within this many tiles of its home corner. */
-  homeRadiusTiles: 6,
+  /** Patrols within this many tiles of its home corner (0.6.4: 12, was 6). */
+  homeRadiusTiles: 12,
+  /** Update 0.6.4 — no tiny back-and-forth: each patrol leg is at least this many cells long
+   *  (legs average ~2× the old ones, so it wanders into you by surprise). */
+  patrolMinCells: 12,
+  /** How many random cells it tries for a long enough leg (else the longest it found). */
+  patrolTries: 12,
   /** Start corner must be at least this far from the player's start (m). */
   spawnMinDist: 20,
 };
@@ -61,6 +66,8 @@ export interface EnemyState {
   home: Cell;
   /** Seconds since it last spotted you (chasing counts as spotting). */
   sinceSpotted: number;
+  /** Update 0.6.4 — sprinting to the generator after the power came on (cleared on arrival / mode change). */
+  rush: boolean;
 }
 
 export interface PlayerSense {
@@ -92,6 +99,7 @@ export function createEnemy(level: Level): EnemyState {
     windup: 0,
     home: level.enemyStart,
     sinceSpotted: 0,
+    rush: false,
   };
 }
 
@@ -139,6 +147,44 @@ export function teleportAway(level: Level, e: EnemyState, player: Vec2): void {
   e.idle = 2;
   e.sinceSpotted = 0;
   e.sinceSeen = Infinity;
+  e.rush = false;
+}
+
+/** Update 0.6.4 — the open cell next to the generator (the machine itself is solid, so no path ends on it). */
+export function generatorApproach(level: Level): Cell {
+  const g = level.generator;
+  const near = [
+    { col: g.col, row: g.row - 1 },
+    { col: g.col, row: g.row + 1 },
+    { col: g.col - 1, row: g.row },
+    { col: g.col + 1, row: g.row },
+  ].filter((c) => !isSolid(level, c.col, c.row));
+  if (near.length) return near[0];
+  return floorCells(level).reduce((best, c) => (dist(cellCenter(c), cellCenter(g)) < dist(cellCenter(best), cellCenter(g)) ? c : best));
+}
+
+/**
+ * Update 0.6.4 — the generator comes on: it vanishes to a random corner (one far from you), screams,
+ * then sprints for the generator. Sight still turns it into a chase; noises don't distract it.
+ */
+export function summonToGenerator(level: Level, e: EnemyState, player: Vec2, rng: Rng): Cell {
+  const corners = cornerCells(level);
+  const far = corners.filter((c) => dist(cellCenter(c), player) >= ENEMY.teleportMinDist);
+  const pool = far.length ? far : corners;
+  const to = pool[Math.floor(rng() * pool.length)];
+  teleportAway(level, e, player); // resets the brain (patrol, alert, clocks)…
+  e.pos = cellCenter(to); // …at the corner we picked
+  e.home = to;
+  e.mode = 'investigate';
+  e.modeTime = 0;
+  e.windup = ENEMY.windupSeconds;
+  e.idle = 0;
+  goTo(level, e, cellCenter(generatorApproach(level)));
+  e.rush = true;
+  const g = cellCenter(level.generator);
+  const d = dist(e.pos, g) || 1;
+  e.dir = { x: (g.x - e.pos.x) / d, z: (g.z - e.pos.z) / d };
+  return to;
 }
 
 /** Update 0.5.4 — after a minute without finding you, move to another corner you can't see. */
@@ -188,6 +234,7 @@ function setMode(e: EnemyState, mode: EnemyMode) {
   if (e.mode !== mode) {
     e.mode = mode;
     e.modeTime = 0;
+    e.rush = false;
   }
 }
 
@@ -224,6 +271,28 @@ function pickWanderGoal(level: Level, e: EnemyState, rng: Rng, near: Vec2 | null
   const options = cells.filter((c) => !sameCell(c, here));
   const pick = options[Math.floor(rng() * options.length)] ?? here;
   goTo(level, e, cellCenter(pick));
+}
+
+/** Update 0.6.4 — a patrol leg: a cell near home at least `patrolMinCells` of path away (else the longest tried). */
+function pickPatrolGoal(level: Level, e: EnemyState, rng: Rng) {
+  const home = e.home;
+  const r = ENEMY.homeRadiusTiles;
+  const here = worldToCell(e.pos);
+  let cells = floorCells(level).filter((x) => Math.abs(x.col - home.col) <= r && Math.abs(x.row - home.row) <= r && !sameCell(x, here));
+  if (!cells.length) cells = floorCells(level).filter((x) => !sameCell(x, here));
+  let best: Cell | null = null;
+  let bestLen = -1;
+  for (let i = 0; i < ENEMY.patrolTries; i++) {
+    const c = cells[Math.floor(rng() * cells.length)];
+    if (!c) break;
+    const len = findPath(level, here, c).length;
+    if (len > bestLen) {
+      best = c;
+      bestLen = len;
+    }
+    if (len >= ENEMY.patrolMinCells) break;
+  }
+  goTo(level, e, cellCenter(best ?? here));
 }
 
 /** Moves along the path. Returns true when the goal is reached. */
@@ -293,7 +362,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
   } else if (e.mode !== 'chase' && vis > 0 && e.alert > 0.35) {
     setMode(e, 'investigate');
     goTo(level, e, player.pos);
-  } else if (e.mode !== 'chase' && noise && heardNoise(level, e, noise)) {
+  } else if (e.mode !== 'chase' && !e.rush && noise && heardNoise(level, e, noise)) {
     if (e.mode !== 'investigate') events.push('heard');
     setMode(e, 'investigate');
     goTo(level, e, noise.pos);
@@ -301,7 +370,8 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
 
   if (e.mode === 'chase' && e.sinceSeen <= ENEMY.memorySeconds) e.lastKnown = { ...player.pos };
 
-  const speed = ENEMY.speed[e.mode] * (1 + e.rage);
+  // Update 0.6.4 — rushing to the generator: chase speed.
+  const speed = ENEMY.speed[e.rush ? 'chase' : e.mode] * (1 + e.rage);
 
   switch (e.mode) {
     case 'chase': {
@@ -336,6 +406,11 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
       break;
     }
     case 'investigate': {
+      if (e.windup > 0) {
+        // Update 0.6.4 — screaming at the corner before the sprint to the generator.
+        e.windup = Math.max(0, e.windup - dt);
+        break;
+      }
       if (!e.goal) pickWanderGoal(level, e, rng, null, 0);
       if (followPath(e, speed, dt)) {
         setMode(e, 'search');
@@ -359,9 +434,9 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
         break;
       }
       if (!e.goal) {
-        // Update 0.5.4 — patrols its own corner of the map; noise still draws it anywhere, and after a
-        // minute without finding you it moves to another corner (tryTeleport).
-        pickWanderGoal(level, e, rng, cellCenter(e.home), ENEMY.homeRadiusTiles);
+        // Update 0.5.4 — patrols its own part of the map; noise still draws it anywhere, and after
+        // 35 s without finding you it moves to another corner (tryTeleport). 0.6.4 — long legs.
+        pickPatrolGoal(level, e, rng);
       }
       if (followPath(e, speed, dt)) {
         e.goal = null;

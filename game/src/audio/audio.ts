@@ -138,6 +138,15 @@ export class AudioEngine {
     if (!this.playSample('enemy_scream', { at: p, ref: 4, rolloff: 0.9, gain: 1 })) this.stinger();
   }
 
+  /** Update 0.6.4 — its scream when the power comes on: wherever it is, you hear it through the walls. */
+  powerScream() {
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 2400;
+    lp.connect(this.master);
+    if (!this.playSample('enemy_scream', { gain: 0.9, rate: 0.92, to: lp })) this.stinger();
+  }
+
   /** Jumpscare: the recorded scream right in your face, with the distorted synth layered under it. */
   scream() {
     // The recording leads; the synth layer underneath adds grit.

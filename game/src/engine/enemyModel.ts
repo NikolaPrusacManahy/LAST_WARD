@@ -88,7 +88,8 @@ export async function loadEnemyModel(url = PATIENT_URL): Promise<EnemyView> {
       const d = Math.atan2(Math.sin(targetYaw - yaw), Math.cos(targetYaw - yaw));
       yaw += d * Math.min(1, dt * 10);
       root.rotation.y = yaw;
-      if (dt > 0) speed += (moved / dt - speed) * Math.min(1, dt * 8);
+      // A teleport (metres in one frame) isn't running: don't let it spike the gait.
+      if (dt > 0) speed += ((moved > 2 ? 0 : moved) / dt - speed) * Math.min(1, dt * 8);
       const clip = chooseEnemyClip(mode, speed, windingUp);
       play(clip, clipTimeScale(clip, speed));
       mixer.update(dt);

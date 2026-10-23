@@ -1,6 +1,13 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.6.3
+## Current version: 0.6.4
+
+- **Patrols:** it teleports to another corner after **35 s** without spotting you (was 60). It patrols a wider area (12 tiles round its corner, was 6) and every patrol leg is at least 12 cells of path, so legs average ~18 cells (was ~8): no more pacing back and forth in one spot, and more chances to walk into you by surprise. It still stops and looks round between legs for 1 to 3.5 s.
+- **Reading pauses the game:** opening a note stops everything (The Patient, you, timers, stamina, grunts) until you put it down with the collect / interact button, Enter or Esc. The 14 s auto-close is gone. New phase `'reading'` (world time 0).
+- **Generator on:** The Patient vanishes to a random corner (one at least 14 m from the generator), screams, then **sprints** (chase speed, run clip) to the generator. Noises don't distract it on the way, but if it sees you it chases you. It takes about 14 to 16 s to get there, your window to leave the room. After that it searches round the generator. Before this, the "noise from the generator" aimed at the machine itself (a solid cell), so no path reached it and it just wandered somewhere random.
+- **The scream:** when the power comes on you always hear it scream, wherever it is: the recording, muffled as if through the walls (`audio.powerScream()`), with the old stinger 1.2 s later.
+
+## 0.6.3
 
 - **Waking up:** after "Click to begin" the same intro text (03:14 AM…) stays on black and fades over 0.9 s while your eyes are shut. Then the eyelids open (1.4 s, heavy, same curve as after a throw) onto the floor: you're lying face down where you spawn, the get-up clip held on its first pose, cheek to the tiles. 1 s of lying there, then you get up (the get-up clip, 5 s) with the grunt cut to 1 s, and the run starts: "Find a way out." + the controls card. Control returns ~8.3 s after the click. The Patient is frozen during this. The flashlight and the glow around you are dim on the floor (full strength point-blank turned the frame white) and come up as you stand. Esc pauses it like a running game. `state/wakeSequence.ts` (timeline), `engine/wakeScene.ts` (camera = your body's eyes), phase `'waking'`.
 - **Note on the wall:** straight ahead as you step out of the spawn room (wall cell 3,6, facing the corridor): a torn page, "It can hear you...". New `wallNotes` in level files (wall cell + face + text, checked by `parseLevel`), drawn by `wallNoteTexture()`.

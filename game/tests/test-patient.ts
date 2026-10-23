@@ -1,4 +1,4 @@
-// Update 0.5.4 — corner spawns, teleport after a minute without finding you, random table items.
+// Update 0.5.4 — corner spawns, teleport after a while (35 s since 0.6.4) without finding you, random table items.
 import { check, section } from './harness';
 import { ENEMY, cornerCells, spawnAtCorner, stepEnemy, EnemyEvent } from '../src/world/enemyAI';
 import { shuffleItems } from '../src/world/itemShuffle';
@@ -30,7 +30,7 @@ section('Patient corners (0.5.4)');
   check('uses every other corner across runs', used.size === 3, [...used].join(' '));
 }
 
-section('Teleport after a minute (0.5.4)');
+section('Teleport after 35 s without finding you (0.5.4, 0.6.4)');
 {
   // Player hides in the start room, out of its sight and silent.
   const hidden = { pos: start, flashlightOn: false, crouching: true };
@@ -42,7 +42,7 @@ section('Teleport after a minute (0.5.4)');
     const ev: EnemyEvent[] = stepEnemy(level, e, { dt: 1 / 60, player: hidden, noise: null, fuses: 0 }, rng);
     if (ev.includes('teleported')) at = i / 60;
   }
-  check('teleports once a minute passes without finding you', at >= ENEMY.teleportAfter - 0.05 && at < ENEMY.teleportAfter + 5, `at ${at.toFixed(1)} s`);
+  check('teleports once 35 s pass without finding you', at >= ENEMY.teleportAfter - 0.05 && at < ENEMY.teleportAfter + 5, `at ${at.toFixed(1)} s`);
   check('…to a different corner', !sameCell(e.home, firstHome) && corners.some((c) => sameCell(c, e.home)));
   check('…never where you can see it or close to you', dist(e.pos, start) >= ENEMY.teleportMinDist && (!lineOfSight(level, e.pos, start) || dist(e.pos, start) > 25));
   check('…and patrols again with a fresh clock', e.mode === 'patrol' && e.sinceSpotted === 0);

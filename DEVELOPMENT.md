@@ -25,7 +25,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/level.ts` | Level type, ASCII legend + parser, `TILE`, cell ↔ world maths, `itemPos` (cabinet placement) | yes |
 | `world/pathfinding.ts` | A* (8-way, no corner cutting), flood-fill `reachable` | yes |
 | `world/lineOfSight.ts` | Grid line-of-sight | yes |
-| `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise` | yes |
+| `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4) | yes |
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2) | yes |
 | `world/interact.ts` | What's in reach and in front of the player | yes |
 | `world/rng.ts` | Seeded RNG | yes |
@@ -43,7 +43,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/playerAnim.ts` | Player clip per gait (+ strafe left / right from local velocity, 0.5.3) + playback speed, body placement | yes |
 | `engine/debugView.ts` | F2 view: sun/sky lights, enemy marker through walls, path line | no |
 | `state/debugInfo.ts` | F2 panel text | yes |
-| `engine/enemyAnim.ts` | Which clip to play for an AI mode/speed, and playback speed so feet match the ground | yes |
+| `engine/enemyAnim.ts` | Which clip to play for an AI mode/speed (runs above 3.4 m/s in any mode, 0.6.4), and playback speed so feet match the ground | yes |
 | `engine/lighting.ts` | Lamp flicker before power, steady after; item spin | no |
 | `state/lightLevels.ts` | Every light level (flashlight, fill, fog, eye glow) + `atmosphereFor(powered, debug)` | yes |
 | `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades | no |
