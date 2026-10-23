@@ -1,0 +1,80 @@
+# DEVELOPMENT.md: module map and contracts
+
+Who owns what, and how the pieces talk. Keep this current when you add or move a module.
+
+## Frame flow
+
+```
+App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + save
+  └─ GameView.tsx ── creates one Game per run (keyed by runId), renders <Hud>
+       └─ engine/Game.ts (façade, owns the rAF loop)
+            each frame while playing:
+            1. PlayerController.look/step   → uses world/collision + state/playerRules
+            2. interact (E)                 → world/interact.findTarget + state/objectives
+            3. stepEnemy                    → world/enemyAI (pure) → events: spotted / lost / heard / caught
+            4. EnemyView.update             → animation only
+            5. AudioEngine                  → footsteps, enemy breath/steps, heartbeat, stingers
+            6. Lighting.update + PostFx     → lamps flicker, fear-driven screen FX
+            7. hudStore.set (10×/s)         → React HUD re-renders via useSyncExternalStore
+```
+
+## Modules
+
+| Module | Owns | Pure? |
+|---|---|---|
+| `world/level.ts` | Level type, ASCII legend + parser, `TILE`, cell ↔ world maths, `itemPos` (cabinet placement) | yes |
+| `world/collision.ts` | Circle-vs-grid movement with wall sliding, round prop blockers | yes |
+| `world/pathfinding.ts` | A* (8-way, no corner cutting), flood-fill `reachable` | yes |
+| `world/lineOfSight.ts` | Grid line-of-sight | yes |
+| `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise` | yes |
+| `world/interact.ts` | What's in reach and in front of the player | yes |
+| `world/rng.ts` | Seeded RNG | yes |
+| `world/content/level01.ts` | Ward 13 map + notes | data |
+| `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve | yes |
+| `state/objectives.ts` | Fuses → generator → exit chain, objective text | yes |
+| `state/settings.ts` | Save shape, defaults, `hydrateSave`, best time | yes (+ localStorage I/O) |
+| `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring | no |
+| `engine/playerController.ts` | Camera, head bob, footsteps, flashlight rig | no |
+| `engine/buildLevel.ts` | Walls (instanced), floor, ceiling, lamps, cabinets, items, generator, exit door | no |
+| `engine/enemyView.ts` | `EnemyView` contract + the primitive fallback figure (shown until the GLB loads, or if it fails) | no |
+| `engine/enemyModel.ts` | Rigged Patient (`public/models/patient.glb`): GLTFLoader + AnimationMixer, crossfades, jumpscare attack clip | no |
+| `engine/playerBody.ts` | First-person body (`public/models/player.glb`): placed behind the camera, head hidden, right arm posed to hold the torch, gives the beam origin (`lens`) | no |
+| `engine/playerAnim.ts` | Player clip per gait + playback speed | yes |
+| `engine/debugView.ts` | F2 view: sun/sky lights, enemy marker through walls, path line | no |
+| `state/debugInfo.ts` | F2 panel text | yes |
+| `engine/enemyAnim.ts` | Which clip to play for an AI mode/speed, and playback speed so feet match the ground | yes |
+| `engine/lighting.ts` | Lamp flicker before power, steady after; item spin | no |
+| `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades | no |
+| `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, signs, flashlight cookie) | no |
+| `engine/input.ts` | Keys by `code`, mouse deltas under pointer lock | no |
+| `engine/hudStore.ts` | External store between the engine and React | no |
+| `audio/audio.ts` | Web Audio synth: ambience, tension, enemy breath, steps, heartbeat, stinger, scream, pickups | no |
+
+## Contracts
+
+- **Coordinates:** world `x` = map column direction, world `z` = map row direction (down the ASCII map). 1 cell = `TILE` = 3 m. three.js uses the same x/z, with y up.
+- **Yaw:** `forward = (-sin yaw, -cos yaw)`. `yaw = 0` looks up the map (−z), `yaw = π` looks down it (+z).
+- **Enemy:** `stepEnemy(level, enemy, { dt, player, noise, fuses }, rng)` mutates `enemy` and returns events. Noise is one-shot per frame (a footstep, or the generator starting with radius 999).
+- **Game → React:** only through `GameCallbacks` (`onEnd`, `onPause`) and the HUD store. React → Game only through `GameHandle` (`resume`, `setSettings`) and `begin()` from the intro click.
+- **Pointer lock:** losing lock while playing = pause. Death and escape release it on purpose and never trigger pause.
+- **Saves:** a new saved field needs a default in `defaultSave()` **and** a line in `hydrateSave()`, or it is wiped on load.
+
+## Tuning cheat sheet
+
+| What | Where | Now |
+|---|---|---|
+| Walk / sprint / crouch speed | `PLAYER.speed` | 3.0 / 5.4 / 1.6 m/s |
+| Sprint time | `PLAYER.staminaMax` | 4.5 s |
+| Flashlight battery | `PLAYER.batteryDrainPerSec` | ~90 s per full battery, +45% per pickup |
+| Footstep noise radius | `PLAYER.noise` | walk 6 m, sprint 15 m, crouch silent |
+| Enemy speed | `ENEMY.speed` | patrol 1.5, investigate 2.6, chase 4.3 m/s (+7% per fuse) |
+| Enemy sight | `ENEMY.viewDistLight / Dark` | 16 m with your flashlight on, 8 m off (×0.7 crouched), 130° cone |
+| Lose it | `ENEMY.memorySeconds`, `searchSeconds` | tracks you 1.2 s after losing sight, searches 7 s |
+| Scream head start | `ENEMY.windupSeconds` | screams in place 1.0 s after spotting you, then charges |
+
+## Character models
+
+- Pipeline: Mixamo FBX in `ASSETS/models/<name>/` → `node tools/convert-character.mjs` (see its header) → `public/models/<name>.glb` with named clips, root motion stripped, 1024 px WebP textures. Patient: 15.7 MB of FBX → 1.3 MB GLB.
+- three.js strips `:` from node names, so Mixamo bones are `mixamorigHips`, `mixamorigHead`, …
+- Player clips: `idle walk run crouch` (bones `mixamorig9…`). Authored speeds: walk 1.6, run ≈3.2, crouch 1.25 m/s.
+- Patient clips: `idle walk run search scream attack`. AI → clip mapping lives in `enemyAnim.ts` (tested). Authored ground speeds: walk 1.47 m/s, run ≈2.6 m/s.

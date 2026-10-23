@@ -1,0 +1,8 @@
+/* theme-04 — Update 0.3: F2 debug panel. Prefix: lw-dbg- */
+.lw-dbg-panel {
+  position: absolute; top: 24px; right: 24px; min-width: 300px;
+  display: flex; flex-direction: column; gap: 4px; padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.72); border-left: 3px solid #ffc233;
+  font-family: var(--lw-mono); font-size: 12px; color: #e8e4d6; white-space: pre;
+}
+.lw-dbg-panel strong { font-size: 11px; letter-spacing: 0.24em; color: #ffc233; margin-bottom: 4px; }

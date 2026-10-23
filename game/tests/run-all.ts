@@ -1,0 +1,9 @@
+// Runs every test-*.ts. Add new feature tests to this list.
+import { summary } from './harness';
+import './test-level';
+import './test-movement';
+import './test-enemy';
+import './test-rules';
+import './test-anim';
+
+process.exit(summary() > 0 ? 1 : 0);
