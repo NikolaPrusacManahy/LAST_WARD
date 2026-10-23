@@ -1,5 +1,5 @@
 // Game façade: owns the renderer and frame loop, wires world rules → visuals → audio → HUD.
-// Keep it a façade: new mechanics go in their own module (CLAUDE.md §4).
+// Keep it a façade: new mechanics go in their own module.
 import * as THREE from 'three';
 import { LEVEL_01 } from '../world/content/level01';
 import { Level, cellCenter, dist, itemPos, parseLevel, worldToCell } from '../world/level';

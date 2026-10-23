@@ -1,5 +1,5 @@
 // Procedural canvas textures — no image files needed for the prototype.
-// Swap these for real art later (see CLAUDE.md §6 Assets pipeline).
+// Swap these for real art later, keeping the same function names.
 import * as THREE from 'three';
 import { createRng } from '../world/rng';
 

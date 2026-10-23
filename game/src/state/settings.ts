@@ -1,5 +1,5 @@
 // Settings + best-time save in localStorage. Every saved field needs a default here,
-// or old saves lose it on load (see CLAUDE.md §4 "Saves").
+// or old saves lose it on load.
 import { Bindings, DEFAULT_BINDINGS, hydrateBindings } from './bindings';
 
 export interface Settings {
