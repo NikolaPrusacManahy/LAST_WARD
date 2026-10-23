@@ -1,5 +1,7 @@
 // Tiny external store: the engine writes HUD values ~10×/s, React reads them with
 // useSyncExternalStore (see hooks/useHud.ts). Keeps React out of the frame loop.
+import type { Prompt } from '../state/prompts';
+import { Bindings, DEFAULT_BINDINGS } from '../state/bindings';
 
 export interface HudState {
   battery: number;
@@ -7,7 +9,8 @@ export interface HudState {
   stamina: number; // 0..1
   exhausted: boolean;
   objective: string;
-  prompt: string | null;
+  /** Update 0.5 — words only; the icon is the interact binding. */
+  prompt: Prompt | null;
   toast: string | null;
   note: string | null;
   fear: number;
@@ -17,6 +20,10 @@ export interface HudState {
   cinematic: boolean;
   /** Update 0.3 — F2 debug panel lines, or null when closed. */
   debug: string[] | null;
+  /** Update 0.5 — current controls, for prompt icons and the controls card. */
+  bindings: Bindings;
+  /** Seconds left on the start-of-run controls card (0 = hidden). */
+  controls: number;
 }
 
 export const initialHud: HudState = {
@@ -33,6 +40,8 @@ export const initialHud: HudState = {
   started: false,
   cinematic: false,
   debug: null,
+  bindings: DEFAULT_BINDINGS,
+  controls: 0,
 };
 
 export function createHudStore() {

@@ -32,7 +32,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/content/level01.ts` | Ward 13 map + notes | data |
 | `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve | yes |
 | `state/objectives.ts` | Fuses → generator → exit chain, objective text | yes |
-| `state/settings.ts` | Save shape, defaults, `hydrateSave`, best time | yes (+ localStorage I/O) |
+| `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time | yes (+ localStorage I/O) |
 | `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring | no |
 | `engine/playerController.ts` | Camera, head bob, footsteps, flashlight rig | no |
 | `engine/buildLevel.ts` | Walls (instanced), floor, ceiling, lamps, cabinets, items, generator, exit door | no |
@@ -48,7 +48,11 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/lightLevels.ts` | Every light level (flashlight, fill, fog, eye glow) + `atmosphereFor(powered, debug)` | yes |
 | `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades | no |
 | `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, signs, flashlight cookie) | no |
-| `engine/input.ts` | Keys by `code`, mouse deltas under pointer lock | no |
+| `engine/input.ts` | Keys by `code`, mouse buttons as `Mouse0..4`, mouse deltas under pointer lock; `action(a)` / `actionPressed(a)` read `Settings.bindings` | no |
+| `state/bindings.ts` | Actions, `DEFAULT_BINDINGS` (left click interact, right click flashlight), `rebind` (clash = swap), reserved keys, `hydrateBindings` | yes |
+| `state/inputIcons.ts` | Code → Kenney icon name + label (`glyphFor`), the icon list `tools/prepare-input-icons.ts` ships | yes |
+| `state/prompts.ts` | Crosshair prompt words (`promptFor`: collect / read / interact / what's missing) + controls-card timer | yes |
+| `screens/InputIcon.tsx`, `ControlsCard.tsx`, `KeyBindings.tsx` | Icon (or text key cap), the 10 s controls box, the rebind list in Settings | no |
 | `engine/hudStore.ts` | External store between the engine and React | no |
 | `state/menuScare.ts` | Main-menu loop: lit (stare) → stutter out → dark (gone) → face strobe → dark (gone) → stutter in; pose swaps only in the dark | yes |
 | `engine/menuScene.ts` + `screens/MenuScene.tsx` | Main-menu 3D backdrop: Patient model (`EnemyView.pose`, `stare` clip), tube light, face-shot camera + strobe; disposed when leaving the menu | no |

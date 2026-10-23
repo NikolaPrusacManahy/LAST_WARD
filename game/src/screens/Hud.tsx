@@ -1,6 +1,8 @@
 import type { HudStore } from '../engine/hudStore';
 import { useHud } from '../hooks/useHud';
 import { breathLineVisible, breathLineWidth } from '../state/hudLayout';
+import { ControlsCard } from './ControlsCard';
+import { InputIcon } from './InputIcon';
 
 interface Props {
   store: HudStore;
@@ -18,7 +20,6 @@ export function Hud({ store, hidden, onBegin }: Props) {
         <span className="lw-intro-line">You wake up on a gurney in Ward 13.</span>
         <span className="lw-intro-line">The power is out. Something is breathing down the hall.</span>
         <span className="lw-intro-cta">Click to begin</span>
-        <span className="lw-intro-keys">WASD move · Mouse look · Shift run · Ctrl crouch · F flashlight · E interact · Esc pause</span>
       </button>
     );
   }
@@ -38,12 +39,26 @@ export function Hud({ store, hidden, onBegin }: Props) {
         </div>
       )}
       <div className="lw-hud-crosshair" />
-      {h.prompt && <div className="lw-hud-prompt">{h.prompt}</div>}
+      {h.controls > 0 && !h.note && <ControlsCard bindings={h.bindings} secondsLeft={h.controls} />}
+      {h.prompt && (
+        <div className="lw-hud-prompt">
+          <span className="lw-prompt-title">{h.prompt.title}</span>
+          {h.prompt.verb ? (
+            <span className="lw-prompt-line">
+              Press <InputIcon code={h.bindings.interact} size="lg" /> to {h.prompt.verb}
+            </span>
+          ) : (
+            <span className="lw-prompt-line lw-prompt-info">{h.prompt.info}</span>
+          )}
+        </div>
+      )}
       {h.toast && <div className="lw-hud-toast" key={h.toast}>{h.toast}</div>}
       {h.note && (
         <div className="lw-note">
           <p>{h.note}</p>
-          <span>[E] put it down</span>
+          <span className="lw-note-close">
+            Press <InputIcon code={h.bindings.interact} size="sm" /> to put it down
+          </span>
         </div>
       )}
       <div className="lw-hud-bars">

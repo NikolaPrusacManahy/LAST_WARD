@@ -14,7 +14,6 @@
   margin-top: 40px; font-size: 13px; letter-spacing: 0.4em; text-transform: uppercase; color: var(--lw-bone-dim);
   opacity: 0; animation: lw-fade-in 1s 1.8s forwards, lw-pulse 2s 2.8s infinite;
 }
-.lw-intro-keys { position: absolute; bottom: 32px; font-size: 12px; color: var(--lw-bone-dim); opacity: 0.6; }
 
 .lw-hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .lw-hud-objective {

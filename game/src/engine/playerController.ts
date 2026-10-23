@@ -76,8 +76,9 @@ export class PlayerController {
   step(level: Level, input: Input, status: PlayerStatus, dt: number): StepResult {
     const f = this.forward;
     const right = { x: Math.cos(this.yaw), z: -Math.sin(this.yaw) };
-    const mx = (input.isDown('KeyD', 'ArrowRight') ? 1 : 0) - (input.isDown('KeyA', 'ArrowLeft') ? 1 : 0);
-    const mz = (input.isDown('KeyW', 'ArrowUp') ? 1 : 0) - (input.isDown('KeyS', 'ArrowDown') ? 1 : 0);
+    // Update 0.5 — rebindable (Settings.bindings); arrow keys only move if bound.
+    const mx = (input.action('right') ? 1 : 0) - (input.action('left') ? 1 : 0);
+    const mz = (input.action('forward') ? 1 : 0) - (input.action('back') ? 1 : 0);
     let wx = f.x * mz + right.x * mx;
     let wz = f.z * mz + right.z * mx;
     const len = Math.hypot(wx, wz);
@@ -85,8 +86,8 @@ export class PlayerController {
       wx /= len;
       wz /= len;
     }
-    const sprintHeld = input.isDown('ShiftLeft', 'ShiftRight');
-    this.crouching = nextCrouch(this.crouching, input.wasPressed('ControlLeft') || input.wasPressed('ControlRight'), sprintHeld, len > 0);
+    const sprintHeld = input.action('sprint');
+    this.crouching = nextCrouch(this.crouching, input.actionPressed('crouch'), sprintHeld, len > 0);
     const gait = chooseGait(len > 0, sprintHeld, this.crouching, status);
     const speed = gaitSpeed(gait);
     const a = 1 - Math.exp(-dt * 12);

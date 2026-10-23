@@ -1,5 +1,6 @@
 // Settings + best-time save in localStorage. Every saved field needs a default here,
 // or old saves lose it on load (see CLAUDE.md §4 "Saves").
+import { Bindings, DEFAULT_BINDINGS, hydrateBindings } from './bindings';
 
 export interface Settings {
   sensitivity: number; // 0.2 – 3
@@ -8,6 +9,8 @@ export interface Settings {
   grain: boolean;
   /** Update 0.4.1 — vertical field of view in degrees (sprinting adds a little on top). */
   fov: number;
+  /** Update 0.5 — rebindable controls (state/bindings.ts). */
+  bindings: Bindings;
 }
 
 export interface SaveData {
@@ -23,10 +26,10 @@ export const SAVE_KEY = 'last-ward-save';
 export const FOV_MIN = 60;
 export const FOV_MAX = 100;
 
-export const DEFAULT_SETTINGS: Settings = { sensitivity: 1, volume: 0.8, invertY: false, grain: true, fov: 72 };
+export const DEFAULT_SETTINGS: Settings = { sensitivity: 1, volume: 0.8, invertY: false, grain: true, fov: 72, bindings: DEFAULT_BINDINGS };
 
 export function defaultSave(): SaveData {
-  return { version: 1, settings: { ...DEFAULT_SETTINGS }, bestTime: null, escapes: 0, deaths: 0 };
+  return { version: 1, settings: { ...DEFAULT_SETTINGS, bindings: { ...DEFAULT_BINDINGS } }, bestTime: null, escapes: 0, deaths: 0 };
 }
 
 const clamp = (v: unknown, lo: number, hi: number, d: number) =>
@@ -46,6 +49,7 @@ export function hydrateSave(raw: unknown): SaveData {
       invertY: typeof s.invertY === 'boolean' ? s.invertY : DEFAULT_SETTINGS.invertY,
       grain: typeof s.grain === 'boolean' ? s.grain : DEFAULT_SETTINGS.grain,
       fov: Math.round(clamp(s.fov, FOV_MIN, FOV_MAX, DEFAULT_SETTINGS.fov)),
+      bindings: hydrateBindings(s.bindings),
     },
     bestTime: typeof r.bestTime === 'number' && r.bestTime > 0 ? r.bestTime : null,
     escapes: clamp(r.escapes, 0, 1e9, 0),

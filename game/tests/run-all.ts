@@ -8,5 +8,6 @@ import './test-anim';
 import './test-audio';
 import './test-menu';
 import './test-light';
+import './test-input';
 
 process.exit(summary() > 0 ? 1 : 0);

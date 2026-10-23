@@ -6,6 +6,7 @@ import { Level, cellCenter, dist, itemPos, parseLevel, worldToCell } from '../wo
 import { EnemyState, Noise, createEnemy, stepEnemy, visibility } from '../world/enemyAI';
 import { createRng } from '../world/rng';
 import { findTarget, Target } from '../world/interact';
+import { CONTROLS_CARD_SECONDS, Prompt, promptFor, samePrompt, tickControlsCard } from '../state/prompts';
 import { LIGHT, atmosphereFor } from '../state/lightLevels';
 import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
@@ -62,6 +63,8 @@ export class Game {
   private target: Target | null = null;
   private toast: { text: string; until: number } | null = null;
   private note: { text: string; until: number } | null = null;
+  private lastPrompt: Prompt | null = null;
+  private controlsLeft = 0;
   private enemyStepAccum = 0;
   private resizeObs: ResizeObserver;
   /** ?debug in the URL: runs without pointer lock (for automated screenshots). */
@@ -114,6 +117,7 @@ export class Game {
     this.fx = createPostFx(this.renderer, this.scene, this.camera);
     this.fx.set({ grain: settings.grain ? 1 : 0 });
     this.input = new Input(this.renderer.domElement, this.debug);
+    this.input.bindings = settings.bindings;
     this.audio = new AudioEngine(settings.volume);
 
     document.addEventListener('pointerlockchange', this.onLockChange);
@@ -134,6 +138,7 @@ export class Game {
     this.audio.startEnemyBreath(this.enemy3D());
     this.phase = 'playing';
     this.toastMsg('Find a way out.', 4);
+    this.controlsLeft = CONTROLS_CARD_SECONDS; // Update 0.5 — controls card, Enter closes it
     void this.lockPointer();
   }
 
@@ -161,6 +166,7 @@ export class Game {
     this.audio.setVolume(s.volume);
     this.fx.set({ grain: s.grain ? 1 : 0 });
     this.player.baseFov = s.fov;
+    this.input.bindings = s.bindings;
   }
 
   /** Ctrl+W (or closing the tab) mid-run asks before leaving. */
@@ -200,7 +206,8 @@ export class Game {
 
   private frame = (now: number) => {
     this.raf = requestAnimationFrame(this.frame);
-    const dt = Math.min(0.05, (now - this.last) / 1000);
+    // Update 0.5 — a frame stamped before the game was built gave a negative dt and froze the HUD.
+    const dt = Math.max(0, Math.min(0.05, (now - this.last) / 1000));
     this.last = now;
     this.t += dt;
     this.phaseTime += dt;
@@ -256,10 +263,12 @@ export class Game {
       if (step.footstep.noise > 0) this.noise = { pos: { ...player.pos }, radius: step.footstep.noise };
     }
 
-    if (input.wasPressed('KeyF') && toggleFlashlight(status)) this.audio.click();
-    if (this.note && (input.wasPressed('KeyE') || input.wasPressed('Escape') || this.t > this.note.until)) {
+    // Update 0.5 — rebindable: right click flashlight, left click collect / interact by default.
+    if (input.actionPressed('flashlight') && toggleFlashlight(status)) this.audio.click();
+    this.controlsLeft = tickControlsCard(this.controlsLeft, dt, input.wasPressed('Enter') || input.wasPressed('NumpadEnter'));
+    if (this.note && (input.actionPressed('interact') || input.wasPressed('Escape') || this.t > this.note.until)) {
       this.note = null;
-    } else if (input.wasPressed('KeyE')) {
+    } else if (input.actionPressed('interact')) {
       this.interact();
     }
     this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected);
@@ -405,16 +414,11 @@ export class Game {
     }
   }
 
-  private promptText(): string | null {
-    const t = this.target;
-    if (!t || this.note) return null;
-    const p = this.progress;
-    if (t.type === 'item') return t.item.kind === 'note' ? '[E] Read note' : `[E] Take ${t.item.kind}`;
-    if (t.type === 'generator') {
-      if (p.powered) return null;
-      return p.fuses >= FUSES_NEEDED ? '[E] Start the generator' : `Generator — needs fuses (${p.fuses}/${FUSES_NEEDED})`;
-    }
-    return p.powered ? '[E] Escape' : 'Exit — mag-lock has no power';
+  /** Same object while the words don't change, so the HUD doesn't re-render for nothing. */
+  private currentPrompt(): Prompt | null {
+    const next = this.phase === 'playing' ? promptFor(this.target, this.progress, !!this.note) : null;
+    if (!samePrompt(next, this.lastPrompt)) this.lastPrompt = next;
+    return this.lastPrompt;
   }
 
   private pushHud(force = false) {
@@ -427,7 +431,9 @@ export class Game {
       stamina: Math.round((s.stamina / 4.5) * 100) / 100,
       exhausted: s.exhausted,
       objective: objectiveText(this.progress),
-      prompt: this.phase === 'playing' ? this.promptText() : null,
+      prompt: this.currentPrompt(),
+      bindings: this.settings.bindings,
+      controls: this.phase === 'playing' || this.phase === 'paused' ? Math.ceil(this.controlsLeft * 10) / 10 : 0,
       toast: this.toast?.text ?? null,
       note: this.note?.text ?? null,
       fear: Math.round(this.fear * 20) / 20,

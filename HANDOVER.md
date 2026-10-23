@@ -1,6 +1,15 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.4.4
+## Current version: 0.5
+
+- **New controls:** left click collects / interacts, right click toggles the flashlight. WASD, Shift run and Ctrl crouch are unchanged. Arrow keys no longer move you unless you bind them.
+- **Key bindings in Settings:** settings now has two columns, general on the left and Controls on the right. Each action shows its key or mouse icon; click it, then press a key or mouse button to rebind (mouse side buttons work too). Binding a key that another action already uses swaps the two, so nothing is left unbound. Esc cancels. "Reset controls" restores the defaults. Esc, F2, F3 and the Windows key can't be bound. Saved with the other settings (`Settings.bindings`, `state/bindings.ts`); old saves get the defaults.
+- **Input icons:** Kenney's Input Prompts pack (CC0, `ASSETS/UI - inputs`), keyboard keys from the outline set and mice from the filled set, recoloured bone / blood by `tools/prepare-input-icons.ts` into `public/ui/inputs/` (89 icons). Keys without an icon (numpad digits) get a drawn key cap.
+- **Prompts:** looking at something reachable shows its name and "Press [icon] to collect" (fuse, battery), "to read" (note) or "to interact" (generator with all fuses, powered exit). The icon is whatever interact is bound to. Locked things show what they need instead ("Needs fuses (1/3)", "Mag-lock. No power."). The note says "Press [icon] to put it down".
+- **Controls card:** the bottom-of-screen key tips on the intro card are gone. When a run starts, a Controls box shows in the middle of the screen on the right for 10 s (a red line counts down) or until you press Enter. It hides while a note is open and pauses with the game.
+- Fix: a frame stamped before the game was built gave a negative frame time, which could stall the HUD at the start. Frame time is now clamped at 0 (game and menu scene).
+
+## 0.4.4
 
 - **The ward is easier to see without the flashlight.** The fill light is a lighter grey-blue and stronger (0.6 before the generator, 0.9 after), fog is a bit thinner, and the soft glow around you is brighter. You can make out corridor walls and floor tiles with the flashlight off; it's still dark. All levels live in `state/lightLevels.ts` (`LIGHT`).
 - **Flashlight 1.3× stronger** (`LIGHT.flashlight` = 34 × 1.3).
@@ -62,7 +71,7 @@ A complete, playable vertical slice of one level.
 - **Ward 13** (25×19 grid): 4 patient rooms, a generator room, 3 corridors and 6 ceiling lamps.
 - **Loop:** find 3 fuses → start the generator → escape through the exit door (bottom-right).
 - **The Patient** patrols, investigates footsteps, chases on sight, searches where it lost you, and drifts toward you a third of the time. It gets 7% faster per fuse. Starting the generator is loud enough to bring it from anywhere.
-- **Player:** WASD, mouse look, Shift sprint (stamina), C crouch (Ctrl toggle since 0.4.2) (silent, harder to see), F flashlight (battery drains; flickers below 20%), E interact.
+- **Player:** WASD, mouse look, Shift sprint (stamina), Ctrl crouch toggle (silent, harder to see), right click flashlight (battery drains; flickers below 20%), left click collect / interact. All rebindable in Settings (0.5).
 - **Items:** 3 fuses, 3 batteries and 4 lore notes, each on a cabinet against a wall.
 - **Presentation:** procedural hospital textures, wall graffiti, flickering lamps that come on after power, a flashlight with a lens cookie and lag, film grain, vignette, and fear-driven chromatic aberration.
 - **Sound:** all synthesised. Room drone, distant clanks, the enemy's 3D breathing and footsteps, a heartbeat that speeds up with fear, chase strings, a stinger when it sees you, and a jumpscare scream.
