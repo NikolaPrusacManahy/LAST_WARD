@@ -173,6 +173,20 @@ export class AudioEngine {
     if (!this.playSample('door_open', { gain: 1 })) this.synthDoorOpen();
   }
 
+  // Update 0.6 — the first catch: grabbed, thrown (your scream), the floor, then injured grunts.
+  caught() {
+    if (!this.playSample('caught', { gain: 1 })) this.stinger();
+  }
+  thrownScream() {
+    this.playSample('thrown', { gain: 1 });
+  }
+  floorImpact() {
+    if (!this.playSample('floor_impact', { gain: 1.1 })) this.synthFootstep('sprint');
+  }
+  grunt() {
+    this.playSample('grunt', { gain: 0.8, rate: this.jitter(0.05) });
+  }
+
   resume() {
     return this.ctx.resume();
   }

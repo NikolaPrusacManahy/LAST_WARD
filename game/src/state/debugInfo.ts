@@ -14,6 +14,9 @@ export interface DebugSnapshot {
   powered: boolean;
   /** Update 0.5.4 — seconds until it moves to another corner (null while chasing). */
   teleportIn?: number | null;
+  /** Update 0.6 */
+  lives?: number;
+  injured?: boolean;
 }
 
 export function debugLines(d: DebugSnapshot): string[] {
@@ -21,7 +24,7 @@ export function debugLines(d: DebugSnapshot): string[] {
     `FPS ${Math.round(d.fps)} · cell ${d.cell.col},${d.cell.row}`,
     `Patient: ${d.enemyMode.toUpperCase()}${d.windup > 0 ? ' (screaming)' : ''}${d.frozen ? ' · FROZEN' : ''}`,
     `alert ${Math.round(d.alert * 100)}% · ${d.distance.toFixed(1)} m · ${d.seesYou ? 'SEES YOU' : 'cannot see you'}`,
-    `fuses ${d.fuses}/3 · power ${d.powered ? 'on' : 'off'}${d.teleportIn == null ? '' : ` · new corner in ${Math.max(0, Math.ceil(d.teleportIn))}s`}`,
+    `${d.lives === undefined ? '' : `lives ${d.lives}${d.injured ? ' (injured)' : ''} · `}fuses ${d.fuses}/3 · power ${d.powered ? 'on' : 'off'}${d.teleportIn == null ? '' : ` · new corner in ${Math.max(0, Math.ceil(d.teleportIn))}s`}`,
     'F2 close · F3 freeze enemy',
   ];
 }

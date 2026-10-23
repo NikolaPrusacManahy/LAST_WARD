@@ -13,6 +13,7 @@ const HorrorShader = {
     uFear: { value: 0 },
     uGrain: { value: 1 },
     uRed: { value: 0 },
+    uInjured: { value: 0 }, // Update 0.6 — red creeping in from the edges after losing a life
     uWhite: { value: 0 },
     uBlack: { value: 0 },
     uClean: { value: 0 }, // Update 0.3 — F2 debug view: no grain / vignette / aberration
@@ -23,7 +24,7 @@ const HorrorShader = {
   `,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
-    uniform float uTime, uFear, uGrain, uRed, uWhite, uBlack, uClean;
+    uniform float uTime, uFear, uGrain, uRed, uWhite, uBlack, uClean, uInjured;
     varying vec2 vUv;
     float rand(vec2 co) { return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
@@ -49,6 +50,10 @@ const HorrorShader = {
       // Vignette tightens with fear.
       float v = 1.0 - smoothstep(0.25, 0.85 - uFear * 0.25, length(c) * 1.25);
       col *= mix(0.25, 1.0, v);
+      // Injured: the edges go blood red, pulsing slowly like a heartbeat.
+      float edge = smoothstep(0.3, 0.95, length(c) * 1.3);
+      float pulse = 0.85 + 0.15 * sin(uTime * 2.4);
+      col = mix(col, col * vec3(1.0, 0.25, 0.2) + vec3(0.38, 0.0, 0.0) * edge, clamp(uInjured * edge * pulse, 0.0, 1.0));
       // Grain + faint scanlines.
       float g = rand(uv * vec2(1920.0, 1080.0) + fract(uTime * 37.0)) - 0.5;
       col += g * (0.06 + uFear * 0.05) * uGrain;
@@ -71,7 +76,8 @@ export function createPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, 
   const u = horror.uniforms;
   return {
     composer,
-    set(v: { time?: number; fear?: number; grain?: number; red?: number; white?: number; black?: number; clean?: boolean }) {
+    set(v: { time?: number; fear?: number; grain?: number; red?: number; white?: number; black?: number; clean?: boolean; injured?: number }) {
+      if (v.injured !== undefined) u.uInjured.value = v.injured;
       if (v.clean !== undefined) u.uClean.value = v.clean ? 1 : 0;
       if (v.time !== undefined) u.uTime.value = v.time;
       if (v.fear !== undefined) u.uFear.value = v.fear;

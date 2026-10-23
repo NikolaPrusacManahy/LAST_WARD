@@ -36,12 +36,15 @@ export async function loadEnemyModel(url = PATIENT_URL): Promise<EnemyView> {
   const root = new THREE.Group();
   root.add(model);
   const head = model.getObjectByName('mixamorigHead') ?? model;
+  const handL = model.getObjectByName('mixamorigLeftHand');
+  const handR = model.getObjectByName('mixamorigRightHand');
+  const tmpH = new THREE.Vector3();
 
   const mixer = new THREE.AnimationMixer(model);
   const actions = new Map<EnemyClip, THREE.AnimationAction>();
   for (const clip of gltf.animations) {
     const a = mixer.clipAction(clip);
-    if (clip.name === 'scream' || clip.name === 'attack') {
+    if (['scream', 'attack', 'grab', 'throw'].includes(clip.name)) {
       a.setLoop(THREE.LoopOnce, 1);
       a.clampWhenFinished = true;
     }
@@ -73,6 +76,11 @@ export async function loadEnemyModel(url = PATIENT_URL): Promise<EnemyView> {
   return {
     root,
     head,
+    hands(out) {
+      if (!handL || !handR) return head.getWorldPosition(out);
+      handL.getWorldPosition(out);
+      return out.add(handR.getWorldPosition(tmpH)).multiplyScalar(0.5);
+    },
     update(pos, dir, mode: EnemyMode, moved, t, windingUp = false) {
       const dt = tick(t);
       root.position.set(pos.x, 0, pos.z);

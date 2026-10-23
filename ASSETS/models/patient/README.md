@@ -15,5 +15,7 @@ Suggested names (one file per animation is fine):
 | `patient_scream.fbx` | Spotting you (optional) |
 | `patient_attack.fbx` | The jumpscare when it catches you |
 | `Patient_menu_stare.fbx` | Main menu only: standing, staring at the player (clip `stare`) |
+| `Patient_grab.fbx` | First catch: grabs and lifts you (clip `grab`, 0.6) |
+| `Patient_throw.fbx` | First catch: throws you behind it (clip `throw`, 0.6) |
 
 Mixamo tips: tick **In Place** for walk/run; download extra animations **Without Skin**; 30 fps is fine.

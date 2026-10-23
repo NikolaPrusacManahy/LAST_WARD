@@ -39,8 +39,20 @@ PLAN = {
     # Optional menu sounds (synthesised in audio/uiSounds.ts when missing).
     'ui_hover': ('oneshot', -26),
     'ui_click': ('oneshot', -20),
+    # Update 0.6 — caught / thrown sequence + injured grunts.
+    'player_caught/caught_SFX': ('oneshot', -14),
+    'player_caught/thrown_sfx': ('oneshot', -14),
+    'player_caught/floor_impact_sfx': ('oneshot', -12),
+    'player_grunt': ('oneshot', -20),
 }
-OUT_NAMES = {'footSteps_player': 'step_player', 'footSteps_patient': 'step_patient'}
+OUT_NAMES = {
+    'footSteps_player': 'step_player',
+    'footSteps_patient': 'step_patient',
+    'player_caught/caught_SFX': 'caught',
+    'player_caught/thrown_sfx': 'thrown',
+    'player_caught/floor_impact_sfx': 'floor_impact',
+    'player_grunt': 'grunt',
+}
 
 
 def decode(path, channels):

@@ -53,6 +53,9 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/inputIcons.ts` | Code → Kenney icon name + label (`glyphFor`), the icon list `tools/prepare-input-icons.ts` ships | yes |
 | `state/prompts.ts` | Crosshair prompt words (`promptFor`: collect / read / interact / what's missing) + controls-card timer | yes |
 | `audio/menuAmbience.ts` + `state/menuAudio.ts` | Ambience under the credit screen + main menu (own AudioContext, starts on the first gesture) | no / yes |
+| `state/caughtSequence.ts` | Lives (2), caught timeline + cues, flight curve, thrown clip timing, dazed blink, injured tint, grunt delay (0.6) | yes |
+| `world/throwLanding.ts` | Where you land: behind the enemy, up to 3 m, room for a lying body, never through a wall (0.6) | yes |
+| `engine/caughtScene.ts` | Films the caught sequence: camera in its hands, then your body's eyes (`PlayerBody.cinematic` / `eyes`) | no |
 | `state/lookBack.ts` | Look back on the run: 180° camera swing, slow-mo burst + cooldown, body hide (0.5.4) | yes |
 | `world/itemShuffle.ts` | Shuffles fuses / batteries / notes across the item cabinets each run (0.5.4) | yes |
 | `state/creditIntro.ts` + `screens/CreditIntro.tsx` | Boot credit screen: 3 s hold, 1 s fade, click → 0.5 s fade (real time, not frame-capped) | yes / no |

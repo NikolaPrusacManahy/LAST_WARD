@@ -135,7 +135,11 @@ export class PlayerController {
       this.camera.updateProjectionMatrix();
     }
     this.camera.updateMatrixWorld();
+    this.updateLight(dt, status, shake, lightMul);
+  }
 
+  /** Flashlight follows wherever the camera is (Update 0.6 — also when a cinematic moves the camera). */
+  updateLight(dt: number, status: PlayerStatus, shake = 0, lightMul = 1) {
     // Flashlight sits at the right hand and catches up with the view.
     // Aims at a point ahead of the crosshair so the beam converges on what you look at.
     const q = this.camera.quaternion;

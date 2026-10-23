@@ -3,7 +3,9 @@
 import * as THREE from 'three';
 import { LEVEL_01 } from '../world/content/level01';
 import { Level, cellCenter, dist, itemPos, parseLevel, worldToCell } from '../world/level';
-import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, visibility } from '../world/enemyAI';
+import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, teleportAway, visibility } from '../world/enemyAI';
+import { CAUGHT, LIVES, dazedBlink, injuredTint, nextGruntDelay } from '../state/caughtSequence';
+import { CaughtScene, createCaughtScene } from './caughtScene';
 import { shuffleItems } from '../world/itemShuffle';
 import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackTimeScale, lookBackYaw, stepLookBack } from '../state/lookBack';
 import { createRng } from '../world/rng';
@@ -73,6 +75,15 @@ export class Game {
   /** World clock: runs slower during the look-back slow motion (this.t stays real time). */
   private worldT = 0;
   private realDt = 0;
+  /** Update 0.6 — two lives; the first catch throws you and leaves you injured. */
+  private lives = LIVES;
+  private injured = false;
+  private caught: CaughtScene | null = null;
+  private impactT = -99;
+  private gruntIn = 0;
+  private camReturn: { pos: THREE.Vector3; quat: THREE.Quaternion; t: number } | null = null;
+  /** Phase to go back to after a pause (a pause mid-sequence resumes the sequence). */
+  private resumePhase: Phase = 'playing';
   private controlsLeft = 0;
   private enemyStepAccum = 0;
   private resizeObs: ResizeObserver;
@@ -189,9 +200,10 @@ export class Game {
 
   private onLockChange = () => {
     const locked = document.pointerLockElement === this.renderer.domElement;
-    if (locked && (this.phase === 'paused' || this.phase === 'playing')) {
-      this.phase = 'playing';
-    } else if (!locked && this.phase === 'playing') {
+    if (locked && this.phase === 'paused') {
+      this.phase = this.resumePhase;
+    } else if (!locked && (this.phase === 'playing' || this.phase === 'caught')) {
+      this.resumePhase = this.phase;
       this.phase = 'paused';
       this.input.clear();
       this.cb.onPause();
@@ -237,11 +249,12 @@ export class Game {
       this.lookBack = createLookBack();
     }
     this.player.lookBackYaw = lookBackYaw(this.lookBack);
-    this.body?.setVisible(!hideBodyWhileLookingBack(this.lookBack));
+    if (this.phase !== 'caught') this.body?.setVisible(!hideBodyWhileLookingBack(this.lookBack));
     this.worldT += wdt;
     this.realDt = dt;
 
     if (this.phase === 'playing') this.updatePlaying(wdt);
+    else if (this.phase === 'caught') this.updateCaught(dt);
     else if (this.phase === 'dying') this.updateDying(dt);
     else if (this.phase === 'escaping') this.updateEscaping(dt);
     else {
@@ -249,7 +262,7 @@ export class Game {
       this.enemyView.update(this.enemy.pos, this.enemy.dir, this.enemy.mode, 0, this.worldT, this.enemy.windup > 0);
     }
 
-    this.body?.update({
+    if (this.phase !== 'caught') this.body?.update({
       pos: this.player.pos,
       yaw: this.player.yaw,
       pitch: this.player.pitch,
@@ -262,10 +275,11 @@ export class Game {
       flashlightOn: this.status.flashlightOn,
       // Update 0.5.2 — keep the body out of the wall behind you.
       roomBehind: freeBehind(this.level, this.player.pos, this.player.forward, 1.2, BODY_RADIUS),
+      injured: this.injured,
     });
     this.debugView.update(this.enemy, this.t);
     this.lights.update(this.t);
-    this.fx.set({ time: this.t, fear: this.debugView.enabled ? 0 : this.fear });
+    this.fx.set({ time: this.t, fear: this.debugView.enabled ? 0 : this.fear, injured: this.debugView.enabled ? 0 : injuredTint(this.injured, this.t - this.impactT) });
     this.fx.render();
     this.input.endFrame();
 
@@ -324,7 +338,9 @@ export class Game {
       this.audio.stinger();
     }
     if (events.includes('caught')) {
-      this.startDying();
+      // Update 0.6 — first catch: thrown, injured. Last life: the old jumpscare.
+      if (this.lives > 1) this.startCaught();
+      else this.startDying();
       return;
     }
 
@@ -332,6 +348,15 @@ export class Game {
     this.fear += (targetFear - this.fear) * (1 - Math.exp(-dt * 3));
     // Camera + flashlight follow in real time, so the look-back swing isn't slowed by its own slow motion.
     player.updateView(this.realDt, step.gait, status, this.t, 0);
+    this.easeCameraBack(this.realDt);
+    // Update 0.6 — injured: a grunt every 5–7 s.
+    if (this.injured) {
+      this.gruntIn -= dt;
+      if (this.gruntIn <= 0) {
+        this.audio.grunt();
+        this.gruntIn = nextGruntDelay(this.rng);
+      }
+    }
     this.audio.setListener(this.camera.position, this.camForward());
     this.audio.updateEnemy(this.enemy3D(), chasing, mix);
     this.audio.tickFear(dt, this.fear, chasing);
@@ -390,6 +415,80 @@ export class Game {
         this.toastMsg('Mag-lock. No power.');
       }
     }
+  }
+
+  /** Update 0.6 — first catch: grab, lift, throw, get up injured (engine/caughtScene.ts). */
+  private startCaught() {
+    this.phase = 'caught';
+    this.lives--;
+    this.toast = null;
+    this.note = null;
+    this.target = null;
+    this.camReturn = null;
+    this.caught = createCaughtScene({
+      level: this.level,
+      camera: this.camera,
+      enemyView: this.enemyView,
+      body: () => this.body,
+      playerPos: { ...this.player.pos },
+      eyeHeight: this.camera.position.y,
+      enemyPos: { ...this.enemy.pos },
+    });
+  }
+
+  private updateCaught(dt: number) {
+    const scene = this.caught;
+    if (!scene) return;
+    this.fear = Math.max(0, this.fear - dt * 0.15);
+    for (const cue of scene.update(dt, this.worldT)) {
+      if (cue === 'caught') this.audio.caught();
+      else if (cue === 'launch') this.audio.thrownScream();
+      else if (cue === 'impact') {
+        this.audio.floorImpact();
+        this.impactT = this.t;
+        this.injured = true; // the red creeps in while you're still on the floor
+      } else if (cue === 'teleport') {
+        // Gone before you're back on your feet.
+        teleportAway(this.level, this.enemy, scene.landing);
+        scene.enemyMoved({ ...this.enemy.pos });
+      } else if (cue === 'done') {
+        this.endCaught(scene);
+        return;
+      }
+    }
+    this.player.updateLight(dt, this.status);
+    this.fx.set({ black: dazedBlink(scene.t) });
+    this.audio.setListener(this.camera.position, this.camForward());
+    this.audio.updateEnemy(this.enemy3D(), false);
+  }
+
+  private endCaught(scene: CaughtScene) {
+    const view = scene.lastView();
+    this.fx.set({ black: 0 });
+    this.player.pos = { ...scene.landing };
+    this.player.yaw = scene.bodyYaw;
+    this.player.pitch = 0;
+    this.caught = null;
+    this.injured = true;
+    this.gruntIn = 1.5; // first grunt soon after getting up
+    this.camReturn = { pos: view.pos, quat: view.quat, t: 0 };
+    this.noise = null;
+    this.input.clear();
+    this.phase = 'playing';
+  }
+
+  /** After getting up, ease from the body's eyes back into normal first person. */
+  private easeCameraBack(dt: number) {
+    const r = this.camReturn;
+    if (!r) return;
+    r.t += dt;
+    const k = Math.min(1, r.t / CAUGHT.cameraReturn);
+    const e = k * k * (3 - 2 * k);
+    this.camera.position.lerpVectors(r.pos, this.camera.position, e);
+    this.camera.quaternion.slerpQuaternions(r.quat, this.camera.quaternion, e);
+    this.camera.updateMatrixWorld();
+    this.player.updateLight(0, this.status);
+    if (k >= 1) this.camReturn = null;
   }
 
   private startDying() {
@@ -480,9 +579,11 @@ export class Game {
             fuses: this.progress.fuses,
             powered: this.progress.powered,
             teleportIn: this.enemy.mode === 'chase' ? null : ENEMY.teleportAfter - this.enemy.sinceSpotted,
+            lives: this.lives,
+            injured: this.injured,
           })
         : null,
-      cinematic: this.phase === 'dying' || this.phase === 'escaping' || this.phase === 'over',
+      cinematic: this.phase === 'caught' || this.phase === 'dying' || this.phase === 'escaping' || this.phase === 'over',
     });
   }
 
@@ -509,8 +610,15 @@ export class Game {
   debugEnemy(col: number, row: number) {
     this.enemy.pos = cellCenter({ col, row });
   }
+  /** Update 0.6 — ?debug: get caught right now (it appears 1 m in front of you). */
+  debugCatch() {
+    const f = this.player.forward;
+    this.enemy.pos = { x: this.player.pos.x + f.x, z: this.player.pos.z + f.z };
+    if (this.lives > 1) this.startCaught();
+    else this.startDying();
+  }
   debugState() {
-    return { phase: this.phase, enemy: { ...this.enemy, path: undefined }, progress: this.progress, status: this.status, pos: this.player.pos };
+    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, phase: this.phase, enemy: { ...this.enemy, path: undefined }, progress: this.progress, status: this.status, pos: this.player.pos };
   }
 
   /** Update 0.3 — F2: full light, no fog or screen FX, enemy marked through walls. */

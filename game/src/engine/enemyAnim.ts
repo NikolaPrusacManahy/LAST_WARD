@@ -2,7 +2,8 @@
 import type { EnemyMode } from '../world/enemyAI';
 
 /** 'stare' is menu-only (Update 0.4.3b). */
-export type EnemyClip = 'idle' | 'walk' | 'run' | 'search' | 'scream' | 'attack' | 'stare';
+/** 'grab' / 'throw' — Update 0.6, the first time it catches you. */
+export type EnemyClip = 'idle' | 'walk' | 'run' | 'search' | 'scream' | 'attack' | 'stare' | 'grab' | 'throw';
 
 /** Ground speed each clip was authored at (measured from the stance foot), m/s. */
 export const CLIP_GROUND_SPEED: Record<EnemyClip, number> = {
@@ -13,6 +14,8 @@ export const CLIP_GROUND_SPEED: Record<EnemyClip, number> = {
   scream: 0,
   attack: 0,
   stare: 0,
+  grab: 0,
+  throw: 0,
 };
 
 export const MOVING_THRESHOLD = 0.25; // m/s

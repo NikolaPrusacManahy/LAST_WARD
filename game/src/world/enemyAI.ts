@@ -120,6 +120,27 @@ export function spawnAtCorner(level: Level, rng: Rng, playerStart: Vec2): EnemyS
 /** Hidden from the player: no line of sight, or far into the dark. */
 const outOfSight = (level: Level, a: Vec2, player: Vec2) => !lineOfSight(level, a, player) || dist(a, player) > 25;
 
+/**
+ * Update 0.6 — after throwing you it vanishes to a corner: the farthest one you can't see
+ * (any farthest corner if none is hidden). Fresh patrol, fresh clock.
+ */
+export function teleportAway(level: Level, e: EnemyState, player: Vec2): void {
+  const corners = cornerCells(level).sort((a, b) => dist(cellCenter(b), player) - dist(cellCenter(a), player));
+  const to = corners.find((c) => outOfSight(level, cellCenter(c), player)) ?? corners[0];
+  e.pos = cellCenter(to);
+  e.home = to;
+  e.mode = 'patrol';
+  e.modeTime = 0;
+  e.goal = null;
+  e.path = [];
+  e.lastKnown = null;
+  e.alert = 0;
+  e.windup = 0;
+  e.idle = 2;
+  e.sinceSpotted = 0;
+  e.sinceSeen = Infinity;
+}
+
 /** Update 0.5.4 — after a minute without finding you, move to another corner you can't see. */
 function tryTeleport(level: Level, e: EnemyState, player: Vec2, rng: Rng): boolean {
   if (e.mode === 'chase' || e.sinceSpotted < ENEMY.teleportAfter) return false;

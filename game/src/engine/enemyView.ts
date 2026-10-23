@@ -6,6 +6,8 @@ import type { EnemyMode } from '../world/enemyAI';
 export interface EnemyView {
   root: THREE.Group;
   head: THREE.Object3D;
+  /** Update 0.6 — where it holds you: between its hands (world space). */
+  hands(out: THREE.Vector3): THREE.Vector3;
   update(pos: { x: number; z: number }, dir: { x: number; z: number }, mode: EnemyMode, moved: number, t: number, windingUp?: boolean): void;
   /** Jumpscare: the neck stretches and the face lunges at the camera. k: 0 → 1. */
   lunge(k: number, t: number): void;
@@ -94,6 +96,11 @@ export function createEnemyView(): EnemyView {
   return {
     root,
     head,
+    hands(out) {
+      // Primitive figure: just in front of its face.
+      root.updateWorldMatrix(true, false);
+      return out.set(0, 2.2, 0.55).applyMatrix4(root.matrixWorld);
+    },
     update(pos, dir, mode, moved, t) {
       root.position.set(pos.x, 0, pos.z);
       const targetYaw = Math.atan2(dir.x, dir.z);

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { Gait } from '../state/playerRules';
-import { PlayerClip, armScaleFor, bodyBackOffset, bodyRootFor, bodyTurnFor, choosePlayerClip, limitBodyBack, localVelocity, playerClipTimeScale, strafeSide } from './playerAnim';
+import { PlayerClip, armScaleFor, bodyBackOffset, bodyRootFor, bodyTurnFor, choosePlayerClip, injuredClip, limitBodyBack, localVelocity, playerClipTimeScale, strafeSide } from './playerAnim';
 
 export const PLAYER_URL = '/models/player.glb';
 const FADE = 0.2;
@@ -24,11 +24,28 @@ export interface BodyInput {
   camera: THREE.Camera;
   dt: number;
   flashlightOn: boolean;
+  /** Update 0.6 — lost a life: injured idle / walk / run. */
+  injured?: boolean;
+}
+
+/** Update 0.6 — the caught sequence drives the body directly and films from its eyes. */
+export interface BodyCinematic {
+  clip: PlayerClip;
+  /** Clip time to start from when this clip begins. */
+  startAt?: number;
+  fade?: number;
+  pos: { x: number; z: number };
+  /** Facing yaw in the game's convention (same as the player's yaw). */
+  yaw: number;
+  dt: number;
 }
 
 export interface PlayerBody {
   root: THREE.Group;
   update(i: BodyInput): void;
+  cinematic(c: BodyCinematic): void;
+  /** Where its eyes are and which way they look (camera convention: looks down -Z). */
+  eyes(pos: THREE.Vector3, quat: THREE.Quaternion): void;
   setVisible(v: boolean): void;
   dispose(): void;
 }
@@ -70,7 +87,14 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
 
   const mixer = new THREE.AnimationMixer(model);
   const actions = new Map<PlayerClip, THREE.AnimationAction>();
-  for (const clip of gltf.animations) actions.set(clip.name as PlayerClip, mixer.clipAction(clip));
+  for (const clip of gltf.animations) {
+    const a = mixer.clipAction(clip);
+    if (clip.name === 'thrown' || clip.name === 'getUp') {
+      a.setLoop(THREE.LoopOnce, 1);
+      a.clampWhenFinished = true;
+    }
+    actions.set(clip.name as PlayerClip, a);
+  }
 
   // Scale so the eyes (≈10 cm above the head bone) sit at camera height.
   actions.get('idle')?.play();
@@ -93,6 +117,9 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
   };
 
   const headPos = new THREE.Vector3();
+  const headQ = new THREE.Quaternion();
+  const eyeOffset = new THREE.Vector3();
+  const turnRound = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
   const headDelta = { x: 0, z: 0 };
   let turn = 0;
 
@@ -101,7 +128,7 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
     update(i) {
       const local = i.velocity ? localVelocity(i.velocity, i.yaw) : { side: 0, ahead: 0 };
       const strafe = strafeSide(local.side, local.ahead);
-      const clip = choosePlayerClip(i.gait, i.crouching, strafe);
+      const clip = injuredClip(choosePlayerClip(i.gait, i.crouching, strafe), !!i.injured);
       // Update 0.5.3 — diagonal moves turn the body up to 45° toward the move (eased).
       const turnTo = clip === 'idle' ? 0 : bodyTurnFor(local.side, local.ahead, strafe !== null);
       turn += (turnTo - turn) * Math.min(1, i.dt * 10);
@@ -126,6 +153,35 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
       armScale += (armScaleFor(clip) - armScale) * Math.min(1, i.dt * 12);
       const s = Math.max(0.001, armScale);
       for (const a of arms) a.scale.setScalar(s);
+    },
+    cinematic(c) {
+      if (current !== c.clip) {
+        const next = actions.get(c.clip);
+        if (next) {
+          const prev = current ? actions.get(current) : undefined;
+          next.reset();
+          next.timeScale = 1;
+          if (c.startAt !== undefined) next.time = c.startAt;
+          next.play();
+          const fade = c.fade ?? 0.08;
+          if (prev && fade > 0) next.crossFadeFrom(prev, fade, false);
+          else if (prev) prev.stop();
+          current = c.clip;
+        }
+      }
+      mixer.update(c.dt);
+      root.position.set(c.pos.x, 0, c.pos.z);
+      root.rotation.y = c.yaw + Math.PI; // Mixamo faces +Z
+      armScale = 1;
+      for (const a of arms) a.scale.setScalar(1);
+      root.updateWorldMatrix(true, true);
+    },
+    eyes(pos, quat) {
+      head.updateWorldMatrix(true, false);
+      head.getWorldQuaternion(headQ);
+      // Head bone: +Y up the neck, +Z out of the face. Eyes ≈ 10 cm up, 9 cm forward.
+      head.getWorldPosition(pos).add(eyeOffset.set(0, 0.1, 0.09).multiplyScalar(model.scale.x).applyQuaternion(headQ));
+      quat.copy(headQ).multiply(turnRound); // camera looks down -Z: turn it to face out of the face
     },
     setVisible(v) {
       root.visible = v;

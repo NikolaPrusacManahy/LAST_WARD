@@ -44,5 +44,17 @@
   ],
   "flashlight_click": [
     "flashlight_click.mp3"
+  ],
+  "caught": [
+    "caught.mp3"
+  ],
+  "thrown": [
+    "thrown.mp3"
+  ],
+  "floor_impact": [
+    "floor_impact.mp3"
+  ],
+  "grunt": [
+    "grunt.mp3"
   ]
 }

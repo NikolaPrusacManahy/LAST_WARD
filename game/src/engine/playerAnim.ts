@@ -1,11 +1,22 @@
 // Update 0.3 — which clip the first-person body plays for a gait. Pure (tested).
 import type { Gait } from '../state/playerRules';
 
-/** Update 0.5.3 — strafeLeft / strafeRight for sideways walking. */
-export type PlayerClip = 'idle' | 'walk' | 'run' | 'crouch' | 'strafeLeft' | 'strafeRight';
+/** Update 0.5.3 — strafeLeft / strafeRight. Update 0.6 — thrown / getUp (caught) + injured set. */
+export type PlayerClip =
+  | 'idle' | 'walk' | 'run' | 'crouch' | 'strafeLeft' | 'strafeRight'
+  | 'thrown' | 'getUp' | 'injuredIdle' | 'injuredWalk' | 'injuredRun';
 
 /** Ground speed each clip was authored at (stance foot), m/s. */
-export const PLAYER_CLIP_SPEED: Record<PlayerClip, number> = { idle: 0, walk: 1.6, run: 3.2, crouch: 1.25, strafeLeft: 1.6, strafeRight: 1.6 };
+export const PLAYER_CLIP_SPEED: Record<PlayerClip, number> = {
+  idle: 0, walk: 1.6, run: 3.2, crouch: 1.25, strafeLeft: 1.6, strafeRight: 1.6,
+  thrown: 0, getUp: 0, injuredIdle: 0, injuredWalk: 1.6, injuredRun: 3.2,
+};
+
+/** Update 0.6 — after losing a life the idle / walk / run clips are the injured ones. */
+const INJURED: Partial<Record<PlayerClip, PlayerClip>> = { idle: 'injuredIdle', walk: 'injuredWalk', run: 'injuredRun' };
+export function injuredClip(clip: PlayerClip, injured: boolean): PlayerClip {
+  return injured ? INJURED[clip] ?? clip : clip;
+}
 
 /**
  * Update 0.5.3 — which way you're stepping, from your velocity in your own frame (+side = right).
@@ -47,7 +58,7 @@ export function localVelocity(vel: { x: number; z: number }, yaw: number): { sid
 
 /** Update 0.3.1 — arms shrink away while running so the pumping hands stay out of view. */
 export function armScaleFor(clip: PlayerClip): number {
-  return clip === 'run' ? 0 : 1;
+  return clip === 'run' || clip === 'injuredRun' ? 0 : 1;
 }
 
 /**
@@ -98,7 +109,7 @@ export function playerClipTimeScale(clip: PlayerClip, speed: number): number {
   if (!ref) return 1;
   if (speed < 0.2) return clip === 'crouch' ? 0 : 1;
   const matched = Math.min(1.7, Math.max(0.6, speed / ref));
-  if (clip === 'walk' || clip === 'strafeLeft' || clip === 'strafeRight') return matched * WALK_ANIM_SLOWDOWN;
-  if (clip === 'run') return matched * RUN_ANIM_SLOWDOWN;
+  if (clip === 'walk' || clip === 'strafeLeft' || clip === 'strafeRight' || clip === 'injuredWalk') return matched * WALK_ANIM_SLOWDOWN;
+  if (clip === 'run' || clip === 'injuredRun') return matched * RUN_ANIM_SLOWDOWN;
   return matched;
 }

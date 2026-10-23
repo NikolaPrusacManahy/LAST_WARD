@@ -1,6 +1,21 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.5.4
+## Current version: 0.6
+
+- **Two lives.** The first time The Patient catches you, you survive injured; the second time it's the old jumpscare and death. F2 shows `lives`.
+- **Caught sequence** (`state/caughtSequence.ts` timeline, `engine/caughtScene.ts` camera, `world/throwLanding.ts`), seconds after the catch:
+  - 0.0 grab: its `grab` clip; your camera rides up to its raised hands and stares at its face, thrashing. `caught` sound.
+  - 2.0 its `throw` clip starts.
+  - 3.5 (throw + 1.5 s, we don't wait for the whole throw) you're thrown behind it, opposite the way it faces, up to 3 m (closer or at an angle if walls are in the way, never into a wall). Your scream (`thrown`). From here the camera is your body's eyes while your `thrown` clip flips you through the air.
+  - 4.5 (throw + 2.5 s) the floor: `floor_impact` sound, a jolt, a red flash; the injured red stays from now on.
+  - 4.9 it vanishes to the farthest corner you can't see.
+  - 5.5 a dazed blink while the pose switches from on-your-back to face-down, then your `getUp` clip (5 s, still through your eyes).
+  - 10.5 control returns, camera eases back to normal first person (0.45 s). Pausing mid-sequence resumes the sequence.
+- **Injured mode:** blood-red edges pulsing slowly, injured idle / walk / run clips for your body, a grunt every 5–7 s (first one 1.5 s after getting up). Speeds are unchanged.
+- **New assets:** `patient.glb` + `grab`, `throw` (1.7 MB); `player.glb` + `thrown`, `getUp`, `injuredIdle`, `injuredWalk`, `injuredRun` (3.5 MB); sounds `caught`, `thrown`, `floor_impact`, `grunt` (from `ASSETS/audio/player_caught/` + `player_grunt.mp3`).
+- `?debug` exposes `debugCatch()` (get caught right now).
+
+## 0.5.4
 
 - **Look back (Q, rebindable):** hold it while running and the camera swings 180° (0.18 s) to look over your shoulder; you keep running the way you were going and the flashlight turns with your view. Your own body hides while you look back. Letting go, or running out of breath, swings you back. Does nothing while walking or standing. `state/lookBack.ts` (tested).
 - **Slow motion:** the start of each look back slows the world to 0.4× for 0.5 s (eases back to full speed); camera and flashlight stay real-time. 3 s cooldown so it can't be spammed: a second look back inside 3 s still turns the camera, just without the slow-mo. Old saves get Q for Look back, or a free key if they already used Q.
