@@ -6,8 +6,13 @@
 export const ENEMY_STEP_GAIN = 0.5;
 
 /** Update 0.4.2 — your own footsteps and the flashlight click were too loud too (×0.5). */
-export const PLAYER_STEP_GAIN = 0.5;
+/** Update 0.9.1 — steps down another 40% (0.5 → 0.3). */
+export const PLAYER_STEP_GAIN = 0.3;
 export const FLASHLIGHT_CLICK_GAIN = 0.5;
+/** Update 0.9.1 — its scream when it spots you: 40% quieter. */
+export const SPOT_SCREAM_GAIN = 0.6;
+/** Update 0.9.1 — the electrical panel sounds (fuse, repair loop, skill checks, bang, switch): 60% quieter. */
+export const PANEL_SFX_GAIN = 0.4;
 
 export interface EnemyMix {
   /** Low-pass cutoff in Hz. */

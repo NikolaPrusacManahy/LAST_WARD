@@ -22,6 +22,8 @@ section('Stamina');
 section('Battery');
 {
   const s = createPlayerStatus();
+  check('0.9.1: you start with the flashlight off, battery full', !s.flashlightOn && s.battery === PLAYER.batteryMax);
+  toggleFlashlight(s);
   for (let t = 0; t < 200; t += 0.1) tickStatus(s, 'idle', 0.1);
   check('drains and switches off', s.battery === 0 && !s.flashlightOn);
   check('cannot turn on when empty', !toggleFlashlight(s) && !s.flashlightOn);

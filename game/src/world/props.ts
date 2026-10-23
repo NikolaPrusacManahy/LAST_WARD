@@ -32,7 +32,7 @@ export const PROPS: Record<PropKind, PropSpec> = {
   electrical_wall: { size: [0.13, 2.08, 2.89], front: 'x', blocks: false }, // 0.9: pipes and boxes only
   brick_wall: { size: [0.0, 3.2, 3.62], front: 'x', blocks: false }, // bare brick: lines the generator room (0.9)
   breaker_box: { size: [0.16, 0.87, 0.55], front: 'x', blocks: false },
-  power_switch: { size: [0.45, 0.66, 0.33], front: 'z', blocks: false },
+  power_switch: { size: [0.45, 0.66, 0.33], front: '-z', blocks: false }, // 0.9.1: its face is -z (lever side)
   radiator: { size: [1.43, 0.78, 0.29], front: 'z', blocks: true },
   barrel: { size: [0.62, 0.93, 0.62], front: 'z', blocks: true },
   barrel_lying: { size: [0.63, 0.62, 0.93], front: 'z', blocks: true },

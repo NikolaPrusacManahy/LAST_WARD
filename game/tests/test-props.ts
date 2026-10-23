@@ -119,7 +119,7 @@ section('Panels, generator, exit (0.9)');
   q.panels[2].fuse = true;
   check('prompt: Hold [icon] to repair', promptFor({ type: 'panel', index: 2 }, q, false)?.verb === 'repair' && promptFor({ type: 'panel', index: 2 }, q, false)?.hold === true);
   q.panels[2].fixed = true;
-  check('prompt: Press [icon] to switch on', promptFor({ type: 'panel', index: 2 }, q, false)?.verb === 'switch on');
+  check('repaired panel points you to its switch', promptFor({ type: 'panel', index: 2 }, q, false)?.verb === null);
 }
 
 section('Skill checks (0.9)');

@@ -34,7 +34,15 @@ export function promptFor(t: Target | null, p: Progress, noteOpen: boolean): Pro
     if (!panel || panel.on) return { title, verb: null, info: 'Live.' };
     if (!panel.fuse) return fusesHeld(p) > 0 ? { title, verb: 'fit a fuse' } : { title, verb: null, info: 'Needs a fuse.' };
     if (!panel.fixed) return { title, verb: 'repair', hold: true };
-    return { title, verb: 'switch on' };
+    return { title, verb: null, info: 'Repaired. Throw its switch.' };
+  }
+  if (t.type === 'switch') {
+    // Update 0.9.1 — the switch is its own thing to look at and press.
+    const panel = p.panels[t.index];
+    const title = 'Power switch';
+    if (!panel || panel.on) return { title, verb: null, info: 'On.' };
+    if (panel.fixed) return { title, verb: 'switch on' };
+    return { title, verb: null, info: panel.fuse ? 'Dead. Repair the panel first.' : 'Dead. The panel needs a fuse.' };
   }
   return p.powered ? { title: 'Exit', verb: 'interact' } : { title: 'Exit', verb: null, info: 'Mag-lock. No power.' };
 }

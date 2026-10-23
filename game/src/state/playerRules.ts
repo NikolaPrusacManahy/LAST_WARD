@@ -29,7 +29,7 @@ export interface PlayerStatus {
 }
 
 export function createPlayerStatus(): PlayerStatus {
-  return { stamina: PLAYER.staminaMax, exhausted: false, regenWait: 0, battery: PLAYER.batteryMax, flashlightOn: true };
+  return { stamina: PLAYER.staminaMax, exhausted: false, regenWait: 0, battery: PLAYER.batteryMax, flashlightOn: false }; // 0.9.1: you start in the dark
 }
 
 export function chooseGait(moving: boolean, wantSprint: boolean, wantCrouch: boolean, s: PlayerStatus): Gait {

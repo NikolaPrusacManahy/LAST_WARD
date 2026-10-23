@@ -27,7 +27,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/lineOfSight.ts` | Grid line-of-sight (`level.opaque`: stairwells are see-through, 0.7) | yes |
 | `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4) | yes |
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2) | yes |
-| `world/interact.ts` | What's in reach and in front of the player (0.9: also the four electrical panels) | yes |
+| `world/interact.ts` | What's in reach and in front of the player (0.9: also the four electrical panels; 0.9.1: their switches, and what you aim at wins over what's closer) | yes |
 | `world/props.ts` | Real props: sizes, which way each faces, `placeProp` (cell + wall it backs onto), collision circles, `findProp` (0.8); `panelSpots` / `panelSwitches` (panel i and its switch, level order) and `brickLining` (brick on every wall of `brickRooms`) (0.9) | yes |
 | `world/rng.ts` | Seeded RNG | yes |
 | `world/content/level01.ts` | Ward 13 map + notes + wall notes (0.6.3) | data |
@@ -44,7 +44,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/enemyView.ts` | `EnemyView` contract (`update`, `pose` for fixed poses like the menu, `lunge`) + the primitive fallback figure (shown until the GLB loads, or if it fails) | no |
 | `engine/enemyModel.ts` | Rigged Patient (`public/models/patient.glb`): GLTFLoader + AnimationMixer, crossfades, jumpscare attack clip | no |
 | `engine/playerBody.ts` | First-person body (`public/models/player.glb`): placed behind the camera, head hidden, arms shrink away while sprinting | no |
-| `state/cameraBob.ts` | `BOB` amplitudes per gait (dip, sway, roll, nod, FOV) + `bobOffset` | yes |
+| `state/cameraBob.ts` | `BOB` amplitudes per gait (dip, sway, roll, nod, FOV) + `bobOffset`; 0.9.1: `INJURED` heavier bob and limp | yes |
 | `engine/playerAnim.ts` | Player clip per gait (+ strafe left / right from local velocity, 0.5.3) + playback speed, body placement | yes |
 | `engine/debugView.ts` | F2 view: sun/sky lights, enemy marker through walls, path line | no |
 | `state/debugInfo.ts` | F2 panel text | yes |

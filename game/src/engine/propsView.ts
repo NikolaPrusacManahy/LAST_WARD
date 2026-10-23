@@ -21,6 +21,9 @@ export interface PropsView {
   dispose(): void;
 }
 
+/** Update 0.9.1 — lever swing from ON (rest pose) down to OFF (rad). */
+const SWITCH_OFF = -1.3;
+
 export function createPropsView(level: Level, view: LevelView): PropsView {
   const root = new THREE.Group();
   const loader = new GLTFLoader();
@@ -84,7 +87,8 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
           if (node) doors[slot] = { node, rest: node.rotation.y };
           applyPanel(slot);
         } else if (p.kind === 'power_switch') {
-          const node = obj.getObjectByName('Switch.001');
+          // three.js drops the '.' from node names on load (0.9.1: the lever never moved).
+          const node = obj.getObjectByName('Switch001') ?? obj.getObjectByName('Switch.001');
           if (node) levers[slot] = { node, rest: node.rotation.x };
           applySwitch(slot);
         }
@@ -136,7 +140,8 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
   }
   function applySwitch(i: number) {
     const l = levers[i];
-    if (l) l.node.rotation.x = l.rest + (on[i] ? -1.1 : 0);
+    // 0.9.1: the model's rest pose is the lever up at ON; off swings it down to OFF.
+    if (l) l.node.rotation.x = l.rest + (on[i] ? 0 : SWITCH_OFF);
   }
 
   return {

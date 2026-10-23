@@ -1,6 +1,15 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9
+## Current version: 0.9.1
+
+- **Panel switches fixed:** they were mounted backwards (face to the wall, lever in the wall, text mirrored); the model's face is its -z. The lever never moved either (three.js drops the '.' from `Switch.001` on load); now it sits down at OFF and swings up to ON.
+- **The switch is its own target:** look at the box to fit the fuse and repair, look at the switch to throw it ("Power switch"). Whatever you aim at wins over whatever is closer.
+- **The Patient and panel sounds:** a panel blowing on a missed skill check is heard anywhere on the map and it runs there at chase speed. Throwing a switch makes a clack it hears within 14 m, and it walks over to look.
+- **Volume:** the electrical panel sounds are 60% quieter; your footsteps and its scream when it spots you are 40% quieter.
+- You start with the flashlight off.
+- **Injured:** much heavier head bob and a limp (the bad leg dips deeper and rolls further), so you feel the difference after the first catch.
+
+## 0.9
 
 - **Four electrical panels, four fuses.** The panels are spread over Ward 13, one per quarter of the map (top-left, top-right, bottom-left, bottom-right; none in the generator room). Each one: fit a fuse (press), repair it (hold), throw its switch (press). Any order. When all four are live, start the generator: the lights come on, The Patient screams and runs for the generator (as before), then the exit.
 - **Skill checks** (`state/skillCheck.ts`, replaces `panelRepair.ts`), Dead by Daylight style: about 14 s of holding per panel. Every 2.6 to 4.6 s of work a warning ticks, and 0.8 s later a circle appears with a needle sweeping round it once (1.15 s). Press Space (rebindable: "Skill check") while the needle is in the light zone; the small white slice at its start is a perfect hit (+5%). Miss, press too early or let it go round: the panel blows (bang The Patient hears from 22 m, -12%, dead for 1.4 s). Letting go of the panel calls the check off. Work goes on during the check.

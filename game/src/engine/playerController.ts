@@ -8,7 +8,7 @@ import { Gait, PLAYER, PlayerStatus, chooseGait, flickerAmount, gaitNoise, gaitS
 import { Input } from './input';
 import { flashlightCookie } from './textures';
 import { LIGHT } from '../state/lightLevels';
-import { BOB, BobAmp, blendAmp, bobOffset } from '../state/cameraBob';
+import { BOB, BobAmp, INJURED, blendAmp, bobOffset, injuredAmp } from '../state/cameraBob';
 import { DEFAULT_SETTINGS } from '../state/settings';
 import type { Settings } from '../state/settings';
 
@@ -40,6 +40,8 @@ export class PlayerController {
   private readonly tmpV = new THREE.Vector3();
   private readonly tmpAim = new THREE.Vector3();
   private bobAmp: BobAmp = { ...BOB.idle };
+  /** Update 0.9.1 — after the first catch: heavier bob and a limp (set by the Game). */
+  injured = false;
   /** Update 0.4.1 — from the FOV setting. */
   baseFov = DEFAULT_SETTINGS.fov;
   /** Update 0.5.4 — extra camera yaw while looking back over your shoulder (0..π). */
@@ -136,8 +138,8 @@ export class PlayerController {
     const targetEye = this.crouching ? PLAYER.crouchEyeHeight : PLAYER.eyeHeight;
     this.eye += (targetEye - this.eye) * (1 - Math.exp(-dt * 10));
     // Update 0.3.1 — walk bob, heavy Outlast-style sprint bob (state/cameraBob.ts).
-    this.bobAmp = blendAmp(this.bobAmp, BOB[gait], 1 - Math.exp(-dt * 6));
-    const b = bobOffset(this.bobAmp, this.bobPhase, t);
+    this.bobAmp = blendAmp(this.bobAmp, this.injured ? injuredAmp(BOB[gait]) : BOB[gait], 1 - Math.exp(-dt * 6));
+    const b = bobOffset(this.bobAmp, this.bobPhase, t, this.injured ? INJURED.limp : 0);
     const jx = (Math.random() - 0.5) * shake * 0.08;
     const jy = (Math.random() - 0.5) * shake * 0.08;
     const rx = Math.cos(this.yaw);

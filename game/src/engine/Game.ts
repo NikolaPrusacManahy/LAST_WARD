@@ -518,6 +518,7 @@ export class Game {
     const targetFear = fearLevel(dist(this.enemy.pos, player.pos), chasing);
     this.fear += (targetFear - this.fear) * (1 - Math.exp(-dt * 3));
     // Camera + flashlight follow in real time, so the look-back swing isn't slowed by its own slow motion.
+    player.injured = this.injured; // Update 0.9.1 — heavier bob and a limp
     player.updateView(this.realDt, step.gait, status, this.t, 0);
     this.easeCameraBack(this.realDt);
     // Update 0.6 — injured: a grunt every 5–7 s.
@@ -594,12 +595,19 @@ export class Game {
           this.audio.denied();
           this.toastMsg('It needs a fuse.');
         }
-      } else if (panel.fixed && throwPanelSwitch(p, i) === 'on') {
-        const sw = panelSwitches(this.level)[i] ?? box;
-        const s = this.toWorld(sw);
+      }
+    } else if (t.type === 'switch') {
+      // Update 0.9.1 — throw the switch of a repaired panel. It clacks: The Patient walks over if it's near.
+      const i = t.index;
+      const sw = panelSwitches(this.level)[i];
+      const s = this.toWorld(sw);
+      if (throwPanelSwitch(p, i) === 'on') {
         this.audio.breakerSwitch({ x: s.x, y: s.y + sw.y, z: s.z });
         this.props.setSwitch(i, true);
+        this.noise = { pos: { x: sw.x, z: sw.z }, radius: SKILL.switchNoise };
         this.toastMsg('The panel hums. It\'s live.');
+      } else if (!p.panels[i]?.on) {
+        this.audio.denied();
       }
     } else if (t.type === 'exit') {
       if (tryExit(p) === 'escaped') {
@@ -648,7 +656,8 @@ export class Game {
           this.audio.panelExplode(where);
           this.sparkFlash = 1;
           this.fear = Math.min(1, this.fear + 0.35);
-          this.noise = { pos: { x: box.x, z: box.z }, radius: SKILL.bangNoise };
+          // Update 0.9.1 — heard anywhere, and it runs there.
+          this.noise = { pos: { x: box.x, z: box.z }, radius: SKILL.bangNoise, run: true };
         } else if (e === 'done' && finishRepair(p, i)) {
           this.setRepairing(false);
           this.audio.panelClunk(where);

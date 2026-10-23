@@ -1,6 +1,6 @@
 // Picks what the player is looking at within reach: items, the generator, the exit.
 import { Level, LevelItem, Vec2, cellCenter, dist, itemPos } from './level';
-import { panelSpots } from './props';
+import { panelSpots, panelSwitches } from './props';
 
 export const REACH = 2.4;
 /** Fixtures are solid tiles, so the player can't stand on their centre. */
@@ -11,14 +11,18 @@ export type Target =
   | { type: 'generator' }
   | { type: 'exit' }
   /** Update 0.9 — one of the electrical panels (fit a fuse, hold to repair, switch on). */
-  | { type: 'panel'; index: number };
+  | { type: 'panel'; index: number }
+  /** Update 0.9.1 — a panel's power switch (thrown once the panel is repaired). */
+  | { type: 'switch'; index: number };
 
+/** Lower is better. Update 0.9.1 — what you aim at wins over what's merely closer (a panel and its
+ *  switch are a metre apart: look at the one you mean). */
 function inView(from: Vec2, facing: Vec2, at: Vec2, reach: number): number | null {
   const d = dist(from, at);
   if (d > reach) return null;
-  if (d < 0.6) return d; // standing on it
+  if (d < 0.6) return d * 0.15; // standing on it
   const dot = ((at.x - from.x) * facing.x + (at.z - from.z) * facing.z) / d;
-  return dot > 0.55 ? d : null;
+  return dot > 0.55 ? (1 - dot) * 4 + d * 0.15 : null;
 }
 
 export function findTarget(level: Level, pos: Vec2, facing: Vec2, collected: string[]): Target | null {
@@ -33,5 +37,6 @@ export function findTarget(level: Level, pos: Vec2, facing: Vec2, collected: str
   consider({ type: 'generator' }, cellCenter(level.generator), FIXTURE_REACH);
   consider({ type: 'exit' }, cellCenter(level.exit), FIXTURE_REACH);
   panelSpots(level).forEach((at, index) => consider({ type: 'panel', index }, at, REACH));
+  panelSwitches(level).forEach((at, index) => consider({ type: 'switch', index }, at, REACH));
   return (best as { t: Target } | null)?.t ?? null;
 }

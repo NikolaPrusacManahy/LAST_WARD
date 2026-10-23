@@ -1,7 +1,7 @@
 // Sound engine. Recorded samples from public/audio (see manifest.json) with a synthesised
 // fallback per sound. Enemy and generator sounds are 3D (PannerNode, HRTF); enemy sounds are
 // also filtered by distance and walls (audio/spatial.ts).
-import { EnemyMix, FLASHLIGHT_CLICK_GAIN, PLAYER_STEP_GAIN, enemyStepGain } from './spatial';
+import { EnemyMix, FLASHLIGHT_CLICK_GAIN, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, SPOT_SCREAM_GAIN, enemyStepGain } from './spatial';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -135,7 +135,7 @@ export class AudioEngine {
 
   /** Update 0.4 — its scream from where it stands (on spotting you). */
   enemyScream(p: V3) {
-    if (!this.playSample('enemy_scream', { at: p, ref: 4, rolloff: 0.9, gain: 1 })) this.stinger();
+    if (!this.playSample('enemy_scream', { at: p, ref: 4, rolloff: 0.9, gain: SPOT_SCREAM_GAIN })) this.stinger();
   }
 
   /** Update 0.6.4 — its scream when the power comes on: wherever it is, you hear it through the walls. */
@@ -576,7 +576,7 @@ export class AudioEngine {
 
   /** Update 0.9 — a fuse pushed into an electrical panel. */
   fuseInsert(p: V3) {
-    if (!this.playSample('fuse_insert', { at: p, ref: 2, rolloff: 1.2, gain: 1 })) this.panelClunk(p);
+    if (!this.playSample('fuse_insert', { at: p, ref: 2, rolloff: 1.2, gain: 1 * PANEL_SFX_GAIN })) this.panelClunk(p);
   }
 
   private repair: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
@@ -585,7 +585,7 @@ export class AudioEngine {
     if (on && !this.repair && p && this.has('repair_loop')) {
       const gain = this.ctx.createGain();
       gain.gain.setValueAtTime(0, this.now);
-      gain.gain.linearRampToValueAtTime(0.9, this.now + 0.15);
+      gain.gain.linearRampToValueAtTime(0.9 * PANEL_SFX_GAIN, this.now + 0.15);
       gain.connect(this.panner(p, 2, 1.2)).connect(this.master);
       const src = this.playSample('repair_loop', { loop: true, to: gain });
       if (src) this.repair = { src, gain };
@@ -599,23 +599,23 @@ export class AudioEngine {
 
   /** Update 0.9 — skill check: the warning tick, then a good / great hit. (Not positional: it's for you.) */
   skillWarning() {
-    if (!this.playSample('skill_check_warning', { gain: 0.9 })) this.click();
+    if (!this.playSample('skill_check_warning', { gain: 0.9 * PANEL_SFX_GAIN })) this.click();
   }
   skillGood() {
-    if (!this.playSample('skill_check_good', { gain: 0.9 })) this.click();
+    if (!this.playSample('skill_check_good', { gain: 0.9 * PANEL_SFX_GAIN })) this.click();
   }
   skillGreat() {
-    if (!this.playSample('skill_check_great', { gain: 1 })) this.click();
+    if (!this.playSample('skill_check_great', { gain: 1 * PANEL_SFX_GAIN })) this.click();
   }
 
   /** Update 0.9 — missed skill check: the panel blows (recorded bang, synth if missing). */
   panelExplode(p: V3) {
-    if (!this.playSample('panel_explode', { at: p, ref: 4, rolloff: 0.9, gain: 1.2 })) this.shortBang(p);
+    if (!this.playSample('panel_explode', { at: p, ref: 4, rolloff: 0.9, gain: 1.2 * PANEL_SFX_GAIN })) this.shortBang(p);
   }
 
   /** Update 0.9 — throwing a panel's breaker switch. */
   breakerSwitch(p: V3) {
-    if (!this.playSample('breaker_switch', { at: p, ref: 3, rolloff: 1, gain: 1 })) this.switchThrow(p);
+    if (!this.playSample('breaker_switch', { at: p, ref: 3, rolloff: 1, gain: 1 * PANEL_SFX_GAIN })) this.switchThrow(p);
   }
 
   /** Update 0.8 — breaker panel sparking: a burst of electric crackle (your cue to let go). */

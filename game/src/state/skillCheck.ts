@@ -22,10 +22,13 @@ export const SKILL = {
   great: 0.035,
   /** Perfect hit: this much extra progress. */
   greatBonus: 0.05,
-  /** Miss: progress lost, panel dead for `stun` s, noise radius (m). */
+  /** Miss: progress lost, panel dead for `stun` s. The bang is heard anywhere on the map and The
+   *  Patient runs to it (0.9.1). */
   missSetback: 0.12,
   stun: 1.4,
-  bangNoise: 22,
+  bangNoise: Infinity,
+  /** Update 0.9.1 — throwing a panel's switch: it walks over if it's within this many metres. */
+  switchNoise: 14,
   /** Working on it clatters a little (radius m, every s of work). */
   workNoise: 5,
   workNoiseEvery: 1.2,

@@ -83,6 +83,8 @@ export interface PlayerSense {
 export interface Noise {
   pos: Vec2;
   radius: number;
+  /** Update 0.9.1 — something it runs to (a panel blowing), not one it wanders over to check. */
+  run?: boolean;
 }
 
 export function createEnemy(level: Level): EnemyState {
@@ -401,11 +403,12 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
     if (e.mode !== 'investigate') events.push('heard');
     setMode(e, 'investigate');
     goTo(level, e, noise.pos);
+    if (noise.run) e.rush = true; // chase speed, and no other noise turns it aside on the way
   }
 
   if (e.mode === 'chase' && e.sinceSeen <= tune.memorySeconds) e.lastKnown = { ...player.pos };
 
-  // Update 0.6.4 — rushing to the generator: chase speed.
+  // Update 0.6.4 — rushing to the generator (0.9.1: or to a panel that blew): chase speed.
   const speed = ENEMY.speed[e.rush ? 'chase' : e.mode] * (1 + e.rage);
 
   switch (e.mode) {

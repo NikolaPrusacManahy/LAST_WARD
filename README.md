@@ -11,7 +11,7 @@ Current version: 0.9. The full patch history is in `HANDOVER.md`.
 - **The Patient** hunts you by sight and sound. It sees further when your flashlight is on or you run, and less well when you crouch. Walking makes some noise and running makes a lot; crouching is silent. When it spots you it screams, then charges.
 - **It moves around.** It starts in one corner of the map and patrols that area. If it goes 35 seconds without spotting you, it disappears and turns up at another corner.
 - **You have two lives.** The first time it catches you, it picks you up and throws you across the room. You black out, get up injured (red at the edges of the screen, grunting now and then) and it vanishes somewhere else. The second time is the end.
-- **Fuses, batteries and notes** are shuffled across the tables every run. Batteries recharge the flashlight. Notes are left by people who were here before you, and reading one pauses the game.
+- **Fuses, batteries and notes** are shuffled across the tables every run. Batteries recharge the flashlight, which starts switched off. Notes are left by people who were here before you, and reading one pauses the game.
 - **Electrical panels** are spread across the ward, one in each quarter. Fit a fuse, hold to repair the panel, then throw its switch. While you repair, skill checks come up: a circle with a needle sweeping round it. Press Space while the needle is in the marked zone (the white slice at its start is a perfect hit). Miss and the panel blows, loud enough for The Patient to hear.
 - **Restarting the generator** needs all four panels live. It turns the lights back on, but The Patient hears it. It screams, then sprints to the generator room, so don't stay there.
 

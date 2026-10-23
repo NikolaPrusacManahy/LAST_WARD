@@ -12,11 +12,12 @@ check('footsteps have several variants', manifest.step_player.length >= 4 && man
 const total = Object.values(manifest).flat().reduce((n, f) => n + statSync(new URL(f, dir)).size, 0);
 check('all sound under 5 MB', total < 5 * 1024 * 1024, `${(total / 1048576).toFixed(1)} MB`);
 
-import { ENEMY_STEP_GAIN, FLASHLIGHT_CLICK_GAIN, OCCLUDED_STEP_BOOST, PLAYER_STEP_GAIN, enemyMix, enemyStepGain } from '../src/audio/spatial';
+import { ENEMY_STEP_GAIN, FLASHLIGHT_CLICK_GAIN, OCCLUDED_STEP_BOOST, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, SPOT_SCREAM_GAIN, enemyMix, enemyStepGain } from '../src/audio/spatial';
 
 section('Enemy sound in 3D');
 check('enemy steps are half as loud', ENEMY_STEP_GAIN === 0.5);
-check('player steps and flashlight click are half as loud', PLAYER_STEP_GAIN === 0.5 && FLASHLIGHT_CLICK_GAIN === 0.5);
+check('flashlight click half as loud; player steps 0.3 (0.9.1: 40% down again)', PLAYER_STEP_GAIN === 0.3 && FLASHLIGHT_CLICK_GAIN === 0.5);
+check('0.9.1: panel sounds 60% quieter, spotted scream 40% quieter', PANEL_SFX_GAIN === 0.4 && SPOT_SCREAM_GAIN === 0.6);
 check('close + in sight = bright and full', enemyMix(1, false).cutoff > 14000 && enemyMix(1, false).gain === 1);
 check('far away = darker', enemyMix(20, false).cutoff < enemyMix(5, false).cutoff);
 check('behind a wall = muffled and quieter', enemyMix(5, true).cutoff <= 750 && enemyMix(5, true).gain < 1);
