@@ -574,6 +574,80 @@ export class AudioEngine {
     s.start(t, 0, 1.8);
   }
 
+  /** Update 0.8 — breaker panel sparking: a burst of electric crackle (your cue to let go). */
+  sparkCrackle(p: V3) {
+    const t = this.now;
+    const pn = this.panner(p, 2, 1.2);
+    pn.connect(this.master);
+    for (let i = 0; i < 9; i++) {
+      const at = t + i * 0.075 + Math.random() * 0.03;
+      const s = this.noise();
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 2500 + Math.random() * 4000;
+      bp.Q.value = 1.2;
+      const g = this.env(0.35 + Math.random() * 0.25, 0.001, 0.04 + Math.random() * 0.05, at);
+      s.connect(bp).connect(g).connect(pn);
+      s.start(at, Math.random(), 0.12);
+    }
+  }
+
+  /** Update 0.8 — the panel shorts out: a loud bang with a low thump and a fizzle. */
+  shortBang(p: V3) {
+    const t = this.now;
+    const pn = this.panner(p, 4, 0.9);
+    pn.connect(this.master);
+    const s = this.noise();
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(9000, t);
+    lp.frequency.exponentialRampToValueAtTime(300, t + 0.6);
+    const g = this.env(1.4, 0.002, 0.7, t);
+    s.connect(lp).connect(g).connect(pn);
+    s.start(t, 0, 0.9);
+    const o = this.osc('sine', 90);
+    o.frequency.exponentialRampToValueAtTime(35, t + 0.4);
+    const og = this.env(1.1, 0.002, 0.45, t);
+    o.connect(og).connect(pn);
+    o.start(t);
+    o.stop(t + 0.5);
+    this.sparkCrackle(p);
+  }
+
+  /** Update 0.8 — breaker panel repaired: a heavy relay clunk. */
+  panelClunk(p: V3) {
+    const t = this.now;
+    const pn = this.panner(p, 2, 1.2);
+    pn.connect(this.master);
+    const o = this.osc('square', 70);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    const g = this.env(0.35, 0.002, 0.18, t);
+    o.connect(g).connect(pn);
+    o.start(t);
+    o.stop(t + 0.25);
+    const s = this.noise();
+    const hp = this.ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 1800;
+    const ng = this.env(0.4, 0.001, 0.06, t);
+    s.connect(hp).connect(ng).connect(pn);
+    s.start(t, 0, 0.1);
+  }
+
+  /** Update 0.8 — throwing the big power switch: metal lever thunk. */
+  switchThrow(p: V3) {
+    this.panelClunk(p);
+    const t = this.now + 0.05;
+    const pn = this.panner(p, 2, 1.2);
+    pn.connect(this.master);
+    const o = this.osc('triangle', 180);
+    o.frequency.exponentialRampToValueAtTime(60, t + 0.2);
+    const g = this.env(0.4, 0.002, 0.3, t);
+    o.connect(g).connect(pn);
+    o.start(t);
+    o.stop(t + 0.35);
+  }
+
   /** Update 0.7 — leaving a level: its generator hum stops. */
   stopGenerator() {
     if (!this.hum) return;

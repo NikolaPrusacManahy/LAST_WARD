@@ -5,6 +5,7 @@ import { GameView, GameHandle } from './screens/GameView';
 import { PauseMenu } from './screens/PauseMenu';
 import { EndScreen } from './screens/EndScreen';
 import { SettingsPanel } from './screens/SettingsPanel';
+import { CreditsPanel } from './screens/CreditsPanel';
 import { Settings, loadSave, recordEscape, writeSave, SaveData } from './state/settings';
 import { useUiSounds } from './hooks/useUiSounds';
 import { CreditIntro } from './screens/CreditIntro';
@@ -16,7 +17,7 @@ import { LEVELS } from './world/content/levels';
 const PICK_KEY = 'lw-tester-level';
 
 type Screen = 'menu' | 'game';
-type Overlay = null | 'pause' | 'settings' | { end: 'dead' | 'escaped'; time: number };
+type Overlay = null | 'pause' | 'settings' | 'credits' | { end: 'dead' | 'escaped'; time: number };
 
 export default function App() {
   const [save, setSave] = useState<SaveData>(loadSave);
@@ -89,6 +90,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Escape') return;
       if (overlay === 'settings') setOverlay(settingsFrom === 'pause' ? 'pause' : null);
+      if (overlay === 'credits') setOverlay(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -96,7 +98,7 @@ export default function App() {
 
   return (
     <div className="lw-app">
-      {screen === 'menu' && overlay !== 'settings' && <MainMenu save={save} onStart={start} onSettings={() => openSettings('menu')} startLevel={startLevel} onPickLevel={pickLevel} />}
+      {screen === 'menu' && overlay !== 'settings' && overlay !== 'credits' && <MainMenu save={save} onStart={start} onSettings={() => openSettings('menu')} onCredits={() => setOverlay('credits')} startLevel={startLevel} onPickLevel={pickLevel} />}
       {screen === 'game' && (
         <GameView key={runId} ref={game} settings={save.settings} onEnd={onEnd} onPause={onPause} paused={overlay !== null} startLevel={startLevel} />
       )}
@@ -117,6 +119,7 @@ export default function App() {
           onClose={() => setOverlay(settingsFrom === 'pause' ? 'pause' : null)}
         />
       )}
+      {overlay === 'credits' && <CreditsPanel onClose={() => setOverlay(null)} />}
       {overlay && typeof overlay === 'object' && (
         <EndScreen
           result={overlay.end}

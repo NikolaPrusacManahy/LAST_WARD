@@ -1,6 +1,23 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.7.2
+## Current version: 0.8.1
+
+- The same brick as the electrical wall now covers the wall behind the breaker panel and the power switch (new prop `brick_wall`: the bare brick panel from "Simple electrical environment", same scale).
+
+## 0.8
+
+- **Real props in Ward 13** (Sketchfab models in `ASSETS/models/props` + `electrical`, converted by `tools/prepare-props.mjs` into `public/models/props/`, 18 files, ~9 MB). Placement is data in `level01.ts` (`props`: cell + the wall it backs onto), rules in `world/props.ts`, drawing in `engine/propsView.ts` (loads in the background).
+  - The room you wake up in: hospital bed, privacy screen, bedside cabinets (flowers / drawing / medicine), side table, medicine shelf, radiator, a portrait and a child's drawing (all from "Horror Hospital Room").
+  - Generator room: the real generator, the brick electrical wall behind it, the breaker box (its door opens) and the ON/OFF switch, barrels.
+  - Halls: radiators, a barrel; the washroom off the bottom-left corridor has a toilet. Every ceiling lamp is now a fluorescent fixture (glows with the lamp's flicker).
+  - Props you can't walk through block you (round collision shapes along them); they all stand against walls, off the cell centres The Patient walks through (tested).
+- **New power chain:** 3 fuses → put them in the generator (it runs, the breaker trips) → **repair the breaker panel** → throw the **power switch** → lights on, The Patient screams and runs for the generator (as before) → exit.
+- **Breaker panel minigame** (`state/panelRepair.ts`): hold left-click at the panel; about 12 s of work. Every 2 to 4 s it starts to spark: "LET GO" flashes above the crosshair and you have 0.7 s to let go. Hold on and it shorts out: a loud bang The Patient hears from 22 m, you lose 18% and the panel is dead for 1.2 s. Working on it makes a little noise too. The panel door swings open while you work.
+- **Credits** button under Settings on the main menu: the studio, then every asset with title, author, licence and source link (`state/credits.ts`; CC BY needs all four). Sounds aren't listed yet: their sources aren't recorded anywhere.
+- New sounds (synthesised): spark crackle, short-circuit bang, relay clunk, switch thunk.
+- Not used: the hospital room's own walls, floor, door and window (it's a cut-away display room with two walls missing).
+
+## 0.7.2
 
 - **Level 2 removed** (Ashgrove House, the mansion): the focus is making level 1 as good as it can be, quality over quantity. Its map, notes and tests are gone; escaping the hospital ends the run again, as before 0.7.
 - Kept for later (no level uses them now): the engine's support for several floors and stairs, The Patient walking stairs, per-level intro text and AI tuning, and loading the next level after an exit. `tests/test-floors.ts` checks the stairs on a tiny two-floor test map so it stays working. The tester level picker only appears when there's more than one level.

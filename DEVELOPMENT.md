@@ -27,15 +27,19 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/lineOfSight.ts` | Grid line-of-sight (`level.opaque`: stairwells are see-through, 0.7) | yes |
 | `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4) | yes |
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2) | yes |
-| `world/interact.ts` | What's in reach and in front of the player | yes |
+| `world/interact.ts` | What's in reach and in front of the player (0.8: also the breaker panel and the power switch) | yes |
+| `world/props.ts` | Real props: sizes, which way each faces, `placeProp` (cell + wall it backs onto), collision circles, `findProp` (0.8) | yes |
 | `world/rng.ts` | Seeded RNG | yes |
 | `world/content/level01.ts` | Ward 13 map + notes + wall notes (0.6.3) | data |
 | `world/content/levels.ts` | Play order of the levels (0.7) | data |
 | `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve | yes |
-| `state/objectives.ts` | Fuses → generator → exit chain, objective text | yes |
+| `state/objectives.ts` | Fuses → generator → breaker panel → power switch → exit chain (0.8), objective text | yes |
+| `state/panelRepair.ts` | Breaker panel minigame: hold to repair, let go when it sparks or it shorts out (0.8) | yes |
+| `state/credits.ts` | Credits for every outside asset; which credit each prop comes under (0.8) | yes |
 | `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time | yes (+ localStorage I/O) |
 | `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring | no |
 | `engine/playerController.ts` | Camera, head bob, footsteps, flashlight rig | no |
+| `engine/propsView.ts` | Loads and places the prop models, swaps in the fluorescent fixtures and the real generator, panel door, switch lever, sparks light (0.8) | no |
 | `engine/buildLevel.ts` | Walls (instanced), floor, ceiling, lamps, cabinets, items, generator, exit door; 0.7: every floor at its real height, steps, stairwell railings | no |
 | `engine/enemyView.ts` | `EnemyView` contract (`update`, `pose` for fixed poses like the menu, `lunge`) + the primitive fallback figure (shown until the GLB loads, or if it fails) | no |
 | `engine/enemyModel.ts` | Rigged Patient (`public/models/patient.glb`): GLTFLoader + AnimationMixer, crossfades, jumpscare attack clip | no |
@@ -62,6 +66,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/lookBack.ts` | Look back on the run: 180° camera swing, slow-mo burst + cooldown, body hide (0.5.4) | yes |
 | `world/itemShuffle.ts` | Shuffles fuses / batteries / notes across the item cabinets each run (0.5.4) | yes |
 | `state/creditIntro.ts` + `screens/CreditIntro.tsx` | Boot credit cards: studio GIF (3.2 s + 0.8 s fade), then the tips (3 s + 1 s fade); click → 0.5 s fade of the current card | yes / no |
+| `screens/CreditsPanel.tsx` | Credits screen from the main menu (0.8) | no |
 | `screens/InputIcon.tsx`, `ControlsCard.tsx`, `KeyBindings.tsx` | Icon (or text key cap), the 10 s controls box, the rebind list in Settings | no |
 | `engine/hudStore.ts` | External store between the engine and React | no |
 | `state/menuScare.ts` | Main-menu loop: lit (stare) → stutter out → dark (gone) → face strobe → dark (gone) → stutter in; pose swaps only in the dark | yes |

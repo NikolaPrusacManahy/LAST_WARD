@@ -1,5 +1,6 @@
 // Level data model. Levels are ASCII grids in world/content/ — one char per tile.
 // Pure: no three.js, no DOM.
+import type { PropPlacement } from './props';
 
 export const TILE = 3; // metres per grid cell
 export const WALL_HEIGHT = 3.2;
@@ -68,6 +69,8 @@ export interface LevelDef {
   ai?: AiTuning;
   /** Facing at the start (game yaw; π = down the map, 0 = up the map). */
   startYaw?: number;
+  /** Update 0.8 — real props (world/props.ts): furniture, the generator, the breaker panel, the switch. */
+  props?: PropPlacement[];
 }
 
 /** Update 0.7 — a straight flight of stairs. `cells` are logic cells on `floor`, bottom → top. */
@@ -116,6 +119,7 @@ export interface Level {
   intro: LevelIntro;
   ai: AiTuning;
   startYaw: number;
+  props: PropPlacement[];
 }
 
 /** Update 0.7 — solid rows between stacked floors in the logic grid (keeps them apart). */
@@ -289,6 +293,7 @@ export function parseLevel(def: LevelDef): Level {
     intro: def.intro ?? DEFAULT_INTRO,
     ai: def.ai ?? {},
     startYaw: def.startYaw ?? Math.PI,
+    props: def.props ?? [],
   };
 }
 

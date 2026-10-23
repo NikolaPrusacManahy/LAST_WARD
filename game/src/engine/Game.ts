@@ -18,7 +18,10 @@ import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, 
 import { debugLines } from '../state/debugInfo';
 import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
 import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
-import { FUSES_NEEDED, Progress, activateGenerator, createProgress, objectiveText, tryExit } from '../state/objectives';
+import { FUSES_NEEDED, Progress, activateGenerator, createProgress, fixPanel, objectiveText, throwSwitch, tryExit } from '../state/objectives';
+import { REPAIR, RepairState, createRepair, repairDone, sparking, stepRepair } from '../state/panelRepair';
+import { findProp } from '../world/props';
+import { createPropsView, PropsView } from './propsView';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
 import { enemyMix } from '../audio/spatial';
@@ -32,7 +35,7 @@ import { createLighting, Lighting } from './lighting';
 import { createPostFx, PostFx } from './postfx';
 import { Input } from './input';
 import { PlayerController } from './playerController';
-import { HudStore } from './hudStore';
+import { HudStore, HudState } from './hudStore';
 import { loadPlayerBody, PlayerBody } from './playerBody';
 import { createDebugView, DebugView } from './debugView';
 
@@ -57,6 +60,12 @@ export class Game {
   private world = new THREE.Group();
   private curFloor = 0;
   private view: LevelView;
+  /** Update 0.8 — real props (furniture, generator, breaker panel, switch). */
+  private props: PropsView;
+  /** Update 0.8 — breaker panel minigame. */
+  private repair!: RepairState;
+  private panelOpen = 0;
+  private sparkFlash = 0;
   private lights: Lighting;
   private player: PlayerController;
   private status: PlayerStatus = createPlayerStatus();
@@ -141,6 +150,9 @@ export class Game {
     this.scene.add(this.world);
     this.view = buildLevel(this.level);
     this.world.add(this.view.root);
+    this.props = createPropsView(this.level, this.view);
+    this.world.add(this.props.root);
+    this.repair = createRepair(this.rng);
     this.lights = createLighting(this.view);
     this.player = new PlayerController(this.level, this.camera, this.scene);
     this.player.baseFov = settings.fov;
@@ -198,6 +210,8 @@ export class Game {
   private loadLevel(index: number) {
     this.world.remove(this.view.root);
     this.view.dispose();
+    this.world.remove(this.props.root);
+    this.props.dispose();
     this.lights.dispose();
     const debugOn = this.debugView.enabled;
     this.world.remove(this.debugView.root);
@@ -206,6 +220,10 @@ export class Game {
     this.level = shuffleItems(parseLevel(LEVELS[index]), this.rng);
     this.view = buildLevel(this.level);
     this.world.add(this.view.root);
+    this.props = createPropsView(this.level, this.view);
+    this.world.add(this.props.root);
+    this.repair = createRepair(this.rng);
+    this.panelOpen = 0;
     this.lights = createLighting(this.view);
     this.debugView = createDebugView(this.level);
     this.debugView.setEnabled(debugOn);
@@ -452,6 +470,7 @@ export class Game {
     this.controlsLeft = tickControlsCard(this.controlsLeft, dt, input.wasPressed('Enter') || input.wasPressed('NumpadEnter'));
     if (input.actionPressed('interact')) this.interact();
     this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected);
+    this.workPanel(dt, input.action('interact'));
 
     // Enemy.
     const before = this.enemy.pos;
@@ -531,10 +550,28 @@ export class Game {
         this.target = null;
       }
     } else if (t.type === 'generator') {
+      // Update 0.8 — the fuses go in and it runs, but the breaker trips: repair the panel, then the switch.
       const r = activateGenerator(p);
-      if (r === 'powered') {
+      if (r === 'fuses-in') {
         const g = this.view.generatorPos;
         this.audio.generatorStart({ x: g.x, y: g.y, z: g.z });
+        this.toastMsg("It runs. Then the breaker trips. Fix the panel.", 5);
+      } else if (r === 'need-fuses') {
+        this.audio.denied();
+        this.toastMsg(`It needs ${FUSES_NEEDED} fuses.`);
+      }
+    } else if (t.type === 'switch') {
+      const sw = findProp(this.level, 'power_switch');
+      const at = sw ? this.toWorld(sw) : this.camAbs();
+      const r = throwSwitch(p);
+      if (r === 'no-current') {
+        this.audio.switchThrow({ x: at.x, y: 1.3, z: at.z });
+        this.props.setSwitch(true);
+        window.setTimeout(() => this.props.setSwitch(false), 350);
+        this.toastMsg('Nothing. No current.');
+      } else if (r === 'powered') {
+        this.audio.switchThrow({ x: at.x, y: 1.3, z: at.z });
+        this.props.setSwitch(true);
         this.lights.setPowered(this.t);
         this.applyAtmosphere(); // with the lights back you can see further down the halls
         this.toastMsg('The lights come on. Something screams in the dark.', 5);
@@ -544,9 +581,6 @@ export class Game {
         summonToGenerator(this.level, this.enemy, this.player.pos, this.rng);
         this.audio.powerScream();
         this.stingerTimer = window.setTimeout(() => this.audio.stinger(), 1200);
-      } else if (r === 'need-fuses') {
-        this.audio.denied();
-        this.toastMsg(`It needs ${FUSES_NEEDED} fuses.`);
       }
     } else if (t.type === 'exit') {
       if (tryExit(p) === 'escaped') {
@@ -560,6 +594,43 @@ export class Game {
         this.toastMsg('Mag-lock. No power.');
       }
     }
+  }
+
+  /**
+   * Update 0.8 — the breaker panel: hold interact on it to repair (state/panelRepair.ts). When it
+   * sparks, let go, or it shorts out with a bang that brings The Patient. Its door swings open as you work.
+   */
+  private workPanel(dt: number, held: boolean) {
+    const p = this.progress;
+    const at = this.target?.type === 'panel';
+    const active = p.fusesIn && !p.panelFixed;
+    if (active && (at || sparking(this.repair) || this.repair.stun > 0)) {
+      const panel = findProp(this.level, 'breaker_box');
+      const pos = panel ? this.toWorld(panel) : this.camAbs();
+      const where = { x: pos.x, y: pos.y + (panel?.y ?? 1.4), z: pos.z };
+      const r = stepRepair(this.repair, dt, at && held, this.rng);
+      this.repair = r.state;
+      if (at && held) this.panelOpen = Math.min(1, this.panelOpen + dt * 2.5);
+      for (const e of r.events) {
+        if (e === 'spark') this.audio.sparkCrackle(where);
+        else if (e === 'noise') this.noise = this.noise ?? { pos: { ...this.player.pos }, radius: REPAIR.workNoise };
+        else if (e === 'short') {
+          this.audio.shortBang(where);
+          this.sparkFlash = 1;
+          this.fear = Math.min(1, this.fear + 0.35);
+          if (panel) this.noise = { pos: { x: panel.x, z: panel.z }, radius: REPAIR.bangNoise };
+        } else if (e === 'done' && fixPanel(p)) {
+          this.audio.panelClunk(where);
+          this.toastMsg('Breaker reset. Throw the switch.', 4);
+        }
+      }
+    }
+    // Sparks: flicker while it's sparking, a flash when it shorts.
+    this.sparkFlash = Math.max(0, this.sparkFlash - dt * 2.2);
+    const flicker = sparking(this.repair) ? (Math.random() < 0.5 ? 1.5 + Math.random() * 5 : 0) : 0;
+    this.props.setSpark(flicker + this.sparkFlash * 14);
+    this.props.setPanelOpen(this.panelOpen);
+    if (repairDone(this.repair) && this.panelOpen > 0) this.panelOpen = Math.max(0, this.panelOpen - dt * 1.5);
   }
 
   /** Update 0.6 — first catch: grab, lift, throw, get up injured (engine/caughtScene.ts). */
@@ -695,6 +766,19 @@ export class Game {
     }
   }
 
+  /** Update 0.8 — the repair bar while you're at the panel (or it's still sparking / dead). */
+  private repairHud(): HudState['repair'] {
+    const p = this.progress;
+    if (this.phase !== 'playing' || !p.fusesIn || p.panelFixed) return this.lastRepairHud = null;
+    const r = this.repair;
+    if (this.target?.type !== 'panel' && !sparking(r) && r.stun <= 0) return this.lastRepairHud = null;
+    const next = { progress: Math.round(r.progress * 50) / 50, warn: sparking(r), dead: r.stun > 0 };
+    const l = this.lastRepairHud;
+    if (l && l.progress === next.progress && l.warn === next.warn && l.dead === next.dead) return l;
+    return this.lastRepairHud = next;
+  }
+  private lastRepairHud: HudState['repair'] = null;
+
   /** Same object while the words don't change, so the HUD doesn't re-render for nothing. */
   private currentPrompt(): Prompt | null {
     const next = this.phase === 'playing' ? promptFor(this.target, this.progress, !!this.note) : null;
@@ -715,6 +799,7 @@ export class Game {
       prompt: this.currentPrompt(),
       bindings: this.settings.bindings,
       controls: this.phase === 'playing' || this.phase === 'paused' ? Math.ceil(this.controlsLeft * 10) / 10 : 0,
+      repair: this.repairHud(),
       toast: this.toast?.text ?? null,
       note: this.note?.text ?? null,
       fear: Math.round(this.fear * 20) / 20,
@@ -839,6 +924,7 @@ export class Game {
     this.enemyView.dispose();
     this.body?.dispose();
     this.debugView.dispose();
+    this.props.dispose();
     this.player.dispose(this.scene);
     this.fx.dispose();
     this.renderer.dispose();

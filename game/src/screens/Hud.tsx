@@ -61,13 +61,22 @@ export function Hud({ store, hidden, onBegin }: Props) {
           <span className="lw-prompt-title">{h.prompt.title}</span>
           {h.prompt.verb ? (
             <span className="lw-prompt-line">
-              Press <InputIcon code={h.bindings.interact} size="lg" /> to {h.prompt.verb}
+              {h.prompt.hold ? 'Hold' : 'Press'} <InputIcon code={h.bindings.interact} size="lg" /> to {h.prompt.verb}
             </span>
           ) : (
             <span className="lw-prompt-line lw-prompt-info">{h.prompt.info}</span>
           )}
         </div>
       )}
+      {h.repair && (
+        <div className={`lw-repair ${h.repair.warn ? 'lw-repair-warn' : ''}`}>
+          <div className="lw-repair-track">
+            <div className="lw-repair-fill" style={{ width: `${Math.round(h.repair.progress * 100)}%` }} />
+          </div>
+          {h.repair.dead && <span className="lw-repair-dead">Shorted out</span>}
+        </div>
+      )}
+      {h.repair?.warn && <span className="lw-repair-call">LET GO</span>}
       {h.toast && <div className="lw-hud-toast" key={h.toast}>{h.toast}</div>}
       {h.note && (
         <div className="lw-note">

@@ -3,9 +3,12 @@ import { Level, TILE, Vec2, isSolid } from './level';
 
 export const BLOCKER_RADIUS = 0.4;
 
-function overlapsWall(level: Level, p: Vec2, r: number, blockers: Vec2[] = []): boolean {
+/** Round things in the way: item cabinets (BLOCKER_RADIUS) and props (Update 0.8: their own `r`). */
+export type Blocker = Vec2 & { r?: number };
+
+function overlapsWall(level: Level, p: Vec2, r: number, blockers: Blocker[] = []): boolean {
   for (const b of blockers) {
-    if ((p.x - b.x) ** 2 + (p.z - b.z) ** 2 < (r + BLOCKER_RADIUS) ** 2) return true;
+    if ((p.x - b.x) ** 2 + (p.z - b.z) ** 2 < (r + (b.r ?? BLOCKER_RADIUS)) ** 2) return true;
   }
   const c0 = Math.floor((p.x - r) / TILE);
   const c1 = Math.floor((p.x + r) / TILE);
@@ -25,7 +28,7 @@ function overlapsWall(level: Level, p: Vec2, r: number, blockers: Vec2[] = []): 
 
 /** Returns the new position after trying to move by (dx, dz). */
 /** `blockers` are small round props (item cabinets) the mover can't walk through. */
-export function moveWithCollision(level: Level, pos: Vec2, dx: number, dz: number, radius: number, blockers: Vec2[] = []): Vec2 {
+export function moveWithCollision(level: Level, pos: Vec2, dx: number, dz: number, radius: number, blockers: Blocker[] = []): Vec2 {
   // Sub-step big moves so fast movers can't tunnel through a wall.
   const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / (radius * 0.5)));
   let p = { ...pos };

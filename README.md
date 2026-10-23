@@ -4,7 +4,7 @@ A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
 You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find three fuses, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 0.7.2. The full patch history is in `HANDOVER.md`.
+Current version: 0.8. The full patch history is in `HANDOVER.md`.
 
 ## How the game works
 
@@ -104,10 +104,11 @@ Note texts, the notes pinned to walls, the intro text and any changes to how The
 Raw files go in `ASSETS/` and are converted into `game/public/` with the scripts in `game/tools/`:
 
 - **Characters:** Mixamo FBX files go through `node tools/convert-character.mjs`, which produces one `.glb` per character with all animations merged.
+- **Props:** Sketchfab models in `ASSETS/models/props/` and `ASSETS/models/electrical/` go through `node tools/prepare-props.mjs ../ASSETS/models public/models/props`. It cuts out the parts the game uses, scales them to metres and shrinks their textures. Where each prop stands is set in the level file.
 - **Sound:** `python tools/prepare-audio.py ../ASSETS/audio public/audio` (needs Python with numpy and scipy, plus ffmpeg).
 - **Control icons:** `tools/prepare-input-icons.ts` recolours the Kenney input prompts to match the game. The whole Kenney pack sits in `ASSETS/UI - inputs/`, but `.gitignore` only uploads its licence and the 89 icons the game uses.
 
-The READMEs inside `ASSETS/` list the file names each script expects.
+The READMEs inside `ASSETS/` list the file names each script expects. Every asset made by someone else is credited on the in-game Credits screen (`game/src/state/credits.ts`).
 
 ## Debugging
 

@@ -1,0 +1,14 @@
+/* theme-10 — Update 0.8: Credits panel (main menu). Scrolls inside, no visible scrollbar. */
+.lw-credits { width: 640px; max-height: 84vh; display: flex; flex-direction: column; }
+.lw-credits-studio { margin: 0 0 18px; font-family: var(--lw-type); font-size: 18px; color: var(--lw-bone); }
+.lw-credits-list {
+  list-style: none; margin: 0; padding: 0; overflow-y: auto; scrollbar-width: none;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.lw-credits-list::-webkit-scrollbar { display: none; }
+.lw-credits-item { display: flex; flex-direction: column; gap: 2px; padding-bottom: 12px; border-bottom: 1px solid rgba(216, 210, 188, 0.08); }
+.lw-credits-what { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--lw-bone-dim); }
+.lw-credits-line { font-size: 14px; color: var(--lw-bone); }
+.lw-credits-src { font-size: 11px; color: var(--lw-sick); opacity: 0.8; text-decoration: none; word-break: break-all; }
+.lw-credits-src:hover { opacity: 1; text-decoration: underline; }
+.lw-credits .lw-menu-nav { margin-top: 20px; }

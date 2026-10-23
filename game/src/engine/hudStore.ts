@@ -29,6 +29,8 @@ export interface HudState {
   bindings: Bindings;
   /** Seconds left on the start-of-run controls card (0 = hidden). */
   controls: number;
+  /** Update 0.8 — breaker panel repair bar (while you're at it), sparking warning, shorted out. */
+  repair: { progress: number; warn: boolean; dead: boolean } | null;
 }
 
 export const initialHud: HudState = {
@@ -49,6 +51,7 @@ export const initialHud: HudState = {
   debug: null,
   bindings: DEFAULT_BINDINGS,
   controls: 0,
+  repair: null,
 };
 
 export function createHudStore() {

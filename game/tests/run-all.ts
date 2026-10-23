@@ -16,5 +16,6 @@ import './test-caught';
 import './test-wake';
 import './test-hunt';
 import './test-floors';
+import './test-props';
 
 process.exit(summary() > 0 ? 1 : 0);

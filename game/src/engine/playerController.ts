@@ -2,7 +2,8 @@
 // footsteps and the flashlight rig that lags slightly behind the view.
 import * as THREE from 'three';
 import { Level, Vec2, cellCenter, dist, itemPos } from '../world/level';
-import { moveWithCollision } from '../world/collision';
+import { Blocker, moveWithCollision } from '../world/collision';
+import { placedProps, propBlockers } from '../world/props';
 import { Gait, PLAYER, PlayerStatus, chooseGait, flickerAmount, gaitNoise, gaitSpeed, tickStatus, nextCrouch } from '../state/playerRules';
 import { Input } from './input';
 import { flashlightCookie } from './textures';
@@ -46,7 +47,7 @@ export class PlayerController {
   private readonly tmpM = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
 
-  private blockers: Vec2[] = [];
+  private blockers: Blocker[] = [];
   /** Update 0.7 — how high up a flight of stairs you are (the camera rises with it). */
   rise = 0;
 
@@ -78,7 +79,8 @@ export class PlayerController {
     this.vel = { x: 0, z: 0 };
     this.crouching = false;
     this.rise = 0;
-    this.blockers = level.items.map((i) => itemPos(level, i.cell));
+    // Item cabinets + (Update 0.8) furniture and other props you can't walk through.
+    this.blockers = [...level.items.map((i) => itemPos(level, i.cell)), ...propBlockers(placedProps(level))];
   }
 
   get forward(): Vec2 {

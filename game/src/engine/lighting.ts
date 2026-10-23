@@ -39,6 +39,7 @@ export function createLighting(view: LevelView) {
         lamp.light.intensity = lamp.floor === floor ? (powered ? 14 : 9) * k : 0;
         lamp.light.distance = powered ? 15 : 11;
         lamp.mat.emissiveIntensity = 0.15 + 2.2 * k;
+        for (const g of lamp.glow) g.emissiveIntensity = 0.05 + 1.4 * k; // Update 0.8 — the fluorescent model
       });
       view.spinners.forEach((s, i) => {
         s.rotation.y = t * 1.2 + i;

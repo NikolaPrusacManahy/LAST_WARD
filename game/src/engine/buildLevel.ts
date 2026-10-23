@@ -12,6 +12,10 @@ export interface LampView {
   phase: number;
   /** Update 0.7 — lamps only light the floor you're on (lights shine through floors otherwise). */
   floor: number;
+  /** Update 0.8 — the plain box fixture (hidden once the fluorescent model is in) and the model's
+   *  glowing materials, driven together with `mat`. */
+  fixture: THREE.Mesh;
+  glow: THREE.MeshStandardMaterial[];
 }
 
 export interface LevelView {
@@ -20,6 +24,9 @@ export interface LevelView {
   items: Map<string, THREE.Object3D>;
   spinners: THREE.Object3D[];
   generatorLamp: THREE.MeshStandardMaterial;
+  /** Update 0.8 — the stand-in generator (hidden once the model is in) and its status light. */
+  generatorStandIn: THREE.Object3D[];
+  generatorBulb: THREE.Mesh;
   /** Where the generator really is (world, all floors). */
   generatorPos: THREE.Vector3;
   exitSign: THREE.MeshBasicMaterial;
@@ -182,7 +189,7 @@ export function buildLevel(level: Level): LevelView {
     const light = new THREE.PointLight(0xcfdcff, 0, 11, 1.8);
     light.position.copy(atCell(cell, WALL_HEIGHT - 0.35));
     root.add(light);
-    return { light, mat, phase: i * 1.7, floor: Math.max(0, floorOfRow(level, cell.row)) };
+    return { light, mat, phase: i * 1.7, floor: Math.max(0, floorOfRow(level, cell.row)), fixture, glow: [] };
   });
 
   // --- Items on bedside cabinets.
@@ -293,6 +300,8 @@ export function buildLevel(level: Level): LevelView {
     items,
     spinners,
     generatorLamp,
+    generatorStandIn: [body, pipes, slots],
+    generatorBulb: lampBulb,
     generatorPos: atCell(level.generator, 1),
     exitSign,
     exitDoor,

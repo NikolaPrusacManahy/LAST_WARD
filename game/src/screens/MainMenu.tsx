@@ -7,12 +7,14 @@ interface Props {
   save: SaveData;
   onStart(): void;
   onSettings(): void;
+  /** Update 0.8 — the Credits screen. */
+  onCredits(): void;
   /** Update 0.7.1 — tester level picker (dev build only). */
   startLevel: number;
   onPickLevel(level: number): void;
 }
 
-export function MainMenu({ save, onStart, onSettings, startLevel, onPickLevel }: Props) {
+export function MainMenu({ save, onStart, onSettings, onCredits, startLevel, onPickLevel }: Props) {
   return (
     <div className="lw-menu">
       <MenuScene />
@@ -23,6 +25,7 @@ export function MainMenu({ save, onStart, onSettings, startLevel, onPickLevel }:
         <nav className="lw-menu-nav">
           <button className="lw-menu-btn" onClick={onStart}>Begin</button>
           <button className="lw-menu-btn" onClick={onSettings}>Settings</button>
+          <button className="lw-menu-btn" onClick={onCredits}>Credits</button>
         </nav>
         <dl className="lw-menu-stats">
           <div><dt>Escaped</dt><dd>{save.escapes}</dd></div>
