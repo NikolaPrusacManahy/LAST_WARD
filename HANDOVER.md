@@ -1,6 +1,24 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.6.4
+## Current version: 0.7.1
+
+- **Tester level picker:** when the game runs locally (`START_GAME.bat`), the main menu has a small "TESTER · START LEVEL" panel in the top-right corner: pick 1 (the hospital) or 2 (Ashgrove House), press Begin, and you wake up on that level. The pick is remembered in that browser. The public build (`npm run build`) never shows it and always starts at level 1 (`state/devTools.ts` `chooseStartLevel`, tested; the panel is `screens/TesterLevelPicker.tsx`, styles `theme-08-tester.css`). `?level=2` still works too.
+
+## 0.7
+
+- **Level 2, Ashgrove House:** escaping the hospital now wakes you up (same wake-up intro, its own text: "04:02 AM / You wake up on the floor of a dark entrance hall...") in a three-floor mansion. Same goal: three fuses, the generator (in the attic this time), then the front door. Lives, injury, battery and the run clock carry over; fuses and power start again. Escaping the mansion ends the run as before.
+- **Layout** (`world/content/level02.ts`): ground floor = kitchen with the servants' stair in its corner, dining room, parlour, long hallway, library (shelf aisles), entrance hall with the grand staircase and the front door, drawing room. First floor = servants' room, master bedroom, nursery, hallway with the two attic stairs, bedrooms, the gallery over the entrance hall. Attic = generator room, storerooms, old nursery, trunk room. Four flights: grand stair and servants' stair (ground → first), two attic stairs (first → attic). New notes tie it to the hospital (Edwin, "came home from St. Brigid's").
+- **How floors work:** each floor is its own map in the level file (stairs `^ v < >`, stairwell `o` above them). In the rules, the floors sit one above the other in a single grid with solid rows between them, so collision, sight, items and paths work per floor unchanged. Walking into the top of a flight (or its stairwell from upstairs) moves you to the same spot on the other floor (a "portal"). Your height rises smoothly along the steps, and the engine draws every floor where it really is and moves the house so your floor sits under you. No climbing animation yet (as asked).
+- **The Patient on three floors:** its paths go through the stairs (it walks up and down the flights), it has four spawn / teleport corners per floor (12), and in the mansion it keeps tracking you much longer: it keeps following where you went for 5 s after losing sight (was 1.2), searches 16 s (was 7) over 5 tiles (was 3). Per-level tuning lives in the level file (`ai`). Fixed: re-planning its route every 0.4 s used to walk it back to the middle of the step it was on, so it could get stuck on the top step.
+- **Rendering:** floor and ceiling are now one tile per cell (holes over the stairs), steps are drawn as blocks, railings round stairwells. Only the lamps on your floor light up (point lights shine through floors otherwise). The mansion still uses the hospital textures and fixtures, placeholders until new art is ported.
+- **Dev only:** `?level=2` starts in the mansion; `debugTeleport(col, row, yaw, floor)`, `debugNextLevel()`.
+- Known gaps: getting caught on a flight of stairs plays the throw at floor height. Sounds from other floors are just treated as far away (it doesn't hear you through floors).
+
+## 0.6.5
+
+- **Debug tools sealed for the public build:** the F2 debug view, F3 freeze, the `?debug` flag (no pointer lock, `window.__lastWard` / `__lastWardMenu` helpers) and skipping the credit screen now only work from the dev server (`START_GAME.bat` / `npm run dev`). A `npm run build` (what Netlify publishes) has them all off: F2 does nothing and `?debug` is ignored. Decided by Vite's `import.meta.env.DEV` through `state/devTools.ts` (tested). Nothing changes when you play locally.
+
+## 0.6.4
 
 - **Patrols:** it teleports to another corner after **35 s** without spotting you (was 60). It patrols a wider area (12 tiles round its corner, was 6) and every patrol leg is at least 12 cells of path, so legs average ~18 cells (was ~8): no more pacing back and forth in one spot, and more chances to walk into you by surprise. It still stops and looks round between legs for 1 to 3.5 s.
 - **Reading pauses the game:** opening a note stops everything (The Patient, you, timers, stamina, grunts) until you put it down with the collect / interact button, Enter or Esc. The 14 s auto-close is gone. New phase `'reading'` (world time 0).

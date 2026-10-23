@@ -1,16 +1,21 @@
 import { SaveData, formatTime } from '../state/settings';
 import { MenuScene } from './MenuScene';
+import { TesterLevelPicker } from './TesterLevelPicker';
 
 interface Props {
   save: SaveData;
   onStart(): void;
   onSettings(): void;
+  /** Update 0.7.1 — tester level picker (dev build only). */
+  startLevel: number;
+  onPickLevel(level: number): void;
 }
 
-export function MainMenu({ save, onStart, onSettings }: Props) {
+export function MainMenu({ save, onStart, onSettings, startLevel, onPickLevel }: Props) {
   return (
     <div className="lw-menu">
       <MenuScene />
+      {import.meta.env.DEV && <TesterLevelPicker level={startLevel} onPick={onPickLevel} />}
       <div className="lw-menu-inner">
         <p className="lw-menu-kicker">St. Brigid's Hospital · Ward 13</p>
         <h1 className="lw-title">LAST WARD</h1>

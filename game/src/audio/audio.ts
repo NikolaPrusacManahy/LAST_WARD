@@ -574,6 +574,13 @@ export class AudioEngine {
     s.start(t, 0, 1.8);
   }
 
+  /** Update 0.7 — leaving a level: its generator hum stops. */
+  stopGenerator() {
+    if (!this.hum) return;
+    this.hum.gain.gain.setTargetAtTime(0, this.now, 0.2);
+    this.hum = null;
+  }
+
   fadeOut(seconds: number) {
     this.master.gain.setTargetAtTime(0, this.now, seconds / 3);
   }

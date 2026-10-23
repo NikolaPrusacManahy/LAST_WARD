@@ -46,11 +46,13 @@ export class PlayerController {
   private readonly tmpM = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
 
-  private blockers: Vec2[];
+  private blockers: Vec2[] = [];
+  /** Update 0.7 — how high up a flight of stairs you are (the camera rises with it). */
+  rise = 0;
 
   constructor(level: Level, private camera: THREE.PerspectiveCamera, scene: THREE.Scene) {
     this.pos = cellCenter(level.playerStart);
-    this.blockers = level.items.map((i) => itemPos(level, i.cell));
+    this.reset(level);
     this.flashlight = new THREE.SpotLight(0xfff1d6, 0, 32, 0.6, 0.35, 1.5);
     this.cookie = flashlightCookie();
     this.flashlight.map = this.cookie;
@@ -66,6 +68,17 @@ export class PlayerController {
     this.spill = new THREE.PointLight(0xdfe4f0, 0, 6.5, 2);
     camera.add(this.spill);
     scene.add(camera);
+  }
+
+  /** Update 0.7 — start of a level: its start cell and facing, its item cabinets to walk round. */
+  reset(level: Level) {
+    this.pos = cellCenter(level.playerStart);
+    this.yaw = level.startYaw;
+    this.pitch = 0;
+    this.vel = { x: 0, z: 0 };
+    this.crouching = false;
+    this.rise = 0;
+    this.blockers = level.items.map((i) => itemPos(level, i.cell));
   }
 
   get forward(): Vec2 {
@@ -127,7 +140,7 @@ export class PlayerController {
     const jy = (Math.random() - 0.5) * shake * 0.08;
     const rx = Math.cos(this.yaw);
     const rz = -Math.sin(this.yaw);
-    this.camera.position.set(this.pos.x + rx * b.side, this.eye + b.y + jy, this.pos.z + rz * b.side);
+    this.camera.position.set(this.pos.x + rx * b.side, this.rise + this.eye + b.y + jy, this.pos.z + rz * b.side);
     this.camera.rotation.set(this.pitch - b.nod + jy * 0.5, this.yaw + this.lookBackYaw + jx, -b.roll + jx * 0.5, 'YXZ');
     const fov = this.baseFov + this.bobAmp.fov;
     if (Math.abs(this.camera.fov - fov) > 0.01) {

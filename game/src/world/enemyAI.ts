@@ -1,6 +1,6 @@
 // "The Patient" — enemy brain. Pure state machine: patrol → investigate → chase → search.
 // The engine calls stepEnemy() every frame and only renders the result.
-import { Cell, Level, TILE, Vec2, cellCenter, dist, floorCells, isSolid, worldToCell, sameCell } from './level';
+import { Cell, Level, TILE, Vec2, cellCenter, crossPortal, dist, floorCells, floorOfRow, floorStride, isSolid, worldToCell, sameCell } from './level';
 import { findPath } from './pathfinding';
 import { lineOfSight } from './lineOfSight';
 import { clearLine, moveWithCollision, overlapsWall } from './collision';
@@ -103,16 +103,32 @@ export function createEnemy(level: Level): EnemyState {
   };
 }
 
-/** Update 0.5.4 — the open cell nearest each corner of the map (its four spawn / teleport points). */
+/** Update 0.5.4 — the open cell nearest each corner of the map (its four spawn / teleport points).
+ *  Update 0.7 — four per floor. */
 export function cornerCells(level: Level): Cell[] {
-  const cells = floorCells(level);
-  const corners = [
-    { col: 0, row: 0 },
-    { col: level.cols - 1, row: 0 },
-    { col: 0, row: level.rows - 1 },
-    { col: level.cols - 1, row: level.rows - 1 },
-  ];
-  return corners.map((c) => cells.reduce((best, x) => (Math.abs(x.col - c.col) + Math.abs(x.row - c.row) < Math.abs(best.col - c.col) + Math.abs(best.row - c.row) ? x : best)));
+  const all = floorCells(level);
+  const out: Cell[] = [];
+  for (let f = 0; f < level.floors; f++) {
+    const cells = all.filter((x) => floorOfRow(level, x.row) === f);
+    const top = f * floorStride(level);
+    const corners = [
+      { col: 0, row: top },
+      { col: level.cols - 1, row: top },
+      { col: 0, row: top + level.floorRows - 1 },
+      { col: level.cols - 1, row: top + level.floorRows - 1 },
+    ];
+    out.push(...corners.map((c) => cells.reduce((best, x) => (Math.abs(x.col - c.col) + Math.abs(x.row - c.row) < Math.abs(best.col - c.col) + Math.abs(best.row - c.row) ? x : best))));
+  }
+  return out;
+}
+
+/** Update 0.7 — ENEMY numbers with this level's tweaks (the mansion: it keeps tracking you much longer). */
+export function tuningFor(level: Level) {
+  return {
+    memorySeconds: level.ai.memorySeconds ?? ENEMY.memorySeconds,
+    searchSeconds: level.ai.searchSeconds ?? ENEMY.searchSeconds,
+    searchRadiusTiles: level.ai.searchRadiusTiles ?? 3,
+  };
 }
 
 /** Update 0.5.4 — start of a run: one of the four corners, never the one by the player. */
@@ -254,7 +270,10 @@ function goTo(level: Level, e: EnemyState, target: Vec2) {
   e.goal = roomFor(level, target);
   e.path = findPath(level, worldToCell(e.pos), worldToCell(target));
   // Skip its own cell's centre only if it can walk straight to the next one without clipping a corner.
-  e.pathIndex = e.path.length > 1 && clearLine(level, e.pos, cellCenter(e.path[1]), ENEMY.bodyRadius) ? 1 : 0;
+  // Update 0.7 — or if the next step is up / down the stairs (through the portal right beside it):
+  // walking back to the centre first, every re-plan, kept it from ever reaching the top step's portal.
+  const crossing = e.path.length > 1 && (Math.abs(e.path[1].col - e.path[0].col) > 1 || Math.abs(e.path[1].row - e.path[0].row) > 1);
+  e.pathIndex = e.path.length > 1 && (crossing || clearLine(level, e.pos, cellCenter(e.path[1]), ENEMY.bodyRadius)) ? 1 : 0;
   e.repath = ENEMY.repathSeconds;
   if (!e.path.length) e.goal = null; // unreachable: never walk through walls
 
@@ -296,11 +315,21 @@ function pickPatrolGoal(level: Level, e: EnemyState, rng: Rng) {
 }
 
 /** Moves along the path. Returns true when the goal is reached. */
-function followPath(e: EnemyState, speed: number, dt: number): boolean {
+function followPath(level: Level, e: EnemyState, speed: number, dt: number): boolean {
   let budget = speed * dt;
-  while (budget > 0) {
-    const wp = e.pathIndex < e.path.length ? cellCenter(e.path[e.pathIndex]) : e.goal;
+  let guard = 0;
+  while (budget > 0 && guard++ < 64) {
+    let wp = e.pathIndex < e.path.length ? cellCenter(e.path[e.pathIndex]) : e.goal;
     if (!wp) return true;
+    // Update 0.7 — the next waypoint is on another floor: walk into the stairs' portal cell first.
+    if (level.portals.length && e.pathIndex < e.path.length) {
+      const next = e.path[e.pathIndex];
+      const here = worldToCell(e.pos);
+      if (Math.abs(next.col - here.col) > 1 || Math.abs(next.row - here.row) > 1) {
+        const portal = level.portals.find((p) => sameCell(p.to, next));
+        if (portal) wp = cellCenter(portal.from);
+      }
+    }
     const d = dist(e.pos, wp);
     if (d < 0.05) {
       if (e.pathIndex >= e.path.length) return true;
@@ -309,7 +338,7 @@ function followPath(e: EnemyState, speed: number, dt: number): boolean {
     }
     const step = Math.min(budget, d);
     const dir = { x: (wp.x - e.pos.x) / d, z: (wp.z - e.pos.z) / d };
-    e.pos = { x: e.pos.x + dir.x * step, z: e.pos.z + dir.z * step };
+    e.pos = crossPortal(level, { x: e.pos.x + dir.x * step, z: e.pos.z + dir.z * step }).pos;
     turnToward(e, dir, dt);
     budget -= step;
   }
@@ -335,6 +364,7 @@ export interface StepInput {
 export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rng): EnemyEvent[] {
   const { dt, player, noise } = input;
   const events: EnemyEvent[] = [];
+  const tune = tuningFor(level);
   e.rage = input.fuses * ENEMY.ragePerFuse;
   e.modeTime += dt;
 
@@ -368,7 +398,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
     goTo(level, e, noise.pos);
   }
 
-  if (e.mode === 'chase' && e.sinceSeen <= ENEMY.memorySeconds) e.lastKnown = { ...player.pos };
+  if (e.mode === 'chase' && e.sinceSeen <= tune.memorySeconds) e.lastKnown = { ...player.pos };
 
   // Update 0.6.4 — rushing to the generator: chase speed.
   const speed = ENEMY.speed[e.rush ? 'chase' : e.mode] * (1 + e.rage);
@@ -389,18 +419,18 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
         if (d > 0.01) {
           const dir = { x: (player.pos.x - e.pos.x) / d, z: (player.pos.z - e.pos.z) / d };
           const step = Math.min(speed * dt, d);
-          e.pos = moveWithCollision(level, e.pos, dir.x * step, dir.z * step, ENEMY.bodyRadius);
+          e.pos = crossPortal(level, moveWithCollision(level, e.pos, dir.x * step, dir.z * step, ENEMY.bodyRadius)).pos;
           turnToward(e, dir, dt);
         }
         e.path = [];
       } else if (e.lastKnown) {
         e.repath -= dt;
         if (e.repath <= 0 || !e.goal || dist(e.goal, e.lastKnown) > TILE * 0.5) goTo(level, e, e.lastKnown);
-        const arrived = followPath(e, speed, dt);
-        if (arrived && e.sinceSeen > ENEMY.memorySeconds) {
+        const arrived = followPath(level, e, speed, dt);
+        if (arrived && e.sinceSeen > tune.memorySeconds) {
           setMode(e, 'search');
           events.push('lost');
-          pickWanderGoal(level, e, rng, e.lastKnown, 3);
+          pickWanderGoal(level, e, rng, e.lastKnown, tune.searchRadiusTiles);
         }
       }
       break;
@@ -412,20 +442,20 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
         break;
       }
       if (!e.goal) pickWanderGoal(level, e, rng, null, 0);
-      if (followPath(e, speed, dt)) {
+      if (followPath(level, e, speed, dt)) {
         setMode(e, 'search');
-        pickWanderGoal(level, e, rng, e.goal, 3);
+        pickWanderGoal(level, e, rng, e.goal, tune.searchRadiusTiles);
       }
       break;
     }
     case 'search': {
-      if (e.modeTime > ENEMY.searchSeconds) {
+      if (e.modeTime > tune.searchSeconds) {
         setMode(e, 'patrol');
         e.idle = 1.5;
         e.goal = null;
         break;
       }
-      if (followPath(e, speed, dt)) pickWanderGoal(level, e, rng, e.lastKnown ?? e.pos, 3);
+      if (followPath(level, e, speed, dt)) pickWanderGoal(level, e, rng, e.lastKnown ?? e.pos, tune.searchRadiusTiles);
       break;
     }
     case 'patrol': {
@@ -438,7 +468,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
         // 35 s without finding you it moves to another corner (tryTeleport). 0.6.4 — long legs.
         pickPatrolGoal(level, e, rng);
       }
-      if (followPath(e, speed, dt)) {
+      if (followPath(level, e, speed, dt)) {
         e.goal = null;
         e.idle = 1 + rng() * 2.5;
       }

@@ -1,6 +1,7 @@
 // Tiny external store: the engine writes HUD values ~10×/s, React reads them with
 // useSyncExternalStore (see hooks/useHud.ts). Keeps React out of the frame loop.
 import type { Prompt } from '../state/prompts';
+import { DEFAULT_INTRO, LevelIntro } from '../world/level';
 import { Bindings, DEFAULT_BINDINGS } from '../state/bindings';
 
 export interface HudState {
@@ -18,6 +19,8 @@ export interface HudState {
   started: boolean;
   /** Update 0.6.3 — the intro text's opacity while it fades on black as you wake (0 once gone). */
   intro: number;
+  /** Update 0.7 — this level's intro text. */
+  introText: LevelIntro;
   /** Death / escape sequence: hide the HUD. */
   cinematic: boolean;
   /** Update 0.3 — F2 debug panel lines, or null when closed. */
@@ -41,6 +44,7 @@ export const initialHud: HudState = {
   time: 0,
   started: false,
   intro: 1,
+  introText: DEFAULT_INTRO,
   cinematic: false,
   debug: null,
   bindings: DEFAULT_BINDINGS,

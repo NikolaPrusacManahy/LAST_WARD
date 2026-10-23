@@ -53,18 +53,21 @@ export function createDebugView(level: Level) {
     setEnabled(on: boolean) {
       root.visible = on;
     },
-    update(e: EnemyState, t: number) {
+    /** `toWorld` (Update 0.7) — where a logic position really is (its floor). */
+    update(e: EnemyState, t: number, toWorld: (p: { x: number; z: number }) => { x: number; y: number; z: number } = (p) => ({ ...p, y: 0 })) {
       if (!root.visible) return;
-      marker.position.set(e.pos.x, 0, e.pos.z);
+      const m = toWorld(e.pos);
+      marker.position.set(m.x, m.y, m.z);
       markMat.color.setHex(MODE_COLOR[e.mode]);
       ring.scale.setScalar(1 + 0.15 * Math.sin(t * 6));
       const pts = [{ x: e.pos.x, z: e.pos.z }, ...e.path.slice(e.pathIndex).map(cellCenter)];
       if (e.goal) pts.push(e.goal);
       const n = Math.min(pts.length, 256);
       for (let i = 0; i < n; i++) {
-        pathPositions[i * 3] = pts[i].x;
-        pathPositions[i * 3 + 1] = 0.1;
-        pathPositions[i * 3 + 2] = pts[i].z;
+        const w = toWorld(pts[i]);
+        pathPositions[i * 3] = w.x;
+        pathPositions[i * 3 + 1] = w.y + 0.1;
+        pathPositions[i * 3 + 2] = w.z;
       }
       pathGeo.setDrawRange(0, n);
       pathGeo.attributes.position.needsUpdate = true;

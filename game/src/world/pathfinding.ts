@@ -1,6 +1,6 @@
 // A* on the tile grid. 8-way moves; diagonals only when both side cells are open
 // (no corner cutting, so the enemy never clips through a wall corner).
-import { Cell, Level, isSolid } from './level';
+import { Cell, Level, isSolid, portalAt } from './level';
 
 const DIRS = [
   [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
@@ -35,10 +35,19 @@ export function findPath(level: Level, start: Cell, goal: Cell): Cell[] {
     const c = k % cols;
     const r = Math.floor(k / cols);
     for (const [dc, dr, cost] of DIRS) {
-      const nc = c + dc;
-      const nr = r + dr;
+      let nc = c + dc;
+      let nr = r + dr;
       if (isSolid(level, nc, nr)) continue;
       if (dc !== 0 && dr !== 0 && (isSolid(level, c + dc, r) || isSolid(level, c, r + dr))) continue;
+      // Update 0.7 — stepping into a stair portal lands on the other floor: the path jumps there.
+      if (level.portals.length) {
+        const portal = portalAt(level, { col: nc, row: nr });
+        if (portal) {
+          if (dc !== 0 && dr !== 0) continue; // only walk into a flight head-on
+          nc = portal.to.col;
+          nr = portal.to.row;
+        }
+      }
       const nk = key(nc, nr);
       if (closed.has(nk)) continue;
       const ng = (g.get(k) ?? Infinity) + cost;
@@ -71,6 +80,12 @@ export function reachable(level: Level, start: Cell): Set<number> {
     const k = row * level.cols + col;
     if (seen.has(k)) continue;
     seen.add(k);
+    // Update 0.7 — a stair portal leads to the other floor.
+    const portal = level.portals.length ? portalAt(level, { col, row }) : undefined;
+    if (portal) {
+      stack.push(portal.to);
+      continue;
+    }
     stack.push({ col: col + 1, row }, { col: col - 1, row }, { col, row: row + 1 }, { col, row: row - 1 });
   }
   return seen;

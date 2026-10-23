@@ -15,9 +15,12 @@ export function Hud({ store, hidden, onBegin }: Props) {
 
   const introText = (
     <>
-      <span className="lw-intro-time">03:14 AM</span>
-      <span className="lw-intro-line">You wake up on a gurney in Ward 13.</span>
-      <span className="lw-intro-line">The power is out. Something is breathing down the hall.</span>
+      <span className="lw-intro-time">{h.introText.time}</span>
+      {h.introText.lines.map((line) => (
+        <span className="lw-intro-line" key={line}>
+          {line}
+        </span>
+      ))}
     </>
   );
   if (!h.started) {

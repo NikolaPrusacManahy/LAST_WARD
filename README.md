@@ -4,7 +4,9 @@ A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
 You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find three fuses, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 0.6.4. The full patch history is in `HANDOVER.md`.
+Getting out of the hospital is only the start: you come to again on the floor of Ashgrove House, a mansion over three floors, and The Patient follows you up and down its stairs.
+
+Current version: 0.7. The full patch history is in `HANDOVER.md`.
 
 ## How the game works
 
@@ -61,7 +63,7 @@ Run these from `game/`:
 ## Project layout
 
 ```
-Horror-Game/
+LAST_WARD/
   START_GAME.bat     starts the game on Windows
   HANDOVER.md        current version, patch notes, known issues
   DEVELOPMENT.md     which file owns what
@@ -91,9 +93,13 @@ A level is a text map in `game/src/world/content/`, one character per 3 m square
 P  player start   E  enemy start
 F  fuse           B  battery        N  note
 G  generator      X  exit door      L  ceiling lamp
+^ v < >  stairs going up in that direction
+o  the stairwell, on the floor above a flight of stairs
 ```
 
-Note texts and the notes pinned to walls sit in the same file. `tests/test-level.ts` checks that every level is playable: every place can be reached, there are enough fuses, and there are no more than 8 lamps.
+A level can have several floors: one map per floor, ground floor first, all the same size. A flight of stairs is a straight line of arrows on the lower floor, with walls on both sides and a wall past the top step (the landing upstairs sits over it). The floor above marks the same cells with `o`. The game checks these rules when the level loads and says what's wrong.
+
+Note texts, the notes pinned to walls, the intro text and any changes to how The Patient behaves sit in the same file. The levels are played in the order listed in `levels.ts`. `tests/test-level.ts` and `tests/test-mansion.ts` check that every level is playable: every place can be reached, there are enough fuses, and there are no more than 8 lamps.
 
 ## Assets
 
@@ -107,7 +113,11 @@ The READMEs inside `ASSETS/` list the file names each script expects.
 
 ## Debugging
 
+The debug tools only work when the game runs from the dev server (`START_GAME.bat` or `npm run dev`). The public build made by `npm run build` has them switched off, so players can't open them.
+
 Press F2 in game for the debug view: full lighting, The Patient's position and path, and an info panel. While it's open, F3 freezes The Patient.
+
+When running locally, the main menu also has a tester panel in the top-right corner to pick which level Begin starts on. Adding `?level=2` to the address does the same.
 
 Adding `?debug` to the address skips the credit screen and gives the browser console a `window.__lastWard` object with helpers for moving the player and The Patient.
 

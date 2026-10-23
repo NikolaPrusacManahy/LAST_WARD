@@ -20,7 +20,8 @@ export function createLighting(view: LevelView) {
       view.exitSign.map = greenSign;
       view.exitSign.needsUpdate = true;
     },
-    update(t: number) {
+    /** `floor` — the floor you're on (Update 0.7: other floors' lamps would light through the floors). */
+    update(t: number, floor = 0) {
       view.lamps.forEach((lamp, i) => {
         let k: number;
         if (!powered) {
@@ -35,7 +36,7 @@ export function createLighting(view: LevelView) {
           if (since < 1.2) k = slotRand(i, Math.floor(since * 20)) > 0.5 ? 1 : 0.05;
           else k = slotRand(i, Math.floor(t * 12)) > 0.985 ? 0.4 : 1;
         }
-        lamp.light.intensity = (powered ? 14 : 9) * k;
+        lamp.light.intensity = lamp.floor === floor ? (powered ? 14 : 9) * k : 0;
         lamp.light.distance = powered ? 15 : 11;
         lamp.mat.emissiveIntensity = 0.15 + 2.2 * k;
       });

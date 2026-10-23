@@ -22,20 +22,22 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 
 | Module | Owns | Pure? |
 |---|---|---|
-| `world/level.ts` | Level type, ASCII legend + parser, `TILE`, cell ↔ world maths, `itemPos` (cabinet placement) | yes |
-| `world/pathfinding.ts` | A* (8-way, no corner cutting), flood-fill `reachable` | yes |
-| `world/lineOfSight.ts` | Grid line-of-sight | yes |
+| `world/level.ts` | Level type, ASCII legend + parser, `TILE`, cell ↔ world maths, `itemPos` (cabinet placement). 0.7: floors stacked in one logic grid (gap rows between), stairs + portals, `crossPortal`, `stairRise`, `floorOffset` | yes |
+| `world/pathfinding.ts` | A* (8-way, no corner cutting), flood-fill `reachable`; both go through stair portals (0.7) | yes |
+| `world/lineOfSight.ts` | Grid line-of-sight (`level.opaque`: stairwells are see-through, 0.7) | yes |
 | `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4) | yes |
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2) | yes |
 | `world/interact.ts` | What's in reach and in front of the player | yes |
 | `world/rng.ts` | Seeded RNG | yes |
 | `world/content/level01.ts` | Ward 13 map + notes + wall notes (0.6.3) | data |
+| `world/content/level02.ts` | Ashgrove House: three floors, stairs, notes, intro text, longer tracking (0.7) | data |
+| `world/content/levels.ts` | Play order of the levels (0.7) | data |
 | `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve | yes |
 | `state/objectives.ts` | Fuses → generator → exit chain, objective text | yes |
 | `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time | yes (+ localStorage I/O) |
 | `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring | no |
 | `engine/playerController.ts` | Camera, head bob, footsteps, flashlight rig | no |
-| `engine/buildLevel.ts` | Walls (instanced), floor, ceiling, lamps, cabinets, items, generator, exit door | no |
+| `engine/buildLevel.ts` | Walls (instanced), floor, ceiling, lamps, cabinets, items, generator, exit door; 0.7: every floor at its real height, steps, stairwell railings | no |
 | `engine/enemyView.ts` | `EnemyView` contract (`update`, `pose` for fixed poses like the menu, `lunge`) + the primitive fallback figure (shown until the GLB loads, or if it fails) | no |
 | `engine/enemyModel.ts` | Rigged Patient (`public/models/patient.glb`): GLTFLoader + AnimationMixer, crossfades, jumpscare attack clip | no |
 | `engine/playerBody.ts` | First-person body (`public/models/player.glb`): placed behind the camera, head hidden, arms shrink away while sprinting | no |
@@ -44,7 +46,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/debugView.ts` | F2 view: sun/sky lights, enemy marker through walls, path line | no |
 | `state/debugInfo.ts` | F2 panel text | yes |
 | `engine/enemyAnim.ts` | Which clip to play for an AI mode/speed (runs above 3.4 m/s in any mode, 0.6.4), and playback speed so feet match the ground | yes |
-| `engine/lighting.ts` | Lamp flicker before power, steady after; item spin | no |
+| `engine/lighting.ts` | Lamp flicker before power, steady after; item spin; only your floor's lamps light up (0.7) | no |
 | `state/lightLevels.ts` | Every light level (flashlight, fill, fog, eye glow) + `atmosphereFor(powered, debug)` | yes |
 | `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades | no |
 | `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, wall notes, signs, flashlight cookie) | no |

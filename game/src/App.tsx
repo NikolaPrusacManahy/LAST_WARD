@@ -10,6 +10,10 @@ import { useUiSounds } from './hooks/useUiSounds';
 import { CreditIntro } from './screens/CreditIntro';
 import { setMenuAmbience } from './audio/menuAmbience';
 import { wantsMenuAmbience } from './state/menuAudio';
+import { chooseStartLevel, showCredits, startLevelIndex } from './state/devTools';
+import { LEVELS } from './world/content/levels';
+
+const PICK_KEY = 'lw-tester-level';
 
 type Screen = 'menu' | 'game';
 type Overlay = null | 'pause' | 'settings' | { end: 'dead' | 'escaped'; time: number };
@@ -22,10 +26,30 @@ export default function App() {
   const [runId, setRunId] = useState(0);
   const game = useRef<GameHandle>(null);
   // Update 0.5.1 — credit screen once per page load. ?debug skips it (automated checks), ?debug&credits shows it.
-  const [credits, setCredits] = useState(() => {
-    const q = new URLSearchParams(location.search);
-    return !q.has('debug') || q.has('credits');
+  // Update 0.6.5 — only in dev; the public build always shows it.
+  const [credits, setCredits] = useState(() => showCredits(import.meta.env.DEV, location.search));
+
+  // Update 0.7.1 — tester level picker (dev build only): ?level=N, else the last pick in this browser.
+  const [startLevel, setStartLevel] = useState(() => {
+    if (!import.meta.env.DEV) return 0;
+    let saved = 0;
+    try {
+      saved = Number(localStorage.getItem(PICK_KEY) ?? 0);
+    } catch {
+      /* storage blocked: start at level 1 */
+    }
+    return startLevelIndex(true, location.search, LEVELS.length) || chooseStartLevel(true, saved, LEVELS.length);
   });
+  const pickLevel = import.meta.env.DEV
+    ? (n: number) => {
+        setStartLevel(n);
+        try {
+          localStorage.setItem(PICK_KEY, String(n));
+        } catch {
+          /* fine: just not remembered */
+        }
+      }
+    : () => {};
 
   useEffect(() => writeSave(save), [save]);
   useUiSounds(save.settings.volume);
@@ -72,9 +96,9 @@ export default function App() {
 
   return (
     <div className="lw-app">
-      {screen === 'menu' && overlay !== 'settings' && <MainMenu save={save} onStart={start} onSettings={() => openSettings('menu')} />}
+      {screen === 'menu' && overlay !== 'settings' && <MainMenu save={save} onStart={start} onSettings={() => openSettings('menu')} startLevel={startLevel} onPickLevel={pickLevel} />}
       {screen === 'game' && (
-        <GameView key={runId} ref={game} settings={save.settings} onEnd={onEnd} onPause={onPause} paused={overlay !== null} />
+        <GameView key={runId} ref={game} settings={save.settings} onEnd={onEnd} onPause={onPause} paused={overlay !== null} startLevel={startLevel} />
       )}
       {overlay === 'pause' && (
         <PauseMenu

@@ -15,9 +15,11 @@ interface Props {
   paused: boolean;
   onEnd(result: 'dead' | 'escaped', seconds: number): void;
   onPause(): void;
+  /** Update 0.7.1 — level to start on (tester picker; ignored by the public build). */
+  startLevel: number;
 }
 
-export const GameView = forwardRef<GameHandle, Props>(function GameView({ settings, paused, onEnd, onPause }, ref) {
+export const GameView = forwardRef<GameHandle, Props>(function GameView({ settings, paused, onEnd, onPause, startLevel }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const game = useRef<Game | null>(null);
   const hud = useMemo(() => createHudStore(), []);
@@ -32,7 +34,7 @@ export const GameView = forwardRef<GameHandle, Props>(function GameView({ settin
       game.current = new Game(host.current, settings, hud, {
         onEnd: (r, s) => cbs.current.onEnd(r, s),
         onPause: () => cbs.current.onPause(),
-      });
+      }, startLevel);
     });
     return () => {
       disposed = true;

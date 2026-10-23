@@ -1,8 +1,8 @@
 // Game façade: owns the renderer and frame loop, wires world rules → visuals → audio → HUD.
 // Keep it a façade: new mechanics go in their own module.
 import * as THREE from 'three';
-import { LEVEL_01 } from '../world/content/level01';
-import { Level, cellCenter, dist, itemPos, parseLevel, worldToCell } from '../world/level';
+import { LEVELS } from '../world/content/levels';
+import { Level, Vec2, cellCenter, crossPortal, dist, floorAt, floorOffset, floorStride, itemPos, parseLevel, stairRise, worldToCell } from '../world/level';
 import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, summonToGenerator, teleportAway, visibility } from '../world/enemyAI';
 import { CAUGHT, LIVES, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
 import { CaughtScene, createCaughtScene } from './caughtScene';
@@ -17,6 +17,7 @@ import { LIGHT, atmosphereFor } from '../state/lightLevels';
 import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
 import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
+import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
 import { FUSES_NEEDED, Progress, activateGenerator, createProgress, objectiveText, tryExit } from '../state/objectives';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
@@ -50,6 +51,11 @@ export class Game {
   private fx: PostFx;
   private input: Input;
   private level: Level;
+  /** Update 0.7 — which level (LEVELS index); escaping one wakes you up in the next. */
+  private levelIndex = 0;
+  /** Update 0.7 — all level meshes; moved so the floor you're on sits at the rules' coordinates. */
+  private world = new THREE.Group();
+  private curFloor = 0;
   private view: LevelView;
   private lights: Lighting;
   private player: PlayerController;
@@ -90,8 +96,10 @@ export class Game {
   private controlsLeft = 0;
   private enemyStepAccum = 0;
   private resizeObs: ResizeObserver;
-  /** ?debug in the URL: runs without pointer lock (for automated screenshots). */
-  private debug = new URLSearchParams(location.search).has('debug');
+  /** ?debug in the URL: runs without pointer lock (for automated screenshots). Dev build only (0.6.5). */
+  private debug = debugFlag(import.meta.env.DEV, location.search);
+  /** Update 0.6.5 — F2 / F3 exist only in the dev build. */
+  private devTools = devToolsEnabled(import.meta.env.DEV);
   private enemyFrozen = false;
   private stingerTimer = 0;
   private disposed = false;
@@ -107,6 +115,8 @@ export class Game {
     private settings: Settings,
     private hud: HudStore,
     private cb: GameCallbacks,
+    /** Update 0.7.1 — tester level picker / ?level=N; the public build always starts at 0. */
+    startLevel = 0,
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -125,9 +135,12 @@ export class Game {
     this.scene.add(this.ambient);
 
     // Update 0.5.4 — fuses, batteries and notes land on different tables every run.
-    this.level = shuffleItems(parseLevel(LEVEL_01), this.rng);
+    // Update 0.7 — level 1, or the tester's pick in the dev build (main menu picker / ?level=N).
+    this.levelIndex = chooseStartLevel(import.meta.env.DEV, startLevel, LEVELS.length);
+    this.level = shuffleItems(parseLevel(LEVELS[this.levelIndex]), this.rng);
+    this.scene.add(this.world);
     this.view = buildLevel(this.level);
-    this.scene.add(this.view.root);
+    this.world.add(this.view.root);
     this.lights = createLighting(this.view);
     this.player = new PlayerController(this.level, this.camera, this.scene);
     this.player.baseFov = settings.fov;
@@ -138,7 +151,8 @@ export class Game {
     this.swapInRiggedEnemy();
     this.loadBody();
     this.debugView = createDebugView(this.level);
-    this.scene.add(this.debugView.root);
+    this.world.add(this.debugView.root);
+    this.syncFloor();
     this.fx = createPostFx(this.renderer, this.scene, this.camera);
     this.fx.set({ grain: settings.grain ? 1 : 0 });
     this.input = new Input(this.renderer.domElement, this.debug);
@@ -161,7 +175,12 @@ export class Game {
     void this.audio.resume();
     this.audio.startAmbience();
     this.audio.startEnemyBreath(this.enemy3D());
-    // Update 0.6.3 — you come to on the floor first (engine/wakeScene.ts); the run starts once you're up.
+    this.startWake();
+    void this.lockPointer();
+  }
+
+  /** Update 0.6.3 — you come to on the floor first (engine/wakeScene.ts); the run starts once you're up. */
+  private startWake() {
     this.phase = 'waking';
     this.wake = createWakeScene({
       camera: this.camera,
@@ -170,7 +189,77 @@ export class Game {
       yaw: this.player.yaw,
       eyeHeight: PLAYER.eyeHeight,
     });
-    void this.lockPointer();
+  }
+
+  /**
+   * Update 0.7 — escaped: the next level. Same run (lives, injury, battery and the clock carry over);
+   * you wake up on the floor again with that level's intro text.
+   */
+  private loadLevel(index: number) {
+    this.world.remove(this.view.root);
+    this.view.dispose();
+    this.lights.dispose();
+    const debugOn = this.debugView.enabled;
+    this.world.remove(this.debugView.root);
+    this.debugView.dispose();
+    this.levelIndex = index;
+    this.level = shuffleItems(parseLevel(LEVELS[index]), this.rng);
+    this.view = buildLevel(this.level);
+    this.world.add(this.view.root);
+    this.lights = createLighting(this.view);
+    this.debugView = createDebugView(this.level);
+    this.debugView.setEnabled(debugOn);
+    this.world.add(this.debugView.root);
+    this.player.reset(this.level);
+    this.enemy = spawnAtCorner(this.level, this.rng, cellCenter(this.level.playerStart));
+    this.enemyFrozen = false;
+    this.progress = createProgress();
+    this.noise = null;
+    this.target = null;
+    this.toast = null;
+    this.note = null;
+    this.fear = 0;
+    this.camReturn = null;
+    this.controlsLeft = 0;
+    clearTimeout(this.stingerTimer);
+    this.syncFloor();
+    this.applyAtmosphere();
+    this.fx.set({ white: 0, lids: 1 }); // white flash of the door → black, eyes shut
+    this.audio.stopGenerator();
+    this.audio.setVolume(this.settings.volume);
+    this.startWake();
+  }
+
+  /** Update 0.7 — keep the floor you're on at the rules' coordinates (other floors drawn where they are). */
+  private syncFloor() {
+    this.curFloor = floorAt(this.level, this.player.pos);
+    const o = floorOffset(this.level, this.curFloor);
+    this.world.position.set(0, -o.y, -o.z);
+  }
+
+  /** Update 0.7 — The Patient drawn relative to your floor (it can be on another one, or on the stairs). */
+  private enemyRel(): { x: number; y: number; z: number } {
+    const oe = floorOffset(this.level, floorAt(this.level, this.enemy.pos));
+    const oc = floorOffset(this.level, this.curFloor);
+    return { x: this.enemy.pos.x, y: oe.y - oc.y + stairRise(this.level, this.enemy.pos), z: this.enemy.pos.z + oe.z - oc.z };
+  }
+
+  private drawEnemy(moved: number) {
+    const r = this.enemyRel();
+    this.enemyView.update({ x: r.x, z: r.z }, this.enemy.dir, this.enemy.mode, moved, this.worldT, this.enemy.windup > 0);
+    this.enemyView.root.position.y = r.y;
+  }
+
+  /** Update 0.7 — where a logic position really is (for the debug view, which lives in `world`). */
+  private toWorld = (p: Vec2) => {
+    const o = floorOffset(this.level, floorAt(this.level, p));
+    return { x: p.x, y: o.y + stairRise(this.level, p), z: p.z + o.z };
+  };
+
+  /** Camera position in real world space (the audio listener; sounds are placed there too). */
+  private camAbs() {
+    const o = floorOffset(this.level, this.curFloor);
+    return { x: this.camera.position.x, y: this.camera.position.y + o.y, z: this.camera.position.z + o.z };
   }
 
   private updateWaking(dt: number) {
@@ -187,13 +276,14 @@ export class Game {
         this.input.clear();
         this.phase = 'playing';
         this.toastMsg('Find a way out.', 4);
-        this.controlsLeft = CONTROLS_CARD_SECONDS; // Update 0.5 — controls card, Enter closes it
+        // Update 0.5 — controls card, Enter closes it (Update 0.7: first level only).
+        if (this.levelIndex === 0) this.controlsLeft = CONTROLS_CARD_SECONDS;
         return;
       }
     }
     this.fx.set({ lids: wakeEyelids(scene.t) });
     this.player.updateLight(dt, this.status, 0, wakeLight(scene.t));
-    this.audio.setListener(this.camera.position, this.camForward());
+    this.audio.setListener(this.camAbs(), this.camForward());
     this.audio.updateEnemy(this.enemy3D(), false);
   }
 
@@ -253,7 +343,8 @@ export class Game {
   }
 
   private enemy3D() {
-    return { x: this.enemy.pos.x, y: 1.6, z: this.enemy.pos.z };
+    const w = this.toWorld(this.enemy.pos);
+    return { x: w.x, y: w.y + 1.6, z: w.z };
   }
 
   private toastMsg(text: string, seconds = 3) {
@@ -295,7 +386,7 @@ export class Game {
     else if (this.phase === 'escaping') this.updateEscaping(dt);
     else {
       this.player.updateView(dt, 'idle', this.status, this.t);
-      this.enemyView.update(this.enemy.pos, this.enemy.dir, this.enemy.mode, 0, this.worldT, this.enemy.windup > 0);
+      this.drawEnemy(0);
     }
 
     if (!scripted) this.body?.update({
@@ -313,8 +404,9 @@ export class Game {
       roomBehind: freeBehind(this.level, this.player.pos, this.player.forward, 1.2, BODY_RADIUS),
       injured: this.injured,
     });
-    this.debugView.update(this.enemy, this.t);
-    this.lights.update(this.t);
+    if (!scripted && this.body) this.body.root.position.y = this.player.rise; // Update 0.7 — up the stairs
+    this.debugView.update(this.enemy, this.t, this.toWorld);
+    this.lights.update(this.t, this.curFloor);
     this.fx.set({ time: this.t, fear: this.debugView.enabled ? 0 : this.fear, injured: this.debugView.enabled ? 0 : injuredTint(this.injured, this.t - this.impactT) });
     this.fx.render();
     this.input.endFrame();
@@ -341,10 +433,15 @@ export class Game {
     const { input, player, status } = this;
     player.look(input, this.settings);
     const step = player.step(this.level, input, status, dt);
+    // Update 0.7 — walked onto / off the stairs' portal: you're on the other floor now.
+    const crossed = crossPortal(this.level, player.pos);
+    if (crossed.crossed) player.pos = crossed.pos;
+    this.syncFloor();
+    player.rise = stairRise(this.level, player.pos);
     this.gait = step.gait;
     this.speed = dt > 0 ? step.moved / dt : 0;
     if (input.wasPressed('F2')) this.setDebugView(!this.debugView.enabled);
-    if (input.wasPressed('F3') && this.debugView.enabled) this.enemyFrozen = !this.enemyFrozen;
+    if (input.wasPressed('F3') && this.devTools && this.debugView.enabled) this.enemyFrozen = !this.enemyFrozen;
     if (step.footstep) {
       this.audio.footstep(step.footstep.gait);
       if (step.footstep.noise > 0) this.noise = { pos: { ...player.pos }, radius: step.footstep.noise };
@@ -365,8 +462,8 @@ export class Game {
       this.rng,
     );
     this.noise = null;
-    const moved = dist(before, this.enemy.pos);
-    this.enemyView.update(this.enemy.pos, this.enemy.dir, this.enemy.mode, moved, this.worldT, this.enemy.windup > 0);
+    const moved = Math.min(1, dist(before, this.enemy.pos)); // (a stair portal jumps its logic position)
+    this.drawEnemy(moved);
     this.enemyStepAccum += moved;
     const chasing = this.enemy.mode === 'chase';
     // Update 0.4.1 — enemy sounds get darker with distance and muffled behind walls.
@@ -399,10 +496,10 @@ export class Game {
         this.gruntIn = nextGruntDelay(this.rng);
       }
     }
-    this.audio.setListener(this.camera.position, this.camForward());
+    this.audio.setListener(this.camAbs(), this.camForward());
     this.audio.updateEnemy(this.enemy3D(), chasing, mix);
     this.audio.tickFear(dt, this.fear, chasing);
-    this.audio.tickAmbient(dt, this.camera.position);
+    this.audio.tickAmbient(dt, this.camAbs());
   }
 
   private camForward() {
@@ -510,14 +607,15 @@ export class Game {
     }
     this.player.updateLight(dt, this.status);
     this.fx.set({ lids: eyelids(scene.t) });
-    this.audio.setListener(this.camera.position, this.camForward());
+    this.audio.setListener(this.camAbs(), this.camForward());
     this.audio.updateEnemy(this.enemy3D(), false);
   }
 
   private endCaught(scene: CaughtScene) {
     const view = scene.lastView();
     this.fx.set({ lids: 0 });
-    this.player.pos = { ...scene.endPos };
+    this.player.pos = crossPortal(this.level, scene.endPos).pos;
+    this.syncFloor();
     this.player.yaw = scene.bodyYaw;
     this.player.pitch = 0;
     this.caught = null;
@@ -558,7 +656,7 @@ export class Game {
     const ePos = { x: p.pos.x + f.x * 1.35, z: p.pos.z + f.z * 1.35 };
     this.enemy.pos = ePos;
     this.enemy.dir = { x: -f.x, z: -f.z };
-    this.enemyView.root.position.set(ePos.x, 0, ePos.z);
+    this.enemyView.root.position.set(ePos.x, p.rise, ePos.z);
     this.enemyView.root.rotation.y = Math.atan2(-f.x, -f.z);
     this.enemyView.lunge(Math.min(1, this.phaseTime / 0.25), this.worldT);
     // Keep its face in the middle of the screen whatever the attack animation does.
@@ -586,6 +684,11 @@ export class Game {
     this.fear *= 0.95;
     this.fx.set({ white: Math.min(1, Math.max(0, (k - 0.6) / 1.4)) });
     if (k > 2.2 && this.phase === 'escaping') {
+      // Update 0.7 — out of this level: wake up in the next one. Out of the last: you escaped.
+      if (this.levelIndex + 1 < LEVELS.length) {
+        this.loadLevel(this.levelIndex + 1);
+        return;
+      }
       this.phase = 'over';
       if (document.pointerLockElement) document.exitPointerLock();
       this.cb.onEnd('escaped', this.playTime);
@@ -618,6 +721,7 @@ export class Game {
       time: Math.floor(this.playTime),
       started: this.phase !== 'intro',
       intro: this.phase === 'intro' ? 1 : this.phase === 'waking' && this.wake ? Math.round(wakeTextOpacity(this.wake.t) * 20) / 20 : 0,
+      introText: this.level.intro,
       debug: this.debugView.enabled
         ? debugLines({
             fps: this.fps,
@@ -639,13 +743,19 @@ export class Game {
     });
   }
 
-  /** Debug helpers for automated checks (only exposed with ?debug). */
-  debugTeleport(col: number, row: number, yaw?: number) {
-    this.player.pos = cellCenter({ col, row });
+  /** Debug helpers for automated checks (only exposed with ?debug). `floor` (Update 0.7): 0 = ground. */
+  debugTeleport(col: number, row: number, yaw?: number, floor = 0) {
+    this.player.pos = cellCenter({ col, row: row + floor * floorStride(this.level) });
     if (yaw !== undefined) this.player.yaw = yaw;
+    this.syncFloor();
+  }
+  /** Update 0.7 — skip ahead to the next level (wakes up there). */
+  debugNextLevel() {
+    if (this.levelIndex + 1 < LEVELS.length) this.loadLevel(this.levelIndex + 1);
   }
   debugPlace(x: number, z: number, yaw: number, pitch = 0) {
     this.player.pos = { x, z };
+    this.syncFloor();
     this.player.yaw = yaw;
     this.player.pitch = pitch;
   }
@@ -659,8 +769,8 @@ export class Game {
   debugFreezeEnemy(on: boolean) {
     this.enemyFrozen = on;
   }
-  debugEnemy(col: number, row: number) {
-    this.enemy.pos = cellCenter({ col, row });
+  debugEnemy(col: number, row: number, floor = 0) {
+    this.enemy.pos = cellCenter({ col, row: row + floor * floorStride(this.level) });
   }
   /** Update 0.6 — ?debug: get caught right now (it appears 1 m in front of you). */
   debugCatch() {
@@ -670,11 +780,12 @@ export class Game {
     else this.startDying();
   }
   debugState() {
-    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, enemy: { ...this.enemy, path: undefined }, progress: this.progress, status: this.status, pos: this.player.pos };
+    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, level: this.levelIndex + 1, floor: this.curFloor, enemyFloor: floorAt(this.level, this.enemy.pos), rise: this.player.rise, enemy: { ...this.enemy, path: undefined }, progress: this.progress, status: this.status, pos: this.player.pos };
   }
 
   /** Update 0.3 — F2: full light, no fog or screen FX, enemy marked through walls. */
   private setDebugView(on: boolean) {
+    if (on && !this.devTools) return; // sealed in the public build
     this.debugView.setEnabled(on);
     if (!on) this.enemyFrozen = false;
     this.applyAtmosphere();

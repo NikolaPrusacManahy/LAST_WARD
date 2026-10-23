@@ -1,12 +1,17 @@
 // Turns a parsed Level into three.js meshes. Rendering only — rules live in world/.
+// Update 0.7 — several floors: each floor is drawn where it really is (lifted by WALL_HEIGHT per floor
+// and slid back over floor 0, world/level.ts floorOffset); Game moves the whole root so the floor
+// you're on sits at the logic coordinates the rules use.
 import * as THREE from 'three';
-import { Level, TILE, WALL_HEIGHT, cellCenter, isSolid, Cell, itemPos, FACE_DIR } from '../world/level';
+import { Level, TILE, WALL_HEIGHT, Vec2, cellCenter, isSolid, Cell, itemPos, FACE_DIR, floorOfRow, floorOffset, portalAt } from '../world/level';
 import { ceilingTexture, floorTexture, noteTexture, signTexture, wallNoteTexture, wallTexture, WallVariant } from './textures';
 
 export interface LampView {
   light: THREE.PointLight;
   mat: THREE.MeshStandardMaterial;
   phase: number;
+  /** Update 0.7 — lamps only light the floor you're on (lights shine through floors otherwise). */
+  floor: number;
 }
 
 export interface LevelView {
@@ -15,6 +20,7 @@ export interface LevelView {
   items: Map<string, THREE.Object3D>;
   spinners: THREE.Object3D[];
   generatorLamp: THREE.MeshStandardMaterial;
+  /** Where the generator really is (world, all floors). */
   generatorPos: THREE.Vector3;
   exitSign: THREE.MeshBasicMaterial;
   exitDoor: THREE.Mesh;
@@ -41,14 +47,27 @@ export function buildLevel(level: Level): LevelView {
   const root = new THREE.Group();
   const disposables: { dispose(): void }[] = [];
   const track = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x);
+  // Update 0.7 — logic position → where it really is (its floor lifted up / slid back).
+  const at = (p: Vec2, y: number, row = Math.floor(p.z / TILE)) => {
+    const o = floorOffset(level, Math.max(0, floorOfRow(level, row)));
+    return new THREE.Vector3(p.x, y + o.y, p.z + o.z);
+  };
+  const atCell = (c: Cell, y: number) => at(cellCenter(c), y, c.row);
+  const idx = (col: number, row: number) => row * level.cols + col;
+  const walkable = (col: number, row: number) => !isSolid(level, col, row);
+  const isStair = new Set<number>();
+  for (const run of level.stairs) for (const c of run.cells) isStair.add(idx(c.col, c.row));
 
   // --- Walls: one InstancedMesh per texture variant, only cells that touch floor.
+  // Update 0.7 — "opaque" cells: walls, the exit, and the block under a stair landing (walkable for the
+  // stairs' portal, but it's solid wall on that floor). Stairwells (voids) aren't walls.
   const wallGeo = track(new THREE.BoxGeometry(TILE, WALL_HEIGHT, TILE));
   const byVariant: Record<WallVariant, THREE.Matrix4[]> = { plain: [], stained: [], blood: [], writing: [] };
   let writings = 0;
   for (let row = 0; row < level.rows; row++) {
+    if (floorOfRow(level, row) < 0) continue;
     for (let col = 0; col < level.cols; col++) {
-      if (!isSolid(level, col, row)) continue;
+      if (!level.opaque[idx(col, row)]) continue;
       if (level.generator.col === col && level.generator.row === row) continue;
       let touches = false;
       for (let dr = -1; dr <= 1 && !touches; dr++)
@@ -61,8 +80,8 @@ export function buildLevel(level: Level): LevelView {
         v = 'writing';
         writings++;
       }
-      const m = new THREE.Matrix4().makeTranslation((col + 0.5) * TILE, WALL_HEIGHT / 2, (row + 0.5) * TILE);
-      byVariant[v].push(m);
+      const w = atCell({ col, row }, WALL_HEIGHT / 2);
+      byVariant[v].push(new THREE.Matrix4().makeTranslation(w.x, w.y, w.z));
     }
   }
   (Object.keys(byVariant) as WallVariant[]).forEach((v, i) => {
@@ -76,36 +95,94 @@ export function buildLevel(level: Level): LevelView {
     root.add(mesh);
   });
 
-  // --- Floor + ceiling.
-  const W = level.cols * TILE;
-  const D = level.rows * TILE;
+  // --- Floor + ceiling, one tile per cell (Update 0.7: holes where the stairs go up through).
+  const floorTiles: THREE.Matrix4[] = [];
+  const ceilTiles: THREE.Matrix4[] = [];
+  const flat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+  const down = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+  const one = new THREE.Vector3(1, 1, 1);
+  for (let row = 0; row < level.rows; row++) {
+    if (floorOfRow(level, row) < 0) continue;
+    for (let col = 0; col < level.cols; col++) {
+      const i = idx(col, row);
+      const open = walkable(col, row) && !level.opaque[i];
+      const stairwell = level.voids[i];
+      if (open && !stairwell) floorTiles.push(new THREE.Matrix4().compose(atCell({ col, row }, 0), flat, one));
+      // Ceiling over every open cell and stairwell, except over a flight going up from this floor.
+      if ((open || stairwell) && !isStair.has(i)) ceilTiles.push(new THREE.Matrix4().compose(atCell({ col, row }, WALL_HEIGHT), down, one));
+    }
+  }
+  const tileGeo = track(new THREE.PlaneGeometry(TILE, TILE));
   const fTex = track(floorTexture());
-  fTex.repeat.set(level.cols, level.rows);
-  const floor = new THREE.Mesh(track(new THREE.PlaneGeometry(W, D)), track(new THREE.MeshStandardMaterial({ map: fTex, roughness: 0.75, metalness: 0.05 })));
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.set(W / 2, 0, D / 2);
+  const floor = new THREE.InstancedMesh(tileGeo, track(new THREE.MeshStandardMaterial({ map: fTex, roughness: 0.75, metalness: 0.05 })), floorTiles.length);
+  floorTiles.forEach((m, k) => floor.setMatrixAt(k, m));
   floor.receiveShadow = true;
   root.add(floor);
-
   const cTex = track(ceilingTexture());
-  cTex.repeat.set(level.cols * 2, level.rows * 2);
-  const ceiling = new THREE.Mesh(track(new THREE.PlaneGeometry(W, D)), track(new THREE.MeshStandardMaterial({ map: cTex, roughness: 1 })));
-  ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.set(W / 2, WALL_HEIGHT, D / 2);
+  cTex.repeat.set(2, 2);
+  const ceiling = new THREE.InstancedMesh(tileGeo, track(new THREE.MeshStandardMaterial({ map: cTex, roughness: 1 })), ceilTiles.length);
+  ceilTiles.forEach((m, k) => ceiling.setMatrixAt(k, m));
   root.add(ceiling);
+
+  // --- Update 0.7: stairs (a block per step) and railings round the stairwell upstairs.
+  if (level.stairs.length) {
+    const stepGeo = track(new THREE.BoxGeometry(1, 1, 1));
+    const stepMat = track(new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.85 }));
+    const steps: THREE.Matrix4[] = [];
+    const STEPS_PER_TILE = 8;
+    for (const run of level.stairs) {
+      const d = FACE_DIR[run.dir];
+      const n = run.cells.length * STEPS_PER_TILE;
+      const depth = (run.cells.length * TILE) / n;
+      const first = cellCenter(run.cells[0]);
+      const bottom = { x: first.x - (d.dc * TILE) / 2, z: first.z - (d.dr * TILE) / 2 };
+      for (let k = 0; k < n; k++) {
+        const h = ((k + 1) / n) * WALL_HEIGHT;
+        const mid = { x: bottom.x + d.dc * depth * (k + 0.5), z: bottom.z + d.dr * depth * (k + 0.5) };
+        const p = at(mid, h / 2, run.cells[0].row);
+        const size = new THREE.Vector3(d.dc !== 0 ? depth : TILE - 0.02, h, d.dr !== 0 ? depth : TILE - 0.02);
+        steps.push(new THREE.Matrix4().compose(p, new THREE.Quaternion(), size));
+      }
+    }
+    const stairMesh = new THREE.InstancedMesh(stepGeo, stepMat, steps.length);
+    steps.forEach((m, k) => stairMesh.setMatrixAt(k, m));
+    stairMesh.castShadow = stairMesh.receiveShadow = true;
+    root.add(stairMesh);
+
+    const railMat = track(new THREE.MeshStandardMaterial({ color: 0x2a1d14, roughness: 0.7 }));
+    const rails: THREE.Matrix4[] = [];
+    for (let row = 0; row < level.rows; row++) {
+      for (let col = 0; col < level.cols; col++) {
+        if (!level.voids[idx(col, row)] || walkable(col, row)) continue; // the top step's well is the way down
+        for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nc = col + dc;
+          const nr = row + dr;
+          if (!walkable(nc, nr) || portalAt(level, { col: nc, row: nr })) continue;
+          const c = cellCenter({ col, row });
+          const p = at({ x: c.x + (dc * TILE) / 2, z: c.z + (dr * TILE) / 2 }, 0.5, row);
+          rails.push(new THREE.Matrix4().compose(p, new THREE.Quaternion(), new THREE.Vector3(dc !== 0 ? 0.08 : TILE, 1, dr !== 0 ? 0.08 : TILE)));
+        }
+      }
+    }
+    if (rails.length) {
+      const railMesh = new THREE.InstancedMesh(stepGeo, railMat, rails.length);
+      rails.forEach((m, k) => railMesh.setMatrixAt(k, m));
+      railMesh.castShadow = true;
+      root.add(railMesh);
+    }
+  }
 
   // --- Ceiling lamps (fluorescent strips). Point lights are capped by the level test.
   const lampGeo = track(new THREE.BoxGeometry(1.4, 0.08, 0.32));
   const lamps: LampView[] = level.lamps.map((cell, i) => {
-    const p = cellCenter(cell);
     const mat = track(new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xdde8ff, emissiveIntensity: 0.2 }));
     const fixture = new THREE.Mesh(lampGeo, mat);
-    fixture.position.set(p.x, WALL_HEIGHT - 0.05, p.z);
+    fixture.position.copy(atCell(cell, WALL_HEIGHT - 0.05));
     root.add(fixture);
     const light = new THREE.PointLight(0xcfdcff, 0, 11, 1.8);
-    light.position.set(p.x, WALL_HEIGHT - 0.35, p.z);
+    light.position.copy(atCell(cell, WALL_HEIGHT - 0.35));
     root.add(light);
-    return { light, mat, phase: i * 1.7 };
+    return { light, mat, phase: i * 1.7, floor: Math.max(0, floorOfRow(level, cell.row)) };
   });
 
   // --- Items on bedside cabinets.
@@ -125,9 +202,9 @@ export function buildLevel(level: Level): LevelView {
   for (const item of level.items) {
     const p = itemPos(level, item.cell);
     const g = new THREE.Group();
-    g.position.set(p.x, 0, p.z);
+    g.position.copy(at(p, 0, item.cell.row));
     const cab = new THREE.Mesh(cabinetGeo, cabinetMat);
-    cab.position.set(p.x, 0.4, p.z);
+    cab.position.copy(at(p, 0.4, item.cell.row));
     cab.rotation.y = Math.atan2(p.face.x, p.face.z);
     cab.castShadow = cab.receiveShadow = true;
     root.add(cab);
@@ -160,7 +237,6 @@ export function buildLevel(level: Level): LevelView {
   }
 
   // --- Generator: a big machine filling its tile.
-  const gp = cellCenter(level.generator);
   const gen = new THREE.Group();
   const body = new THREE.Mesh(track(new THREE.BoxGeometry(2.6, 1.7, 2.2)), track(new THREE.MeshStandardMaterial({ color: 0x3f4a3a, roughness: 0.6, metalness: 0.5 })));
   body.position.y = 0.85;
@@ -174,36 +250,36 @@ export function buildLevel(level: Level): LevelView {
   const slots = new THREE.Mesh(track(new THREE.BoxGeometry(0.9, 0.35, 0.9)), track(new THREE.MeshStandardMaterial({ color: 0x151515 })));
   slots.position.set(side.dc * 1.1, 1.0, side.dr * 0.9);
   gen.add(body, pipes, lampBulb, slots);
-  gen.position.set(gp.x, 0, gp.z);
+  gen.position.copy(atCell(level.generator, 0));
   root.add(gen);
 
   // --- Exit door on the inner face of the exit tile + sign above.
-  const ex = cellCenter(level.exit);
+  const ex = atCell(level.exit, 0);
   const es = openSide(level, level.exit);
-  const face = new THREE.Vector3(ex.x + es.dc * (TILE / 2 + 0.02), 0, ex.z + es.dr * (TILE / 2 + 0.02));
+  const face = new THREE.Vector3(ex.x + es.dc * (TILE / 2 + 0.02), ex.y, ex.z + es.dr * (TILE / 2 + 0.02));
   const exitDoor = new THREE.Mesh(
     track(new THREE.BoxGeometry(es.dc !== 0 ? 0.12 : 1.6, 2.4, es.dc !== 0 ? 1.6 : 0.12)),
     track(new THREE.MeshStandardMaterial({ color: 0x40474d, metalness: 0.7, roughness: 0.45 })),
   );
-  exitDoor.position.set(face.x, 1.2, face.z);
+  exitDoor.position.set(face.x, face.y + 1.2, face.z);
   exitDoor.castShadow = true;
   root.add(exitDoor);
   const exitSign = track(new THREE.MeshBasicMaterial({ map: track(signTexture('EXIT', '#ff2a2a')) }));
   const sign = new THREE.Mesh(track(new THREE.PlaneGeometry(0.8, 0.3)), exitSign);
-  sign.position.set(face.x + es.dc * 0.03, 2.75, face.z + es.dr * 0.03);
+  sign.position.set(face.x + es.dc * 0.03, face.y + 2.75, face.z + es.dr * 0.03);
   sign.lookAt(sign.position.x + es.dc, sign.position.y, sign.position.z + es.dr);
   root.add(sign);
   // --- Update 0.6.3: notes pinned to walls (level.wallNotes), slightly off the face they hang on.
   const wallNoteGeo = track(new THREE.PlaneGeometry(0.96, 0.64));
   for (const w of level.wallNotes) {
     const d = FACE_DIR[w.face];
-    const cc = cellCenter(w.cell);
+    const cc = atCell(w.cell, 0);
     const mat = track(
       new THREE.MeshStandardMaterial({ map: track(wallNoteTexture(w.text)), transparent: true, alphaTest: 0.5, roughness: 0.95, emissive: 0x3a3628, emissiveIntensity: 0.35 }),
     );
     mat.emissiveMap = mat.map;
     const paper = new THREE.Mesh(wallNoteGeo, mat);
-    paper.position.set(cc.x + d.dc * (TILE / 2 + 0.015), 1.55, cc.z + d.dr * (TILE / 2 + 0.015));
+    paper.position.set(cc.x + d.dc * (TILE / 2 + 0.015), cc.y + 1.55, cc.z + d.dr * (TILE / 2 + 0.015));
     paper.lookAt(paper.position.x + d.dc, paper.position.y, paper.position.z + d.dr);
     paper.rotation.z += 0.04;
     root.add(paper);
@@ -217,7 +293,7 @@ export function buildLevel(level: Level): LevelView {
     items,
     spinners,
     generatorLamp,
-    generatorPos: new THREE.Vector3(gp.x, 1, gp.z),
+    generatorPos: atCell(level.generator, 1),
     exitSign,
     exitDoor,
     exitDoorClosedPos: exitDoor.position.clone(),

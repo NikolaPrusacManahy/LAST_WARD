@@ -6,6 +6,7 @@ import { loadEnemyModel } from './enemyModel';
 import type { EnemyView } from './enemyView';
 import { floorTexture, wallTexture } from './textures';
 import { LightPhase, createMenuScare, stepMenuScare } from '../state/menuScare';
+import { debugFlag } from '../state/devTools';
 
 // Wide shot: looking left of it keeps it on the right, clear of the title.
 const CAMERA = new THREE.Vector3(-0.6, 1.5, 7.6);
@@ -75,7 +76,7 @@ export function createMenuScene(container: HTMLElement, opts: MenuSceneOptions =
 
   const scare = createMenuScare((Date.now() & 0xffff) + 1);
   // ?debug: expose the schedule so automated checks can jump to a phase.
-  if (new URLSearchParams(location.search).has('debug')) (window as unknown as { __lastWardMenu: unknown }).__lastWardMenu = scare;
+  if (debugFlag(import.meta.env.DEV, location.search)) (window as unknown as { __lastWardMenu: unknown }).__lastWardMenu = scare;
   let lastPhase: LightPhase = scare.phase;
   let t = 0;
   let last = performance.now();

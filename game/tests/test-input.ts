@@ -6,6 +6,7 @@ import { allIconNames, glyphFor, sourceFileFor } from '../src/state/inputIcons';
 import { CONTROLS_CARD_SECONDS, promptFor, samePrompt, tickControlsCard } from '../src/state/prompts';
 import { createProgress } from '../src/state/objectives';
 import { hydrateSave } from '../src/state/settings';
+import { debugFlag, devToolsEnabled, showCredits } from '../src/state/devTools';
 import type { LevelItem } from '../src/world/level';
 
 section('Bindings (0.5)');
@@ -110,4 +111,12 @@ section('Look back (0.5.4)');
   const old2 = { ...DEFAULT_BINDINGS } as Record<string, string>;
   delete old2.lookBack;
   check('old save without Look back gets Q', hydrateBindings(old2).lookBack === 'KeyQ');
+}
+
+section('Debug tools sealed in the public build (0.6.5)');
+{
+  check('F2 / F3 work in dev, not in the public build', devToolsEnabled(true) && !devToolsEnabled(false));
+  check('?debug is ignored in the public build', debugFlag(true, '?debug') && !debugFlag(false, '?debug') && !debugFlag(true, ''));
+  check('the credit screen always shows in the public build', showCredits(false, '?debug') && showCredits(false, ''));
+  check('in dev, ?debug skips it and ?debug&credits shows it', !showCredits(true, '?debug') && showCredits(true, '?debug&credits') && showCredits(true, ''));
 }
