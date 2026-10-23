@@ -1,7 +1,7 @@
 // Sound engine. Recorded samples from public/audio (see manifest.json) with a synthesised
 // fallback per sound. Enemy and generator sounds are 3D (PannerNode, HRTF); enemy sounds are
 // also filtered by distance and walls (audio/spatial.ts).
-import { ENEMY_STEP_GAIN, EnemyMix } from './spatial';
+import { ENEMY_STEP_GAIN, EnemyMix, FLASHLIGHT_CLICK_GAIN, PLAYER_STEP_GAIN } from './spatial';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -122,7 +122,7 @@ export class AudioEngine {
   }
 
   footstep(kind: 'walk' | 'sprint' | 'crouch') {
-    const gain = kind === 'sprint' ? 1 : kind === 'walk' ? 0.65 : 0.22;
+    const gain = (kind === 'sprint' ? 1 : kind === 'walk' ? 0.65 : 0.22) * PLAYER_STEP_GAIN;
     const rate = (kind === 'sprint' ? 1.08 : 1) * this.jitter(0.06);
     if (!this.playSample('step_player', { gain, rate })) this.synthFootstep(kind);
   }
@@ -153,7 +153,7 @@ export class AudioEngine {
   }
 
   click() {
-    if (!this.playSample('flashlight_click', { gain: 0.9 })) this.synthClick();
+    if (!this.playSample('flashlight_click', { gain: 0.9 * FLASHLIGHT_CLICK_GAIN })) this.synthClick();
   }
 
   generatorStart(p: V3) {
@@ -347,7 +347,7 @@ export class AudioEngine {
     const lp = this.ctx.createBiquadFilter();
     lp.type = 'lowpass';
     lp.frequency.value = kind === 'sprint' ? 1400 : kind === 'walk' ? 950 : 500;
-    const g = this.env(kind === 'sprint' ? 0.45 : kind === 'walk' ? 0.28 : 0.08, 0.004, 0.12);
+    const g = this.env((kind === 'sprint' ? 0.45 : kind === 'walk' ? 0.28 : 0.08) * PLAYER_STEP_GAIN, 0.004, 0.12);
     s.playbackRate.value = 0.8 + Math.random() * 0.4;
     s.connect(lp).connect(g).connect(this.master);
     s.start(t, Math.random(), 0.2);
@@ -493,7 +493,7 @@ export class AudioEngine {
   private synthClick() {
     const t = this.now;
     const o = this.osc('square', 2200);
-    const g = this.env(0.06, 0.001, 0.03);
+    const g = this.env(0.06 * FLASHLIGHT_CLICK_GAIN, 0.001, 0.03);
     o.connect(g).connect(this.master);
     o.start(t);
     o.stop(t + 0.05);

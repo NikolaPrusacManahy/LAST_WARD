@@ -1,6 +1,10 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.4.1 "Real Sound" + FOV
+## Current version: 0.4.2
+
+- Your own footsteps and the flashlight click are half as loud (`PLAYER_STEP_GAIN`, `FLASHLIGHT_CLICK_GAIN` in `audio/spatial.ts`).
+
+## 0.4.1 "Real Sound" + FOV
 
 - **Field of view setting** (Settings → Field of view, 60–100°, default 72). It's vertical FOV, the same measure the game always used; sprinting still widens it by about 7° on top. Saved with your other settings; old saves get 72.
 - **Player walk animation** plays at half speed (`WALK_ANIM_SLOWDOWN` in `engine/playerAnim.ts`). Run and crouch are unchanged.
@@ -52,13 +56,13 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + 112 rule tests) and `npm run verify` (adds the production build).
+From `game/`: `npm run verify:quick` (typecheck + 113 rule tests) and `npm run verify` (adds the production build).
 
 ## How to publish
 `npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready).
 
 ## Verified vs unverified
-- ✅ Typecheck, 112 rule tests and the production build pass.
+- ✅ Typecheck, 113 rule tests and the production build pass.
 - ✅ A headless browser test (software rendering, in Claude's cloud workspace) ran the full loop: menu → intro → all items → generator → exit, plus a caught → death screen run. Screenshots looked right.
 - ⚠️ **Not verified:** real-GPU frame rate, how the audio actually sounds, mouse feel under pointer lock, and Pause → Resume (the headless test ran without pointer lock). Check these first.
 - ⚠️ Difficulty is tuned on paper only. Expect to adjust `ENEMY` / `PLAYER` numbers after playing.

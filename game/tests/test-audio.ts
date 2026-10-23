@@ -12,10 +12,11 @@ check('footsteps have several variants', manifest.step_player.length >= 4 && man
 const total = Object.values(manifest).flat().reduce((n, f) => n + statSync(new URL(f, dir)).size, 0);
 check('all sound under 5 MB', total < 5 * 1024 * 1024, `${(total / 1048576).toFixed(1)} MB`);
 
-import { ENEMY_STEP_GAIN, enemyMix } from '../src/audio/spatial';
+import { ENEMY_STEP_GAIN, FLASHLIGHT_CLICK_GAIN, PLAYER_STEP_GAIN, enemyMix } from '../src/audio/spatial';
 
 section('Enemy sound in 3D');
 check('enemy steps are half as loud', ENEMY_STEP_GAIN === 0.5);
+check('player steps and flashlight click are half as loud', PLAYER_STEP_GAIN === 0.5 && FLASHLIGHT_CLICK_GAIN === 0.5);
 check('close + in sight = bright and full', enemyMix(1, false).cutoff > 14000 && enemyMix(1, false).gain === 1);
 check('far away = darker', enemyMix(20, false).cutoff < enemyMix(5, false).cutoff);
 check('behind a wall = muffled and quieter', enemyMix(5, true).cutoff <= 750 && enemyMix(5, true).gain < 1);

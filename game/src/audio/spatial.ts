@@ -5,6 +5,10 @@
 /** Steps were too loud: everything enemy-made is scaled by this (×0.5 = half as loud). */
 export const ENEMY_STEP_GAIN = 0.5;
 
+/** Update 0.4.2 — your own footsteps and the flashlight click were too loud too (×0.5). */
+export const PLAYER_STEP_GAIN = 0.5;
+export const FLASHLIGHT_CLICK_GAIN = 0.5;
+
 export interface EnemyMix {
   /** Low-pass cutoff in Hz. */
   cutoff: number;

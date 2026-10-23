@@ -4,8 +4,8 @@ export const PLAYER = {
   radius: 0.35,
   eyeHeight: 1.65,
   crouchEyeHeight: 1.25, // Update 0.3 — matches the crouch-walk body's head height
-  speed: { walk: 3.0, sprint: 5.4, crouch: 1.6 },
-  staminaMax: 4.5, // seconds of sprint
+  speed: { walk: 3.0, sprint: 5.7, crouch: 1.6 },
+  staminaMax: 7.5, // seconds of sprint
   staminaRegen: 0.9, // per second while not sprinting
   staminaRegenDelay: 0.8,
   /** Sprinting is locked out until stamina refills to this after running dry. */
