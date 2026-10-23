@@ -1,5 +1,5 @@
 // Update 0.5 — rebindable controls, input icons, "Press [icon] to collect" prompts, controls card.
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { check, section } from './harness';
 import { ACTIONS, DEFAULT_BINDINGS, codesFor, hydrateBindings, isBindable, rebind } from '../src/state/bindings';
 import { allIconNames, glyphFor, sourceFileFor } from '../src/state/inputIcons';
@@ -43,6 +43,10 @@ section('Input icons (0.5)');
   check('every icon the game can show is in public/ui/inputs', missing.length === 0, missing.join(', '));
   check('every default binding has a real icon', ACTIONS.every((a) => glyphFor(DEFAULT_BINDINGS[a.id]).icon !== null));
   check('keys use the outline set, mice the filled set', sourceFileFor('w') === 'keyboard_w_outline.svg' && sourceFileFor('mouse_left') === 'mouse_left.svg');
+  // The repo's .gitignore drops the unused part of the Kenney pack; every source icon must be let through.
+  const ignore = readFileSync(new URL('../../.gitignore', import.meta.url), 'utf8').split(/\r?\n/);
+  const notKept = [...new Set(allIconNames().map(sourceFileFor))].filter((f) => !ignore.includes(`!ASSETS/UI - inputs/Keyboard & Mouse/Vector/${f}`));
+  check('.gitignore keeps every source icon the game uses (and the licence)', notKept.length === 0 && ignore.includes('!ASSETS/UI - inputs/License.txt'), notKept.join(', '));
 }
 
 section('Prompts (0.5)');

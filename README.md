@@ -101,7 +101,7 @@ Raw files go in `ASSETS/` and are converted into `game/public/` with the scripts
 
 - **Characters:** Mixamo FBX files go through `node tools/convert-character.mjs`, which produces one `.glb` per character with all animations merged.
 - **Sound:** `python tools/prepare-audio.py ../ASSETS/audio public/audio` (needs Python with numpy and scipy, plus ffmpeg).
-- **Control icons:** `tools/prepare-input-icons.ts` recolours the Kenney input prompts to match the game.
+- **Control icons:** `tools/prepare-input-icons.ts` recolours the Kenney input prompts to match the game. The whole Kenney pack sits in `ASSETS/UI - inputs/`, but `.gitignore` only uploads its licence and the 89 icons the game uses.
 
 The READMEs inside `ASSETS/` list the file names each script expects.
 
