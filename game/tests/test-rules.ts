@@ -1,6 +1,6 @@
 import { check, section } from './harness';
 import { PLAYER, nextCrouch, addBattery, chooseGait, createPlayerStatus, fearLevel, flickerAmount, tickStatus, toggleFlashlight } from '../src/state/playerRules';
-import { FUSES_NEEDED, createProgress, objectiveText, activateGenerator, throwSwitch, tryExit } from '../src/state/objectives';
+import { FUSES_NEEDED, createProgress, objectiveText, startGenerator, tryExit } from '../src/state/objectives';
 import { DEFAULT_SETTINGS, defaultSave, formatTime, hydrateSave, recordEscape } from '../src/state/settings';
 import { findTarget } from '../src/world/interact';
 import { guardLeave } from '../src/state/session';
@@ -52,13 +52,12 @@ check('caps at 1', fearLevel(0, true) === 1);
 section('Objectives');
 {
   const p = createProgress();
-  check('generator refuses without fuses', activateGenerator(p) === 'need-fuses');
+  check('generator refuses before the panels are live (0.9)', startGenerator(p) === 'panels');
   check('exit locked without power', tryExit(p) === 'locked');
   p.fuses = FUSES_NEEDED;
+  p.panels.forEach((x) => Object.assign(x, { fuse: true, fixed: true, on: true }));
   check('objective text updates', objectiveText(p).includes('generator'));
-  check('generator takes the fuses (0.8: then the panel and the switch)', activateGenerator(p) === 'fuses-in' && p.fusesIn);
-  p.panelFixed = true;
-  check('switch powers up', throwSwitch(p) === 'powered' && p.powered);
+  check('generator powers up', startGenerator(p) === 'powered' && p.powered);
   check('exit opens with power', tryExit(p) === 'escaped' && p.escaped);
 }
 

@@ -1,6 +1,17 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.8.1
+## Current version: 0.9
+
+- **Four electrical panels, four fuses.** The panels are spread over Ward 13, one per quarter of the map (top-left, top-right, bottom-left, bottom-right; none in the generator room). Each one: fit a fuse (press), repair it (hold), throw its switch (press). Any order. When all four are live, start the generator: the lights come on, The Patient screams and runs for the generator (as before), then the exit.
+- **Skill checks** (`state/skillCheck.ts`, replaces `panelRepair.ts`), Dead by Daylight style: about 14 s of holding per panel. Every 2.6 to 4.6 s of work a warning ticks, and 0.8 s later a circle appears with a needle sweeping round it once (1.15 s). Press Space (rebindable: "Skill check") while the needle is in the light zone; the small white slice at its start is a perfect hit (+5%). Miss, press too early or let it go round: the panel blows (bang The Patient hears from 22 m, -12%, dead for 1.4 s). Letting go of the panel calls the check off. Work goes on during the check.
+- **Objective banner:** every new objective is announced big at the top of the screen for 5 s ("New objective", or "Objective updated" when a panel comes on). The corner line now has a second line with fuses held / fitted.
+- **Running is riskier:** The Patient sees 1.3 times further while you sprint.
+- **Brick only in the generator room:** every wall of the generator room is lined with the bare brick (`brick_wall`, stretched to each 3 m wall). Everywhere else stays tiled, behind the panels too. The electrical wall behind the generator keeps only its pipes and boxes.
+- The brick and the electrical models rendered almost black (fully metallic after the material conversion). `tools/prepare-props.mjs` now has a `metal` option per model, set for the brick, the panels and the switch.
+- New sounds from `ASSETS/audio/electric_panel_logic`: fuse insert, repair loop, skill check warning / good / great, panel explosion, breaker switch.
+- The generator room no longer has a breaker panel or switch.
+
+## 0.8.1
 
 - The same brick as the electrical wall now covers the wall behind the breaker panel and the power switch (new prop `brick_wall`: the bare brick panel from "Simple electrical environment", same scale).
 

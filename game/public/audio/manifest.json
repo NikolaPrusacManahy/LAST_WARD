@@ -56,5 +56,26 @@
   ],
   "grunt": [
     "grunt.mp3"
+  ],
+  "fuse_insert": [
+    "fuse_insert.mp3"
+  ],
+  "repair_loop": [
+    "repair_loop.mp3"
+  ],
+  "skill_check_warning": [
+    "skill_check_warning.mp3"
+  ],
+  "skill_check_good": [
+    "skill_check_good.mp3"
+  ],
+  "skill_check_great": [
+    "skill_check_great.mp3"
+  ],
+  "panel_explode": [
+    "panel_explode.mp3"
+  ],
+  "breaker_switch": [
+    "breaker_switch.mp3"
   ]
 }

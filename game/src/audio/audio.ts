@@ -574,6 +574,50 @@ export class AudioEngine {
     s.start(t, 0, 1.8);
   }
 
+  /** Update 0.9 — a fuse pushed into an electrical panel. */
+  fuseInsert(p: V3) {
+    if (!this.playSample('fuse_insert', { at: p, ref: 2, rolloff: 1.2, gain: 1 })) this.panelClunk(p);
+  }
+
+  private repair: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  /** Update 0.9 — the loop of working on a panel while you hold repair (fades in / out). */
+  setRepairLoop(on: boolean, p?: V3) {
+    if (on && !this.repair && p && this.has('repair_loop')) {
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0, this.now);
+      gain.gain.linearRampToValueAtTime(0.9, this.now + 0.15);
+      gain.connect(this.panner(p, 2, 1.2)).connect(this.master);
+      const src = this.playSample('repair_loop', { loop: true, to: gain });
+      if (src) this.repair = { src, gain };
+    } else if (!on && this.repair) {
+      const r = this.repair;
+      this.repair = null;
+      r.gain.gain.setTargetAtTime(0, this.now, 0.06);
+      r.src.stop(this.now + 0.4);
+    }
+  }
+
+  /** Update 0.9 — skill check: the warning tick, then a good / great hit. (Not positional: it's for you.) */
+  skillWarning() {
+    if (!this.playSample('skill_check_warning', { gain: 0.9 })) this.click();
+  }
+  skillGood() {
+    if (!this.playSample('skill_check_good', { gain: 0.9 })) this.click();
+  }
+  skillGreat() {
+    if (!this.playSample('skill_check_great', { gain: 1 })) this.click();
+  }
+
+  /** Update 0.9 — missed skill check: the panel blows (recorded bang, synth if missing). */
+  panelExplode(p: V3) {
+    if (!this.playSample('panel_explode', { at: p, ref: 4, rolloff: 0.9, gain: 1.2 })) this.shortBang(p);
+  }
+
+  /** Update 0.9 — throwing a panel's breaker switch. */
+  breakerSwitch(p: V3) {
+    if (!this.playSample('breaker_switch', { at: p, ref: 3, rolloff: 1, gain: 1 })) this.switchThrow(p);
+  }
+
   /** Update 0.8 — breaker panel sparking: a burst of electric crackle (your cue to let go). */
   sparkCrackle(p: V3) {
     const t = this.now;

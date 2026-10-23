@@ -17,6 +17,7 @@ export function ControlsCard({ bindings: b, secondsLeft }: Props) {
     ['Crouch', <InputIcon code={b.crouch} />],
     ['Flashlight', <InputIcon code={b.flashlight} />],
     ['Collect / interact', <InputIcon code={b.interact} />],
+    ['Skill check', <InputIcon code={b.skillCheck} />],
     ['Look back (running)', <InputIcon code={b.lookBack} />],
     ['Pause', <InputIcon code="Escape" />],
   ];

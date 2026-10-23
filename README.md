@@ -2,17 +2,18 @@
 
 A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
-You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find three fuses, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
+You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find four fuses, bring four electrical panels back to life, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 0.8. The full patch history is in `HANDOVER.md`.
+Current version: 0.9. The full patch history is in `HANDOVER.md`.
 
 ## How the game works
 
-- **The Patient** hunts you by sight and sound. It sees further when your flashlight is on and less well when you crouch. Walking makes some noise and running makes a lot; crouching is silent. When it spots you it screams, then charges.
+- **The Patient** hunts you by sight and sound. It sees further when your flashlight is on or you run, and less well when you crouch. Walking makes some noise and running makes a lot; crouching is silent. When it spots you it screams, then charges.
 - **It moves around.** It starts in one corner of the map and patrols that area. If it goes 35 seconds without spotting you, it disappears and turns up at another corner.
 - **You have two lives.** The first time it catches you, it picks you up and throws you across the room. You black out, get up injured (red at the edges of the screen, grunting now and then) and it vanishes somewhere else. The second time is the end.
 - **Fuses, batteries and notes** are shuffled across the tables every run. Batteries recharge the flashlight. Notes are left by people who were here before you, and reading one pauses the game.
-- **Restarting the generator** turns the lights back on, but The Patient hears it. It screams, then sprints to the generator room, so don't stay there.
+- **Electrical panels** are spread across the ward, one in each quarter. Fit a fuse, hold to repair the panel, then throw its switch. While you repair, skill checks come up: a circle with a needle sweeping round it. Press Space while the needle is in the marked zone (the white slice at its start is a perfect hit). Miss and the panel blows, loud enough for The Patient to hear.
+- **Restarting the generator** needs all four panels live. It turns the lights back on, but The Patient hears it. It screams, then sprints to the generator room, so don't stay there.
 
 ## Controls
 
@@ -24,6 +25,7 @@ Current version: 0.8. The full patch history is in `HANDOVER.md`.
 | Crouch (toggle) | Left Ctrl |
 | Flashlight | Right click |
 | Collect / interact | Left click |
+| Skill check | Space |
 | Look back (hold while running) | Q |
 | Pause | Esc |
 

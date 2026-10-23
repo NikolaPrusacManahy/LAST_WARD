@@ -1,6 +1,6 @@
 // Picks what the player is looking at within reach: items, the generator, the exit.
 import { Level, LevelItem, Vec2, cellCenter, dist, itemPos } from './level';
-import { findProp } from './props';
+import { panelSpots } from './props';
 
 export const REACH = 2.4;
 /** Fixtures are solid tiles, so the player can't stand on their centre. */
@@ -10,9 +10,8 @@ export type Target =
   | { type: 'item'; item: LevelItem }
   | { type: 'generator' }
   | { type: 'exit' }
-  /** Update 0.8 — the breaker panel (hold to repair) and the power switch, both on the generator room wall. */
-  | { type: 'panel' }
-  | { type: 'switch' };
+  /** Update 0.9 — one of the electrical panels (fit a fuse, hold to repair, switch on). */
+  | { type: 'panel'; index: number };
 
 function inView(from: Vec2, facing: Vec2, at: Vec2, reach: number): number | null {
   const d = dist(from, at);
@@ -33,9 +32,6 @@ export function findTarget(level: Level, pos: Vec2, facing: Vec2, collected: str
   }
   consider({ type: 'generator' }, cellCenter(level.generator), FIXTURE_REACH);
   consider({ type: 'exit' }, cellCenter(level.exit), FIXTURE_REACH);
-  const panel = findProp(level, 'breaker_box');
-  if (panel) consider({ type: 'panel' }, panel, REACH);
-  const sw = findProp(level, 'power_switch');
-  if (sw) consider({ type: 'switch' }, sw, REACH);
+  panelSpots(level).forEach((at, index) => consider({ type: 'panel', index }, at, REACH));
   return (best as { t: Target } | null)?.t ?? null;
 }

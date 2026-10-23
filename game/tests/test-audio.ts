@@ -5,7 +5,7 @@ import { check, section } from './harness';
 section('Sound files');
 const dir = new URL('../public/audio/', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('manifest.json', dir), 'utf8')) as Record<string, string[]>;
-const expected = ['step_player', 'step_patient', 'heartbeat', 'ambience', 'enemy_breath', 'generator_hum', 'generator_start', 'door_open', 'enemy_scream', 'pickup', 'paper', 'flashlight_click', 'caught', 'thrown', 'floor_impact', 'grunt'];
+const expected = ['step_player', 'step_patient', 'heartbeat', 'ambience', 'enemy_breath', 'generator_hum', 'generator_start', 'door_open', 'enemy_scream', 'pickup', 'paper', 'flashlight_click', 'caught', 'thrown', 'floor_impact', 'grunt', 'fuse_insert', 'repair_loop', 'skill_check_warning', 'skill_check_good', 'skill_check_great', 'panel_explode', 'breaker_switch'];
 check('every sound the engine asks for is in the manifest', expected.every((k) => manifest[k]?.length));
 check('every listed file exists', Object.values(manifest).flat().every((f) => existsSync(new URL(f, dir))));
 check('footsteps have several variants', manifest.step_player.length >= 4 && manifest.step_patient.length >= 4);

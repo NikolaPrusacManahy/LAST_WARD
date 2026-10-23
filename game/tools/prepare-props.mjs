@@ -18,12 +18,15 @@ import sharp from 'sharp';
 const ROOM = 'props/horror_hospital_room.glb';
 const ELEC = 'electrical/simple_electrical_environment.glb';
 // The electrical wall: the brick plane and everything mounted on it (the spare parts sit beside it, z > 2.1).
-const onWall = (n, b) => n.getName() === 'WallTest' || b.max[2] <= 2.1;
+// Update 0.9 — without its own brick: the generator room is lined with brick (`brick_wall`) everywhere.
+const onWall = (n, b) => n.getName() !== 'WallTest' && b.max[2] <= 2.1;
 
 /**
  * scale — metres per source unit (world units of the source scene), or `height` to size it.
  * anchor — 'floor': base at y = 0 (default); 'center': middle at the origin (things hung on walls).
  * simplify — keep about this share of the triangles (very dense models).
+ * metal — metalness for materials with no metal/rough map. The spec/gloss → metal/rough conversion leaves
+ *         some fully metallic, which renders near black without reflections (Update 0.9: brick, panels).
  */
 export const PLAN = [
   // Horror Hospital Room (KarolinaGlad, CC BY 4.0): its furniture dresses the room you wake up in.
@@ -41,12 +44,12 @@ export const PLAN = [
   { out: 'generator', src: 'props/generator_stylized_sci-fi_generator.glb', keep: ['SM_Generator_12342'], scale: 2 },
   // Simple electrical environment (trashbinkr, Sketchfab Standard): the brick wall with its conduits and
   // boxes for the generator room (scaled to the 3.2 m wall), and the breaker box whose door opens.
-  { out: 'electrical_wall', src: ELEC, pick: onWall, scale: 0.8, anchor: 'center' },
-  // The bare brick panel, for the wall behind the breaker box and the switch (Update 0.8.1).
-  { out: 'brick_wall', src: ELEC, keep: ['WallTest'], scale: 0.8, anchor: 'center' },
-  { out: 'breaker_box', src: ELEC, keep: ['BoxWithGlassFrame', 'BoxDoorPivot'], scale: 1, anchor: 'center' },
+  { out: 'electrical_wall', src: ELEC, pick: onWall, scale: 0.8, anchor: 'center', metal: 0.35 },
+  // The bare brick panel: lines every wall of the generator room (Update 0.9).
+  { out: 'brick_wall', src: ELEC, keep: ['WallTest'], scale: 0.8, anchor: 'center', metal: 0 },
+  { out: 'breaker_box', src: ELEC, keep: ['BoxWithGlassFrame', 'BoxDoorPivot'], scale: 1, anchor: 'center', metal: 0.35 },
   // Simple Industrial ON/OFF Switch (trashbinkr, Sketchfab Standard): lever node 'Switch.001'.
-  { out: 'power_switch', src: 'props/simple_industrial_onoff_switch.glb', keep: ['Panel.001', 'Switch.001'], scale: 1, anchor: 'center' },
+  { out: 'power_switch', src: 'props/simple_industrial_onoff_switch.glb', keep: ['Panel.001', 'Switch.001'], scale: 1, anchor: 'center', metal: 0.35 },
   // Rusty Radiator (loxfear, CC BY 4.0), towel included.
   { out: 'radiator', src: 'props/rusty_radiator.glb', keep: ['Radiator_low', 'Plane_1'], height: 0.78 },
   // Old tin barrel (3dhdscan, CC BY 4.0): upright and lying (its big shadow plane dropped).
@@ -104,6 +107,9 @@ for (const job of PLAN) {
     steps.push(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: job.simplify, error: 0.002 }));
   }
   await doc.transform(...steps, textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [job.tex ?? 1024, job.tex ?? 1024], quality: 80 }));
+  if (job.metal !== undefined) {
+    for (const m of root.listMaterials()) if (!m.getMetallicRoughnessTexture()) m.setMetallicFactor(Math.min(m.getMetallicFactor(), job.metal));
+  }
   const file = join(outDir, `${job.out}.glb`);
   await io.write(file, doc);
   const out = getBounds(scene);

@@ -5,19 +5,19 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Level, floorAt, floorOffset } from '../world/level';
-import { PropKind, placedProps, findProp } from '../world/props';
+import { PlacedProp, PropKind, brickLining, panelSpots, placedProps } from '../world/props';
 import type { LevelView } from './buildLevel';
 
 export const PROP_URL = (kind: PropKind) => `/models/props/${kind}.glb`;
 
 export interface PropsView {
   root: THREE.Group;
-  /** 0 = shut, 1 = open (the breaker box door swings open while you work on it). */
-  setPanelOpen(k: number): void;
-  /** The power switch lever: off / on. */
-  setSwitch(on: boolean): void;
-  /** Orange light at the panel: sparks (0 = off). */
-  setSpark(intensity: number): void;
+  /** Panel `i`'s door: 0 = shut, 1 = open (it swings open while you work on it). */
+  setPanelOpen(i: number, k: number): void;
+  /** Panel `i`'s switch lever: off / on. */
+  setSwitch(i: number, on: boolean): void;
+  /** Orange sparks light at panel `i` (0 = off). One light, moved to whichever panel sparks. */
+  setSpark(i: number, intensity: number): void;
   dispose(): void;
 }
 
@@ -27,12 +27,11 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
   const cache = new Map<PropKind, Promise<THREE.Group>>();
   const owned: { dispose(): void }[] = [];
   let disposed = false;
-  let door: THREE.Object3D | null = null;
-  let doorRest = 0;
-  let lever: THREE.Object3D | null = null;
-  let leverRest = 0;
-  let panelOpen = 0;
-  let switchOn = false;
+  // Update 0.9 — several panels: doors / levers in level order.
+  const doors: { node: THREE.Object3D; rest: number }[] = [];
+  const levers: { node: THREE.Object3D; rest: number }[] = [];
+  const open: number[] = [];
+  const on: boolean[] = [];
 
   const load = (kind: PropKind) => {
     let p = cache.get(kind);
@@ -62,8 +61,11 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
     return { y: o.y, z: z + o.z };
   };
 
-  // Placed props.
-  for (const p of placedProps(level)) {
+  // Placed props (+ Update 0.9: brick lining the brick rooms).
+  let boxes = 0;
+  let switches = 0;
+  for (const p of [...placedProps(level), ...brickLining(level)]) {
+    const slot = p.kind === 'breaker_box' ? boxes++ : p.kind === 'power_switch' ? switches++ : -1;
     load(p.kind)
       .then((scene) => {
         if (disposed) return;
@@ -71,19 +73,20 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
         const at = lift(p.x, p.z);
         obj.position.set(p.x, at.y + p.y, at.z);
         obj.rotation.y = p.yaw;
+        if (p.scale) obj.scale.set(...p.scale);
         root.add(obj);
         if (p.kind === 'generator') {
           view.generatorStandIn.forEach((o) => (o.visible = false));
           // Status light on top of the machine's front corner.
           view.generatorBulb.position.set(0.85, 1.93, 0.5);
         } else if (p.kind === 'breaker_box') {
-          door = obj.getObjectByName('BoxDoorPivot') ?? null;
-          if (door) doorRest = door.rotation.y;
-          applyPanel();
+          const node = obj.getObjectByName('BoxDoorPivot');
+          if (node) doors[slot] = { node, rest: node.rotation.y };
+          applyPanel(slot);
         } else if (p.kind === 'power_switch') {
-          lever = obj.getObjectByName('Switch.001') ?? null;
-          if (lever) leverRest = lever.rotation.x;
-          applySwitch();
+          const node = obj.getObjectByName('Switch.001');
+          if (node) levers[slot] = { node, rest: node.rotation.x };
+          applySwitch(slot);
         }
       })
       .catch((err) => console.warn(`Prop ${p.kind} failed to load.`, err));
@@ -117,34 +120,38 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
       .catch((err) => console.warn('Fluorescent fixtures failed to load.', err));
   }
 
-  // Sparks at the breaker panel.
-  const panel = findProp(level, 'breaker_box');
+  // Sparks: one light, moved in front of whichever panel is sparking.
+  const panels = panelSpots(level);
   const spark = new THREE.PointLight(0xff9a2e, 0, 5, 2);
-  if (panel) {
-    const at = lift(panel.x, panel.z);
-    // Just in front of the box.
-    spark.position.set(panel.x + Math.sin(panel.yaw + Math.PI / 2) * 0.4, at.y + panel.y, at.z + Math.cos(panel.yaw + Math.PI / 2) * 0.4);
-    root.add(spark);
-  }
+  root.add(spark);
+  const front = (p: PlacedProp) => {
+    const at = lift(p.x, p.z);
+    // Its front is its local +x, turned by its yaw.
+    return new THREE.Vector3(p.x + Math.cos(p.yaw) * 0.4, at.y + p.y, at.z - Math.sin(p.yaw) * 0.4);
+  };
 
-  function applyPanel() {
-    if (door) door.rotation.y = doorRest - panelOpen * 1.9;
+  function applyPanel(i: number) {
+    const d = doors[i];
+    if (d) d.node.rotation.y = d.rest - (open[i] ?? 0) * 1.9;
   }
-  function applySwitch() {
-    if (lever) lever.rotation.x = leverRest + (switchOn ? -1.1 : 0);
+  function applySwitch(i: number) {
+    const l = levers[i];
+    if (l) l.node.rotation.x = l.rest + (on[i] ? -1.1 : 0);
   }
 
   return {
     root,
-    setPanelOpen(k) {
-      panelOpen = Math.max(0, Math.min(1, k));
-      applyPanel();
+    setPanelOpen(i, k) {
+      open[i] = Math.max(0, Math.min(1, k));
+      applyPanel(i);
     },
-    setSwitch(on) {
-      switchOn = on;
-      applySwitch();
+    setSwitch(i, value) {
+      on[i] = value;
+      applySwitch(i);
     },
-    setSpark(intensity) {
+    setSpark(i, intensity) {
+      const p = panels[i];
+      if (p && intensity > 0) spark.position.copy(front(p));
       spark.intensity = intensity;
     },
     dispose() {

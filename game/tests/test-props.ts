@@ -3,14 +3,15 @@ import { existsSync } from 'fs';
 import { check, section } from './harness';
 import { LEVEL_01 } from '../src/world/content/level01';
 import { TILE, cellCenter, dist, isSolid, itemPos, parseLevel, worldToCell } from '../src/world/level';
-import { PROPS, PropKind, backedByWall, findProp, placedProps, propBlockers } from '../src/world/props';
+import { PROPS, PropKind, backedByWall, brickLining, panelSpots, panelSwitches, placedProps, propBlockers } from '../src/world/props';
 import { findTarget } from '../src/world/interact';
 import { moveWithCollision } from '../src/world/collision';
 import { reachable } from '../src/world/pathfinding';
 import { BLOCKER_RADIUS } from '../src/world/collision';
 import { PLAYER } from '../src/state/playerRules';
-import { FUSES_NEEDED, activateGenerator, createProgress, fixPanel, objectiveText, throwSwitch, tryExit } from '../src/state/objectives';
-import { REPAIR, createRepair, repairDone, sparking, stepRepair } from '../src/state/panelRepair';
+import { FUSES_NEEDED, PANEL_COUNT, allPanelsOn, createProgress, finishRepair, fitFuse, fusesHeld, objectiveDetail, objectiveText, panelsOn, startGenerator, throwPanelSwitch, tryExit } from '../src/state/objectives';
+import { SKILL, cancelCheck, createRepair, judge, needle, stepRepair } from '../src/state/skillCheck';
+import { ENEMY, visibility, createEnemy } from '../src/world/enemyAI';
 import { promptFor } from '../src/state/prompts';
 import { createRng } from '../src/world/rng';
 import { CREDITS, PROP_CREDIT } from '../src/state/credits';
@@ -61,82 +62,130 @@ section('Props in Ward 13 (0.8)');
   }
   check('every cell centre is still free to stand in', stuck === 0, `${stuck} blocked`);
   check('the bed you wake up next to is in the start room', dist(placed.find((p) => p.kind === 'hospital_bed')!, cellCenter(level.playerStart)) < 2 * TILE);
-  const panel = findProp(level, 'breaker_box')!;
-  const sw = findProp(level, 'power_switch')!;
-  const inGenRoom = (v: { x: number; z: number }) => {
+  // Update 0.9 — four electrical panels spread round the ward, each with its switch beside it.
+  const panels = panelSpots(level);
+  const switches = panelSwitches(level);
+  check(`${PANEL_COUNT} panels, each with a switch, and ${FUSES_NEEDED} fuses to find`, panels.length === PANEL_COUNT && switches.length === PANEL_COUNT && level.items.filter((i) => i.kind === 'fuse').length === FUSES_NEEDED);
+  check('each switch is right next to its panel', panels.every((p, i) => dist(p, switches[i]) < 1.5));
+  const quad = new Set(panels.map((p) => `${p.x < (level.cols * TILE) / 2 ? 'W' : 'E'}${p.z < (level.rows * TILE) / 2 ? 'N' : 'S'}`));
+  check('one panel in each quarter of the map', quad.size === 4, [...quad].join(' '));
+  let minGap = Infinity;
+  for (let i = 0; i < panels.length; i++) for (let j = i + 1; j < panels.length; j++) minGap = Math.min(minGap, dist(panels[i], panels[j]));
+  check('panels are spread out (≥ 15 m apart)', minGap >= 15, `${minGap.toFixed(1)} m`);
+  const genRoom = (v: { x: number; z: number }) => {
     const c = worldToCell(v);
     return c.col >= 9 && c.col <= 15 && c.row >= 7 && c.row <= 9;
   };
-  check('breaker panel and power switch are in the generator room', !!panel && !!sw && inGenRoom(panel) && inGenRoom(sw));
-  const front = { x: panel.x, z: panel.z + 1 };
-  check('standing at the panel, you can reach it', findTarget(level, front, { x: 0, z: -1 }, [])?.type === 'panel');
-  const swFront = { x: sw.x, z: sw.z + 1 };
-  check('…and the switch next to it', findTarget(level, swFront, { x: 0, z: -1 }, [])?.type === 'switch');
+  check('no panel left in the generator room', !panels.some(genRoom) && !switches.some(genRoom));
+  panels.forEach((p, index) => {
+    const n = { x: Math.sin(p.yaw + Math.PI / 2), z: Math.cos(p.yaw + Math.PI / 2) }; // its front
+    const at = { x: p.x + n.x, z: p.z + n.z };
+    const t = findTarget(level, at, { x: -n.x, z: -n.z }, []);
+    check(`panel ${index + 1} can be reached from in front of it`, t?.type === 'panel' && t.index === index);
+  });
+  // Brick: every wall face of the generator room, nowhere else.
+  const lining = brickLining(level);
+  check('the generator room is lined with brick on every wall', lining.length >= 18 && lining.every(genRoom), `${lining.length} panels`);
+  check('…not on the generator itself', !lining.some((b) => dist(b, cellCenter(level.generator)) < 1.6));
 }
 
-section('Power chain: fuses → generator → panel → switch (0.8)');
+section('Panels, generator, exit (0.9)');
 {
   const p = createProgress();
-  check('generator wants fuses first', activateGenerator(p) === 'need-fuses' && !p.fusesIn);
-  check('switch is dead with no current', throwSwitch(p) === 'no-current' && !p.powered);
-  check('panel can\'t be fixed before the generator runs', !fixPanel(p));
-  p.fuses = FUSES_NEEDED;
-  check('objective: put them in', objectiveText(p) === 'Fuses found. Put them in the generator.');
-  check('fuses go in (no power yet)', activateGenerator(p) === 'fuses-in' && p.fusesIn && !p.powered);
-  check('objective: repair the panel', objectiveText(p) === 'Repair the breaker panel.');
-  check('still no current at the switch', throwSwitch(p) === 'no-current');
+  check('four panels to restore', p.panels.length === 4 && objectiveText(p) === 'Restore the electrical panels (0/4)');
+  check('no fuse in your pocket: can\'t fit one', fitFuse(p, 0) === 'no-fuse');
+  p.fuses = 1;
+  check('carrying one', fusesHeld(p) === 1 && objectiveDetail(p) === 'Fuses: 1');
+  check('fit it in panel 1', fitFuse(p, 0) === 'fitted' && fusesHeld(p) === 0);
+  check('panel 2 has nothing to fit', fitFuse(p, 1) === 'no-fuse');
+  check('switch does nothing before the repair', throwPanelSwitch(p, 0) === 'not-ready');
+  check('repair finishes', finishRepair(p, 0) && p.panels[0].fixed);
+  check('switch on', throwPanelSwitch(p, 0) === 'on' && panelsOn(p) === 1);
+  check('objective counts it', objectiveText(p) === 'Restore the electrical panels (1/4)');
+  check('generator stays dead with panels left', startGenerator(p) === 'panels');
+  p.fuses = 4;
+  for (const i of [1, 2, 3]) {
+    fitFuse(p, i);
+    finishRepair(p, i);
+    throwPanelSwitch(p, i);
+  }
+  check('all four live', allPanelsOn(p) && objectiveText(p) === 'All panels are live. Start the generator.');
   check('exit still locked', tryExit(p) === 'locked');
-  check('panel fixed', fixPanel(p) && p.panelFixed && objectiveText(p) === 'Throw the power switch.');
-  check('the switch brings the power back', throwSwitch(p) === 'powered' && p.powered);
+  check('generator starts: power', startGenerator(p) === 'powered' && p.powered);
   check('exit opens', tryExit(p) === 'escaped');
-  const q = { ...createProgress(), fuses: 3, fusesIn: true };
-  check('prompt: Hold [icon] to repair the panel', promptFor({ type: 'panel' }, q, false)?.verb === 'repair' && promptFor({ type: 'panel' }, q, false)?.hold === true);
-  check('prompt: panel dead before the generator', promptFor({ type: 'panel' }, createProgress(), false)?.verb === null);
-  check('prompt: switch needs the panel', promptFor({ type: 'switch' }, q, false)?.verb === null);
-  check('prompt: generator running, breaker tripped', promptFor({ type: 'generator' }, q, false)?.info === "Running. The breaker's tripped.");
+  const q = { ...createProgress(), fuses: 1 };
+  check('prompt: Press [icon] to fit a fuse', promptFor({ type: 'panel', index: 2 }, q, false)?.verb === 'fit a fuse');
+  check('prompt: Needs a fuse (empty pockets)', promptFor({ type: 'panel', index: 2 }, createProgress(), false)?.info === 'Needs a fuse.');
+  q.panels[2].fuse = true;
+  check('prompt: Hold [icon] to repair', promptFor({ type: 'panel', index: 2 }, q, false)?.verb === 'repair' && promptFor({ type: 'panel', index: 2 }, q, false)?.hold === true);
+  q.panels[2].fixed = true;
+  check('prompt: Press [icon] to switch on', promptFor({ type: 'panel', index: 2 }, q, false)?.verb === 'switch on');
 }
 
-section('Breaker panel minigame (0.8)');
+section('Skill checks (0.9)');
 {
-  const run = (letGo: boolean, seconds = 60) => {
-    const rng = createRng(4);
+  check('needle in the zone: good', judge(0.5 + SKILL.great + 0.01, 0.5) === 'good');
+  check('right at the start of the zone: great', judge(0.5 + SKILL.great / 2, 0.5) === 'great');
+  check('before or after the zone: miss', judge(0.49, 0.5) === 'miss' && judge(0.5 + SKILL.good + 0.001, 0.5) === 'miss');
+  // A player who always hits: about 14 s of work, a few checks along the way.
+  const play = (hit: 'great' | 'good' | 'never') => {
+    const rng = createRng(5);
     let s = createRepair(rng);
-    let t = 0;
+    let progress = 0;
+    let now = 0;
     const ev: string[] = [];
-    let holding = true;
-    for (; t < seconds && !repairDone(s); t += 1 / 60) {
-      // A careful player lets go 0.3 s into a spark and grabs again.
-      if (letGo && sparking(s) && s.warnT > 0.3) holding = false;
-      else if (!sparking(s)) holding = true;
-      const r = stepRepair(s, 1 / 60, holding, rng);
+    for (; now < 90 && progress < 1; now += 1 / 60) {
+      let press = false;
+      const f = s.check ? needle(s.check, now) : null;
+      if (f !== null && hit !== 'never' && s.check) {
+        const target = s.check.zone + (hit === 'great' ? SKILL.great / 2 : SKILL.great + 0.03);
+        press = f >= target;
+      }
+      const r = stepRepair(progress, s, { dt: 1 / 60, now, holding: true, press }, rng);
+      progress = r.progress;
       s = r.state;
       ev.push(...r.events);
     }
-    return { s, t, ev };
+    return { now, ev, progress };
   };
-  const careful = run(true);
-  check('letting go when it sparks: done in about 12 s of work, never shorts', repairDone(careful.s) && !careful.ev.includes('short') && careful.t < REPAIR.seconds + 6, `${careful.t.toFixed(1)} s`);
-  check('it sparks a few times along the way', careful.ev.filter((e) => e === 'spark').length >= 2);
-  check('working on it makes a little noise now and then', careful.ev.filter((e) => e === 'noise').length >= 5);
-  const greedy = run(false, 40);
-  check('holding on through the sparks shorts it out (bang)', greedy.ev.includes('short'));
-  check('…which costs time', !repairDone(greedy.s) || greedy.t > careful.t + 2);
-  // One short: progress drops, dead for a moment.
+  const good = play('good');
+  check('hitting every check: repaired in about 14 s', good.progress >= 1 && good.now < SKILL.repairSeconds + 6, `${good.now.toFixed(1)} s`);
+  check('…with 2–5 skill checks along the way', good.ev.filter((e) => e === 'warn').length >= 2 && good.ev.filter((e) => e === 'warn').length <= 5, `${good.ev.filter((e) => e === 'warn').length}`);
+  check('no misses when you hit them', !good.ev.includes('miss'));
+  const great = play('great');
+  check('perfect hits finish it sooner', great.now < good.now - 0.3, `${great.now.toFixed(1)} vs ${good.now.toFixed(1)} s`);
+  const never = play('never');
+  check('ignoring the checks: each one blows the panel', never.ev.filter((e) => e === 'miss').length >= 2);
+  check('…and it takes much longer', never.progress < 1 || never.now > good.now + 3);
+  // One miss in detail.
   const rng = createRng(1);
-  let s = { ...createRepair(rng), progress: 0.5, nextSpark: 0.01 };
-  s = stepRepair(s, 0.02, true, rng).state;
-  check('a spark starts the warning', sparking(s));
-  let short = false;
-  for (let i = 0; i < 60 && !short; i++) {
-    const r = stepRepair(s, 1 / 60, true, rng);
-    s = r.state;
-    short = r.events.includes('short');
-  }
-  check(`you get ${REPAIR.warn} s to let go, then it shorts and loses ${REPAIR.setback * 100}%`, short && Math.abs(s.progress - (0.5 + 0.02 / REPAIR.seconds - REPAIR.setback)) < 0.01);
-  const before = s.progress;
-  s = stepRepair(s, 0.5, true, rng).state;
-  check('dead for a moment after a short (no progress)', s.progress === before && s.stun > 0);
-  check('nothing happens while you don\'t hold', stepRepair(createRepair(createRng(2)), 1, false, createRng(2)).state.progress === 0);
+  let s = { ...createRepair(rng), nextCheck: 0.01 };
+  let r = stepRepair(0.5, s, { dt: 0.02, now: 10, holding: true, press: false }, rng);
+  check('a warning comes first, then the circle', r.events.includes('warn') && !!r.state.check && needle(r.state.check, 10.1) === null);
+  s = r.state;
+  const late = s.check!.spinAt + SKILL.spin + 0.01;
+  r = stepRepair(r.progress, s, { dt: 0.02, now: late, holding: true, press: false }, rng);
+  check(`letting the needle go round is a miss: −${SKILL.missSetback * 100}% and the panel is dead`, r.events.includes('miss') && Math.abs(r.progress - (0.5 + 0.02 / SKILL.repairSeconds - SKILL.missSetback)) < 0.01 && r.state.deadUntil > late);
+  const dead = stepRepair(r.progress, r.state, { dt: 0.5, now: late + 0.5, holding: true, press: false }, rng);
+  check('no work while it\'s dead', dead.progress === r.progress);
+  const early = stepRepair(0.3, { ...createRepair(rng), check: { spinAt: 5, zone: 0.5 } }, { dt: 0.02, now: 4.8, holding: true, press: true }, rng);
+  check('pressing before the circle appears is a miss', early.events.includes('miss'));
+  const letGo = stepRepair(0.3, { ...createRepair(rng), check: { spinAt: 5, zone: 0.5 } }, { dt: 0.02, now: 5.3, holding: false, press: false }, rng);
+  check('letting go of the panel calls the check off (no penalty)', !letGo.state.check && letGo.progress === 0.3 && letGo.events.length === 0);
+  check('pausing calls it off too', cancelCheck({ ...createRepair(rng), check: { spinAt: 1, zone: 0.5 } }).check === null);
+}
+
+section('Running is easier to spot (0.9)');
+{
+  const e = createEnemy(level);
+  e.pos = cellCenter({ col: 1, row: 5 });
+  e.dir = { x: 1, z: 0 };
+  const at = (d: number) => ({ x: e.pos.x + d, z: e.pos.z });
+  const walkDist = ENEMY.viewDistLight * 0.95 * 1.0;
+  const far = ENEMY.viewDistLight * 1.15;
+  check('walking at 1.15× its sight range: unseen', visibility(level, e, { pos: at(far), flashlightOn: true, crouching: false }) === 0);
+  check('running there: seen (1.3× range)', visibility(level, e, { pos: at(far), flashlightOn: true, crouching: false, running: true }) > 0);
+  check('close by, both seen', visibility(level, e, { pos: at(walkDist / 2), flashlightOn: true, crouching: false }) > 0);
 }
 
 section('Credits (0.8)');

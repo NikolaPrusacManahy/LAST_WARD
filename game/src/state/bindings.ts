@@ -1,7 +1,7 @@
 // Update 0.5 — rebindable controls. Pure: codes are KeyboardEvent.code ('KeyW', 'ShiftLeft')
 // or mouse buttons as 'Mouse0'..'Mouse4' (left, middle, right, back, forward).
 
-export type Action = 'forward' | 'back' | 'left' | 'right' | 'sprint' | 'crouch' | 'flashlight' | 'interact' | 'lookBack';
+export type Action = 'forward' | 'back' | 'left' | 'right' | 'sprint' | 'crouch' | 'flashlight' | 'interact' | 'skillCheck' | 'lookBack';
 export type Bindings = Record<Action, string>;
 
 /** Order shown in settings and the controls card. */
@@ -14,6 +14,7 @@ export const ACTIONS: { id: Action; label: string }[] = [
   { id: 'crouch', label: 'Crouch' },
   { id: 'flashlight', label: 'Flashlight' },
   { id: 'interact', label: 'Collect / interact' },
+  { id: 'skillCheck', label: 'Skill check' }, // Update 0.9 — electrical panel repairs
   { id: 'lookBack', label: 'Look back (running)' }, // Update 0.5.4
 ];
 
@@ -26,6 +27,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   crouch: 'ControlLeft',
   flashlight: 'Mouse2', // right click
   interact: 'Mouse0', // left click
+  skillCheck: 'Space', // Update 0.9
   lookBack: 'KeyQ', // Update 0.5.4 — hold while running
 };
 
@@ -43,7 +45,7 @@ export function isBindable(code: string): boolean {
 export const mouseCode = (button: number) => `Mouse${button}`;
 
 /** Free keys handed to a new action whose default is already taken in an old save. */
-const SPARE_KEYS = ['KeyQ', 'KeyE', 'KeyR', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'Mouse1', 'Mouse3', 'Mouse4'];
+const SPARE_KEYS = ['Space', 'KeyQ', 'KeyE', 'KeyR', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'Mouse1', 'Mouse3', 'Mouse4'];
 
 /** Left and right Shift / Ctrl / Alt count as the same key. */
 export function codesFor(code: string): string[] {

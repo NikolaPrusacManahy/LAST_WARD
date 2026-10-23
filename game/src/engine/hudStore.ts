@@ -29,8 +29,12 @@ export interface HudState {
   bindings: Bindings;
   /** Seconds left on the start-of-run controls card (0 = hidden). */
   controls: number;
-  /** Update 0.8 — breaker panel repair bar (while you're at it), sparking warning, shorted out. */
-  repair: { progress: number; warn: boolean; dead: boolean } | null;
+  /** Update 0.9 — the line under the objective (fuses held / found). */
+  objectiveDetail: string;
+  /** Update 0.9 — a new objective, announced big at the top; `key` restarts the animation. */
+  banner: { text: string; label: string; key: number } | null;
+  /** Update 0.9 — panel repair bar and the skill check circle (times on performance.now(), ms). */
+  repair: { progress: number; dead: boolean; check: { spinAtMs: number; zone: number } | null } | null;
 }
 
 export const initialHud: HudState = {
@@ -51,6 +55,8 @@ export const initialHud: HudState = {
   debug: null,
   bindings: DEFAULT_BINDINGS,
   controls: 0,
+  objectiveDetail: '',
+  banner: null,
   repair: null,
 };
 

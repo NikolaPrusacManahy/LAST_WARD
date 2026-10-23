@@ -17,7 +17,7 @@ export const LEVEL_01: LevelDef = {
     '#.#####.####.####.#####.#',
     '#...........L...........#',
     '#.####.#####.#####.####.#',
-    '#.#..#.#.........#.#..#.#',
+    '#.#..#.#........F#.#..#.#',
     '#.#F...#....E....#...N#.#',
     '#.#..#.#.........#.#B.#.#',
     '#.####.####.######.####.#',
@@ -34,6 +34,8 @@ export const LEVEL_01: LevelDef = {
   wallNotes: [{ cell: { col: 3, row: 6 }, face: 'north', text: 'It can hear you...' }],
   // Update 0.8 — real props (world/props.ts, models credited in state/credits.ts). `wall` = the side of the
   // cell it stands against; it faces into the room.
+  // Update 0.9 — the generator room is lined with brick on every wall (everything else stays tiled).
+  brickRooms: [{ from: { col: 9, row: 7 }, to: { col: 15, row: 9 } }],
   props: [
     // The room you wake up in: the bed, its screen, cabinets, the medicine shelf, pictures.
     { kind: 'hospital_bed', cell: { col: 3, row: 1 }, wall: 'north' },
@@ -48,11 +50,16 @@ export const LEVEL_01: LevelDef = {
     { kind: 'child_drawing', cell: { col: 5, row: 2 }, wall: 'east', y: 1.55 },
     // Generator room: the machine, the electrical wall behind it, the breaker panel and the switch.
     { kind: 'generator', cell: { col: 12, row: 8 }, face: 'south' },
-    { kind: 'electrical_wall', cell: { col: 12, row: 7 }, wall: 'north', y: 1.6 },
-    // Update 0.8.1 — the same brick behind the breaker panel and the switch.
-    { kind: 'brick_wall', cell: { col: 10, row: 7 }, wall: 'north', along: -0.6, y: 1.6 },
-    { kind: 'breaker_box', cell: { col: 10, row: 7 }, wall: 'north', along: -0.35, y: 1.45 },
-    { kind: 'power_switch', cell: { col: 10, row: 7 }, wall: 'north', along: 0.75, y: 1.3 },
+    { kind: 'electrical_wall', cell: { col: 12, row: 7 }, wall: 'north', y: 1.57 },
+    // Update 0.9 — the four electrical panels (box + its switch), one per corner of the ward. Tiled walls.
+    { kind: 'breaker_box', cell: { col: 7, row: 2 }, wall: 'west', along: -0.35, y: 1.45 },
+    { kind: 'power_switch', cell: { col: 7, row: 2 }, wall: 'west', along: 0.75, y: 1.3 },
+    { kind: 'breaker_box', cell: { col: 23, row: 2 }, wall: 'east', along: -0.35, y: 1.45 },
+    { kind: 'power_switch', cell: { col: 23, row: 2 }, wall: 'east', along: 0.75, y: 1.3 },
+    { kind: 'breaker_box', cell: { col: 1, row: 14 }, wall: 'west', along: -0.35, y: 1.45 },
+    { kind: 'power_switch', cell: { col: 1, row: 14 }, wall: 'west', along: 0.75, y: 1.3 },
+    { kind: 'breaker_box', cell: { col: 20, row: 13 }, wall: 'north', along: -0.35, y: 1.45 },
+    { kind: 'power_switch', cell: { col: 20, row: 13 }, wall: 'north', along: 0.75, y: 1.3 },
     { kind: 'barrel', cell: { col: 15, row: 9 }, wall: 'south', along: 0.75 },
     { kind: 'barrel', cell: { col: 15, row: 9 }, wall: 'east', along: -0.2 },
     { kind: 'barrel_lying', cell: { col: 9, row: 9 }, wall: 'west', along: 0.5 },

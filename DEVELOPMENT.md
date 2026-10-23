@@ -27,14 +27,14 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/lineOfSight.ts` | Grid line-of-sight (`level.opaque`: stairwells are see-through, 0.7) | yes |
 | `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4) | yes |
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2) | yes |
-| `world/interact.ts` | What's in reach and in front of the player (0.8: also the breaker panel and the power switch) | yes |
-| `world/props.ts` | Real props: sizes, which way each faces, `placeProp` (cell + wall it backs onto), collision circles, `findProp` (0.8) | yes |
+| `world/interact.ts` | What's in reach and in front of the player (0.9: also the four electrical panels) | yes |
+| `world/props.ts` | Real props: sizes, which way each faces, `placeProp` (cell + wall it backs onto), collision circles, `findProp` (0.8); `panelSpots` / `panelSwitches` (panel i and its switch, level order) and `brickLining` (brick on every wall of `brickRooms`) (0.9) | yes |
 | `world/rng.ts` | Seeded RNG | yes |
 | `world/content/level01.ts` | Ward 13 map + notes + wall notes (0.6.3) | data |
 | `world/content/levels.ts` | Play order of the levels (0.7) | data |
 | `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve | yes |
-| `state/objectives.ts` | Fuses → generator → breaker panel → power switch → exit chain (0.8), objective text | yes |
-| `state/panelRepair.ts` | Breaker panel minigame: hold to repair, let go when it sparks or it shorts out (0.8) | yes |
+| `state/objectives.ts` | Fuses → four panels (fit, repair, switch on) → generator → exit (0.9), objective text + detail line | yes |
+| `state/skillCheck.ts` + `screens/SkillCheck.tsx` | Panel repair with Dead by Daylight skill checks: timing, judging, misses (0.9). The circle is drawn from the same clock it's judged on | yes / no |
 | `state/credits.ts` | Credits for every outside asset; which credit each prop comes under (0.8) | yes |
 | `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time | yes (+ localStorage I/O) |
 | `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring | no |

@@ -1,6 +1,6 @@
 // Update 0.8 — real props (Sketchfab models, see state/credits.ts) placed from level data. Pure: where
 // each prop stands, which way it faces and what it blocks; engine/propsView.ts draws them.
-import { Cell, FACE_DIR, Level, TILE, Vec2, WallFace, cellCenter, isSolid } from './level';
+import { Cell, FACE_DIR, Level, TILE, Vec2, WALL_HEIGHT, WallFace, cellCenter, isSolid } from './level';
 
 export type PropKind =
   | 'hospital_bed' | 'privacy_screen' | 'bedside_flowers' | 'bedside_drawing' | 'bedside_meds' | 'side_table'
@@ -29,8 +29,8 @@ export const PROPS: Record<PropKind, PropSpec> = {
   portrait: { size: [0.02, 0.41, 0.33], front: 'x', blocks: false },
   child_drawing: { size: [0.01, 0.31, 0.22], front: '-x', blocks: false },
   generator: { size: [2.31, 1.93, 1.31], front: 'z', blocks: false }, // its tile is solid already
-  electrical_wall: { size: [0.13, 3.2, 3.62], front: 'x', blocks: false },
-  brick_wall: { size: [0.0, 3.2, 3.62], front: 'x', blocks: false }, // Update 0.8.1 — bare brick behind the panel
+  electrical_wall: { size: [0.13, 2.08, 2.89], front: 'x', blocks: false }, // 0.9: pipes and boxes only
+  brick_wall: { size: [0.0, 3.2, 3.62], front: 'x', blocks: false }, // bare brick: lines the generator room (0.9)
   breaker_box: { size: [0.16, 0.87, 0.55], front: 'x', blocks: false },
   power_switch: { size: [0.45, 0.66, 0.33], front: 'z', blocks: false },
   radiator: { size: [1.43, 0.78, 0.29], front: 'z', blocks: true },
@@ -61,6 +61,8 @@ export interface PlacedProp {
   /** Half extents of its footprint on the ground (world x / z). */
   hx: number;
   hz: number;
+  /** Update 0.9 — stretch along the model's own axes (brick lining fits each 3 m wall face). */
+  scale?: [number, number, number];
 }
 
 const FRONT_DIR: Record<Front, Vec2> = { x: { x: 1, z: 0 }, '-x': { x: -1, z: 0 }, z: { x: 0, z: 1 }, '-z': { x: 0, z: -1 } };
@@ -113,10 +115,43 @@ export function placedProps(level: Level): PlacedProp[] {
   return level.props.map(placeProp);
 }
 
-/** Update 0.8 — the breaker panel and power switch are props too; the game finds them by kind. */
+/** Update 0.8 — the first prop of a kind. */
 export function findProp(level: Level, kind: PropKind): PlacedProp | null {
   const p = level.props.find((x) => x.kind === kind);
   return p ? placeProp(p) : null;
+}
+
+/** Update 0.9 — the electrical panels (breaker boxes, in level order); panel i's switch is the i-th switch. */
+export function panelSpots(level: Level): PlacedProp[] {
+  return level.props.filter((x) => x.kind === 'breaker_box').map(placeProp);
+}
+export function panelSwitches(level: Level): PlacedProp[] {
+  return level.props.filter((x) => x.kind === 'power_switch').map(placeProp);
+}
+
+/**
+ * Update 0.9 — brick on every wall face of a level's brick rooms: one brick panel per face, stretched to
+ * the 3 m tile. Not the generator (a machine, not a wall) or the exit door.
+ */
+export function brickLining(level: Level): PlacedProp[] {
+  const out: PlacedProp[] = [];
+  const width = PROPS.brick_wall.size[2];
+  for (const room of level.brickRooms) {
+    for (let row = room.from.row; row <= room.to.row; row++) {
+      for (let col = room.from.col; col <= room.to.col; col++) {
+        if (isSolid(level, col, row)) continue;
+        for (const wall of ['north', 'south', 'east', 'west'] as WallFace[]) {
+          const n = FACE_DIR[wall];
+          const c = col + n.dc;
+          const r = row + n.dr;
+          if (!isSolid(level, c, r)) continue;
+          if ((c === level.generator.col && r === level.generator.row) || (c === level.exit.col && r === level.exit.row)) continue;
+          out.push({ ...placeProp({ kind: 'brick_wall', cell: { col, row }, wall, y: WALL_HEIGHT / 2 }), scale: [1, 1, TILE / width] });
+        }
+      }
+    }
+  }
+  return out;
 }
 
 /** The wall a placement backs onto is really a wall (tests + level checks). */

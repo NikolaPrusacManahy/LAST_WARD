@@ -1,57 +1,90 @@
-// Objective chain: collect fuses → power the generator → escape through the exit.
-// Update 0.8 — the power takes three steps now: fuses into the generator → repair the breaker panel
-// (state/panelRepair.ts) → throw the power switch.
+// Objective chain. Update 0.9: find 4 fuses → at each of the 4 electrical panels fit a fuse, repair it
+// (skill checks, state/skillCheck.ts) and throw its switch → start the generator → escape through the exit.
 
-export const FUSES_NEEDED = 3;
+export const PANEL_COUNT = 4;
+/** One fuse per electrical panel. */
+export const FUSES_NEEDED = PANEL_COUNT;
+
+export interface PanelState {
+  fuse: boolean;
+  /** Repair progress 0..1. */
+  repair: number;
+  fixed: boolean;
+  on: boolean;
+}
 
 export interface Progress {
+  /** Fuses picked up (some may be in panels already). */
   fuses: number;
-  /** Update 0.8 — the fuses are in the generator (it runs, but the breaker has tripped). */
-  fusesIn: boolean;
-  /** Update 0.8 — the breaker panel is repaired (the switch can be thrown). */
-  panelFixed: boolean;
+  panels: PanelState[];
   powered: boolean;
   escaped: boolean;
   collected: string[]; // item ids already picked up
   notesRead: number[];
 }
 
-export function createProgress(): Progress {
-  return { fuses: 0, fusesIn: false, panelFixed: false, powered: false, escaped: false, collected: [], notesRead: [] };
+export const newPanel = (): PanelState => ({ fuse: false, repair: 0, fixed: false, on: false });
+
+export function createProgress(panelCount = PANEL_COUNT): Progress {
+  return { fuses: 0, panels: Array.from({ length: panelCount }, newPanel), powered: false, escaped: false, collected: [], notesRead: [] };
 }
 
+export const fusesFitted = (p: Progress) => p.panels.filter((x) => x.fuse).length;
+/** Fuses in your pocket. */
+export const fusesHeld = (p: Progress) => p.fuses - fusesFitted(p);
+export const panelsOn = (p: Progress) => p.panels.filter((x) => x.on).length;
+export const allPanelsOn = (p: Progress) => p.panels.length > 0 && panelsOn(p) === p.panels.length;
+
+/** The current step, short. Changes here are announced big at the top of the screen. */
 export function objectiveText(p: Progress): string {
   if (p.escaped) return 'You got out.';
   if (p.powered) return 'Power is back. Reach the exit door.';
-  if (p.panelFixed) return 'Throw the power switch.';
-  if (p.fusesIn) return 'Repair the breaker panel.';
-  if (p.fuses >= FUSES_NEEDED) return 'Fuses found. Put them in the generator.';
-  return `Find fuses for the generator (${p.fuses}/${FUSES_NEEDED})`;
+  if (allPanelsOn(p)) return 'All panels are live. Start the generator.';
+  return `Restore the electrical panels (${panelsOn(p)}/${p.panels.length})`;
 }
 
-/** Update 0.8 — 'fuses-in' (was 'powered'): the generator turns over, then the breaker trips. */
-export type GeneratorResult = 'fuses-in' | 'need-fuses' | 'already';
-
-export function activateGenerator(p: Progress): GeneratorResult {
-  if (p.fusesIn) return 'already';
-  if (p.fuses < FUSES_NEEDED) return 'need-fuses';
-  p.fusesIn = true;
-  return 'fuses-in';
+/** Second line under the objective: what you're carrying. */
+export function objectiveDetail(p: Progress): string {
+  if (p.powered || allPanelsOn(p)) return '';
+  const held = fusesHeld(p);
+  return held > 0 ? `Fuses: ${held}` : `Find fuses (${fusesFitted(p)}/${FUSES_NEEDED} fitted)`;
 }
 
-/** Update 0.8 — the panel finished repairing. */
-export function fixPanel(p: Progress): boolean {
-  if (!p.fusesIn || p.panelFixed) return false;
-  p.panelFixed = true;
+export type FuseResult = 'fitted' | 'no-fuse' | 'already';
+
+export function fitFuse(p: Progress, i: number): FuseResult {
+  const panel = p.panels[i];
+  if (panel.fuse) return 'already';
+  if (fusesHeld(p) <= 0) return 'no-fuse';
+  panel.fuse = true;
+  return 'fitted';
+}
+
+/** The repair bar reached the end. */
+export function finishRepair(p: Progress, i: number): boolean {
+  const panel = p.panels[i];
+  if (!panel.fuse || panel.fixed) return false;
+  panel.fixed = true;
+  panel.repair = 1;
   return true;
 }
 
-export type SwitchResult = 'powered' | 'no-current' | 'already';
+export type SwitchResult = 'on' | 'not-ready' | 'already';
 
-/** Update 0.8 — the lights come on here now (they used to with the generator). */
-export function throwSwitch(p: Progress): SwitchResult {
+export function throwPanelSwitch(p: Progress, i: number): SwitchResult {
+  const panel = p.panels[i];
+  if (panel.on) return 'already';
+  if (!panel.fixed) return 'not-ready';
+  panel.on = true;
+  return 'on';
+}
+
+export type GeneratorResult = 'powered' | 'panels' | 'already';
+
+/** The lights come back here (and it brings The Patient running). */
+export function startGenerator(p: Progress): GeneratorResult {
   if (p.powered) return 'already';
-  if (!p.panelFixed) return 'no-current';
+  if (!allPanelsOn(p)) return 'panels';
   p.powered = true;
   return 'powered';
 }

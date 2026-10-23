@@ -22,6 +22,8 @@ export const ENEMY = {
   viewDistLight: 16 * 1.3,
   viewDistDark: 8 * 1.3,
   crouchSightMul: 0.7,
+  /** Update 0.9 — running makes you easier to spot: it sees you this much further. */
+  runSightMul: 1.3,
   senseRadius: 3, // sees you at any angle this close
   alertRise: 2.4,
   alertDecay: 0.5,
@@ -74,6 +76,8 @@ export interface PlayerSense {
   pos: Vec2;
   flashlightOn: boolean;
   crouching: boolean;
+  /** Update 0.9 — sprinting (it sees you further). */
+  running?: boolean;
 }
 
 export interface Noise {
@@ -230,6 +234,7 @@ export function visibility(level: Level, e: EnemyState, p: PlayerSense): number 
   const d = dist(e.pos, p.pos);
   let view = p.flashlightOn ? ENEMY.viewDistLight : ENEMY.viewDistDark;
   if (p.crouching) view *= ENEMY.crouchSightMul;
+  if (p.running) view *= ENEMY.runSightMul;
   if (d > view) return 0;
   if (d > ENEMY.senseRadius) {
     const toP = { x: (p.pos.x - e.pos.x) / d, z: (p.pos.z - e.pos.z) / d };

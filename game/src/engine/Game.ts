@@ -18,9 +18,9 @@ import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, 
 import { debugLines } from '../state/debugInfo';
 import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
 import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
-import { FUSES_NEEDED, Progress, activateGenerator, createProgress, fixPanel, objectiveText, throwSwitch, tryExit } from '../state/objectives';
-import { REPAIR, RepairState, createRepair, repairDone, sparking, stepRepair } from '../state/panelRepair';
-import { findProp } from '../world/props';
+import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
+import { RepairState, SKILL, cancelCheck, createRepair, stepRepair } from '../state/skillCheck';
+import { panelSpots, panelSwitches } from '../world/props';
 import { createPropsView, PropsView } from './propsView';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
@@ -63,13 +63,20 @@ export class Game {
   /** Update 0.8 — real props (furniture, generator, breaker panel, switch). */
   private props: PropsView;
   /** Update 0.8 — breaker panel minigame. */
+  /** Update 0.9 — repairing an electrical panel (one at a time; skill checks). */
   private repair!: RepairState;
-  private panelOpen = 0;
+  private panelOpen: number[] = [];
   private sparkFlash = 0;
+  private sparkPanel = 0;
+  private repairing = false;
+  /** Update 0.9 — the big objective banner at the top: shown when the objective changes. */
+  private banner: { text: string; label: string; key: number; until: number } | null = null;
+  private lastObjective = '';
+  private lastObjectiveShown = '';
   private lights: Lighting;
   private player: PlayerController;
   private status: PlayerStatus = createPlayerStatus();
-  private progress: Progress = createProgress();
+  private progress: Progress = createProgress(0);
   private enemy: EnemyState;
   private enemyView: EnemyView;
   private rng = createRng((Date.now() & 0xffff) + 1);
@@ -153,6 +160,7 @@ export class Game {
     this.props = createPropsView(this.level, this.view);
     this.world.add(this.props.root);
     this.repair = createRepair(this.rng);
+    this.progress = createProgress(panelSpots(this.level).length);
     this.lights = createLighting(this.view);
     this.player = new PlayerController(this.level, this.camera, this.scene);
     this.player.baseFov = settings.fov;
@@ -223,7 +231,10 @@ export class Game {
     this.props = createPropsView(this.level, this.view);
     this.world.add(this.props.root);
     this.repair = createRepair(this.rng);
-    this.panelOpen = 0;
+    this.panelOpen = [];
+    this.banner = null;
+    this.lastObjective = '';
+    this.lastObjectiveShown = '';
     this.lights = createLighting(this.view);
     this.debugView = createDebugView(this.level);
     this.debugView.setEnabled(debugOn);
@@ -231,7 +242,7 @@ export class Game {
     this.player.reset(this.level);
     this.enemy = spawnAtCorner(this.level, this.rng, cellCenter(this.level.playerStart));
     this.enemyFrozen = false;
-    this.progress = createProgress();
+    this.progress = createProgress(panelSpots(this.level).length);
     this.noise = null;
     this.target = null;
     this.toast = null;
@@ -293,7 +304,7 @@ export class Game {
         this.player.pitch = 0;
         this.input.clear();
         this.phase = 'playing';
-        this.toastMsg('Find a way out.', 4);
+        this.lastObjective = ''; // Update 0.9 — the first objective is announced in the banner
         // Update 0.5 — controls card, Enter closes it (Update 0.7: first level only).
         if (this.levelIndex === 0) this.controlsLeft = CONTROLS_CARD_SECONDS;
         return;
@@ -346,6 +357,8 @@ export class Game {
     } else if (!locked && (this.phase === 'playing' || this.phase === 'reading' || this.phase === 'caught' || this.phase === 'waking')) {
       this.resumePhase = this.phase;
       this.phase = 'paused';
+      this.repair = cancelCheck(this.repair); // Update 0.9 — no skill check running through a pause
+      this.setRepairing(false);
       this.input.clear();
       this.cb.onPause();
     }
@@ -470,14 +483,14 @@ export class Game {
     this.controlsLeft = tickControlsCard(this.controlsLeft, dt, input.wasPressed('Enter') || input.wasPressed('NumpadEnter'));
     if (input.actionPressed('interact')) this.interact();
     this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected);
-    this.workPanel(dt, input.action('interact'));
+    this.workPanel(this.realDt, input.action('interact'), input.actionPressed('skillCheck'));
 
     // Enemy.
     const before = this.enemy.pos;
     const events = this.enemyFrozen ? [] : stepEnemy(
       this.level,
       this.enemy,
-      { dt, player: { pos: player.pos, flashlightOn: status.flashlightOn, crouching: player.crouching }, noise: this.noise, fuses: this.progress.fuses },
+      { dt, player: { pos: player.pos, flashlightOn: status.flashlightOn, crouching: player.crouching, running: step.gait === 'sprint' }, noise: this.noise, fuses: this.progress.fuses },
       this.rng,
     );
     this.noise = null;
@@ -536,7 +549,7 @@ export class Game {
       if (t.item.kind === 'fuse') {
         p.fuses++;
         this.audio.pickup();
-        this.toastMsg(p.fuses >= FUSES_NEEDED ? 'All fuses. Get to the generator.' : `Fuse ${p.fuses}/${FUSES_NEEDED}`);
+        this.toastMsg(`Fuse found (${p.fuses}/${p.panels.length})`);
       } else if (t.item.kind === 'battery') {
         addBattery(this.status);
         this.audio.pickup();
@@ -550,37 +563,43 @@ export class Game {
         this.target = null;
       }
     } else if (t.type === 'generator') {
-      // Update 0.8 — the fuses go in and it runs, but the breaker trips: repair the panel, then the switch.
-      const r = activateGenerator(p);
-      if (r === 'fuses-in') {
+      // Update 0.9 — all four panels live → the generator starts and the lights come back.
+      const r = startGenerator(p);
+      if (r === 'powered') {
         const g = this.view.generatorPos;
         this.audio.generatorStart({ x: g.x, y: g.y, z: g.z });
-        this.toastMsg("It runs. Then the breaker trips. Fix the panel.", 5);
-      } else if (r === 'need-fuses') {
-        this.audio.denied();
-        this.toastMsg(`It needs ${FUSES_NEEDED} fuses.`);
-      }
-    } else if (t.type === 'switch') {
-      const sw = findProp(this.level, 'power_switch');
-      const at = sw ? this.toWorld(sw) : this.camAbs();
-      const r = throwSwitch(p);
-      if (r === 'no-current') {
-        this.audio.switchThrow({ x: at.x, y: 1.3, z: at.z });
-        this.props.setSwitch(true);
-        window.setTimeout(() => this.props.setSwitch(false), 350);
-        this.toastMsg('Nothing. No current.');
-      } else if (r === 'powered') {
-        this.audio.switchThrow({ x: at.x, y: 1.3, z: at.z });
-        this.props.setSwitch(true);
         this.lights.setPowered(this.t);
         this.applyAtmosphere(); // with the lights back you can see further down the halls
         this.toastMsg('The lights come on. Something screams in the dark.', 5);
         // Update 0.6.4 — it vanishes to a random corner, screams, and sprints for the generator:
-        // your window to get out of the room. (The old 999 m noise aimed at the solid machine, so
-        // no path reached it and it wandered off instead.)
+        // your window to get out of the room.
         summonToGenerator(this.level, this.enemy, this.player.pos, this.rng);
         this.audio.powerScream();
         this.stingerTimer = window.setTimeout(() => this.audio.stinger(), 1200);
+      } else if (r === 'panels') {
+        this.audio.denied();
+        this.toastMsg('Dead. The panels need power first.');
+      }
+    } else if (t.type === 'panel') {
+      // Update 0.9 — an electrical panel: fit a fuse (press), repair it (hold, workPanel), switch it on (press).
+      const i = t.index;
+      const panel = p.panels[i];
+      const box = panelSpots(this.level)[i];
+      const at = this.toWorld(box);
+      if (!panel.fuse) {
+        if (fitFuse(p, i) === 'fitted') {
+          this.audio.fuseInsert({ x: at.x, y: at.y + box.y, z: at.z });
+          this.toastMsg('Fuse fitted.');
+        } else {
+          this.audio.denied();
+          this.toastMsg('It needs a fuse.');
+        }
+      } else if (panel.fixed && throwPanelSwitch(p, i) === 'on') {
+        const sw = panelSwitches(this.level)[i] ?? box;
+        const s = this.toWorld(sw);
+        this.audio.breakerSwitch({ x: s.x, y: s.y + sw.y, z: s.z });
+        this.props.setSwitch(i, true);
+        this.toastMsg('The panel hums. It\'s live.');
       }
     } else if (t.type === 'exit') {
       if (tryExit(p) === 'escaped') {
@@ -597,40 +616,65 @@ export class Game {
   }
 
   /**
-   * Update 0.8 — the breaker panel: hold interact on it to repair (state/panelRepair.ts). When it
-   * sparks, let go, or it shorts out with a bang that brings The Patient. Its door swings open as you work.
+   * Update 0.9 — working on an electrical panel: hold interact to repair it, Space (skill check key) when
+   * the circle comes up (state/skillCheck.ts). A miss blows it: a bang The Patient hears, lost progress.
+   * Its door swings open while you work. Timing uses the real clock, the same one the circle is drawn with.
    */
-  private workPanel(dt: number, held: boolean) {
+  private workPanel(dt: number, held: boolean, press: boolean) {
     const p = this.progress;
-    const at = this.target?.type === 'panel';
-    const active = p.fusesIn && !p.panelFixed;
-    if (active && (at || sparking(this.repair) || this.repair.stun > 0)) {
-      const panel = findProp(this.level, 'breaker_box');
-      const pos = panel ? this.toWorld(panel) : this.camAbs();
-      const where = { x: pos.x, y: pos.y + (panel?.y ?? 1.4), z: pos.z };
-      const r = stepRepair(this.repair, dt, at && held, this.rng);
+    const t = this.target;
+    const i = t?.type === 'panel' ? t.index : -1;
+    const panel = i >= 0 ? p.panels[i] : null;
+    const working = !!panel && panel.fuse && !panel.fixed;
+    if (working && panel) {
+      if (i !== this.sparkPanel) this.repair = cancelCheck(this.repair);
+      this.sparkPanel = i;
+      const box = panelSpots(this.level)[i];
+      const w = this.toWorld(box);
+      const where = { x: w.x, y: w.y + box.y, z: w.z };
+      const now = performance.now() / 1000;
+      const r = stepRepair(panel.repair, this.repair, { dt, now, holding: held, press }, this.rng);
+      panel.repair = r.progress;
       this.repair = r.state;
-      if (at && held) this.panelOpen = Math.min(1, this.panelOpen + dt * 2.5);
+      const busy = held && now >= r.state.deadUntil;
+      if (busy) this.panelOpen[i] = Math.min(1, (this.panelOpen[i] ?? 0) + dt * 2.5);
+      this.setRepairing(busy, where);
       for (const e of r.events) {
-        if (e === 'spark') this.audio.sparkCrackle(where);
-        else if (e === 'noise') this.noise = this.noise ?? { pos: { ...this.player.pos }, radius: REPAIR.workNoise };
-        else if (e === 'short') {
-          this.audio.shortBang(where);
+        if (e === 'warn') this.audio.skillWarning();
+        else if (e === 'good') this.audio.skillGood();
+        else if (e === 'great') this.audio.skillGreat();
+        else if (e === 'noise') this.noise = this.noise ?? { pos: { ...this.player.pos }, radius: SKILL.workNoise };
+        else if (e === 'miss') {
+          this.audio.panelExplode(where);
           this.sparkFlash = 1;
           this.fear = Math.min(1, this.fear + 0.35);
-          if (panel) this.noise = { pos: { x: panel.x, z: panel.z }, radius: REPAIR.bangNoise };
-        } else if (e === 'done' && fixPanel(p)) {
+          this.noise = { pos: { x: box.x, z: box.z }, radius: SKILL.bangNoise };
+        } else if (e === 'done' && finishRepair(p, i)) {
+          this.setRepairing(false);
           this.audio.panelClunk(where);
-          this.toastMsg('Breaker reset. Throw the switch.', 4);
+          this.toastMsg('Repaired. Switch it on.', 4);
         }
       }
+    } else {
+      if (this.repair.check) this.repair = cancelCheck(this.repair);
+      this.setRepairing(false);
     }
-    // Sparks: flicker while it's sparking, a flash when it shorts.
+    // Sparks: a crackle of light while it's dead after a miss, a flash when it blows.
     this.sparkFlash = Math.max(0, this.sparkFlash - dt * 2.2);
-    const flicker = sparking(this.repair) ? (Math.random() < 0.5 ? 1.5 + Math.random() * 5 : 0) : 0;
-    this.props.setSpark(flicker + this.sparkFlash * 14);
-    this.props.setPanelOpen(this.panelOpen);
-    if (repairDone(this.repair) && this.panelOpen > 0) this.panelOpen = Math.max(0, this.panelOpen - dt * 1.5);
+    const dead = performance.now() / 1000 < this.repair.deadUntil;
+    const flicker = dead && Math.random() < 0.4 ? 1 + Math.random() * 4 : 0;
+    this.props.setSpark(this.sparkPanel, flicker + this.sparkFlash * 14);
+    // Doors of repaired panels swing shut again.
+    p.panels.forEach((x, k) => {
+      if (x.fixed && (this.panelOpen[k] ?? 0) > 0) this.panelOpen[k] = Math.max(0, this.panelOpen[k] - dt * 1.5);
+      this.props.setPanelOpen(k, this.panelOpen[k] ?? 0);
+    });
+  }
+
+  private setRepairing(on: boolean, at?: { x: number; y: number; z: number }) {
+    if (on === this.repairing) return;
+    this.repairing = on;
+    this.audio.setRepairLoop(on, at);
   }
 
   /** Update 0.6 — first catch: grab, lift, throw, get up injured (engine/caughtScene.ts). */
@@ -766,16 +810,37 @@ export class Game {
     }
   }
 
-  /** Update 0.8 — the repair bar while you're at the panel (or it's still sparking / dead). */
+  /** Update 0.9 — announce a new objective big at the top of the screen (a few seconds). */
+  private bannerHud(): HudState['banner'] {
+    if (this.phase === 'playing' || this.phase === 'reading') {
+      const now = objectiveText(this.progress);
+      if (now !== this.lastObjective) {
+        this.lastObjective = now;
+        // A different step: "new objective"; same step, new count (a panel came on): "updated";
+        // the same again (waking up after it caught you): a reminder.
+        const step = (s: string) => s.replace(/\d+/g, '#');
+        const was = this.lastObjectiveShown;
+        const label = was === now ? 'Objective' : was && step(was) === step(now) ? 'Objective updated' : 'New objective';
+        this.lastObjectiveShown = now;
+        this.banner = { text: now, label, key: (this.banner?.key ?? 0) + 1, until: performance.now() / 1000 + 5 }; // real time, like its CSS animation
+      }
+    }
+    if (this.banner && (performance.now() / 1000 > this.banner.until || this.phase === 'caught' || this.phase === 'dying')) this.banner = null;
+    return this.banner ? { text: this.banner.text, label: this.banner.label, key: this.banner.key } : null;
+  }
+
+  /** Update 0.9 — the repair bar + skill check circle while you're at a panel that needs repairing. */
   private repairHud(): HudState['repair'] {
     const p = this.progress;
-    if (this.phase !== 'playing' || !p.fusesIn || p.panelFixed) return this.lastRepairHud = null;
+    const t = this.target;
+    const panel = this.phase === 'playing' && t?.type === 'panel' ? p.panels[t.index] : null;
+    if (!panel || !panel.fuse || panel.fixed) return (this.lastRepairHud = null);
     const r = this.repair;
-    if (this.target?.type !== 'panel' && !sparking(r) && r.stun <= 0) return this.lastRepairHud = null;
-    const next = { progress: Math.round(r.progress * 50) / 50, warn: sparking(r), dead: r.stun > 0 };
+    const check = r.check ? { spinAtMs: r.check.spinAt * 1000, zone: r.check.zone } : null;
+    const next = { progress: Math.round(panel.repair * 50) / 50, dead: performance.now() / 1000 < r.deadUntil, check };
     const l = this.lastRepairHud;
-    if (l && l.progress === next.progress && l.warn === next.warn && l.dead === next.dead) return l;
-    return this.lastRepairHud = next;
+    if (l && l.progress === next.progress && l.dead === next.dead && l.check?.spinAtMs === check?.spinAtMs) return l;
+    return (this.lastRepairHud = next);
   }
   private lastRepairHud: HudState['repair'] = null;
 
@@ -796,6 +861,8 @@ export class Game {
       stamina: Math.round((s.stamina / 4.5) * 100) / 100,
       exhausted: s.exhausted,
       objective: objectiveText(this.progress),
+      objectiveDetail: objectiveDetail(this.progress),
+      banner: this.bannerHud(),
       prompt: this.currentPrompt(),
       bindings: this.settings.bindings,
       controls: this.phase === 'playing' || this.phase === 'paused' ? Math.ceil(this.controlsLeft * 10) / 10 : 0,
@@ -818,6 +885,7 @@ export class Game {
             seesYou: visibility(this.level, this.enemy, { pos: this.player.pos, flashlightOn: s.flashlightOn, crouching: this.player.crouching }) > 0,
             frozen: this.enemyFrozen,
             fuses: this.progress.fuses,
+            panels: `${this.progress.panels.filter((x) => x.on).length}/${this.progress.panels.length}`,
             powered: this.progress.powered,
             teleportIn: this.enemy.mode === 'chase' ? null : ENEMY.teleportAfter - this.enemy.sinceSpotted,
             lives: this.lives,
@@ -865,7 +933,7 @@ export class Game {
     else this.startDying();
   }
   debugState() {
-    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, level: this.levelIndex + 1, floor: this.curFloor, enemyFloor: floorAt(this.level, this.enemy.pos), rise: this.player.rise, enemy: { ...this.enemy, path: undefined }, progress: this.progress, status: this.status, pos: this.player.pos };
+    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, level: this.levelIndex + 1, floor: this.curFloor, enemyFloor: floorAt(this.level, this.enemy.pos), rise: this.player.rise, enemy: { ...this.enemy, path: undefined }, progress: this.progress, repair: this.repair, status: this.status, pos: this.player.pos };
   }
 
   /** Update 0.3 — F2: full light, no fog or screen FX, enemy marked through walls. */

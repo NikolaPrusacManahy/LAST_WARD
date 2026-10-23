@@ -3,6 +3,7 @@ import { useHud } from '../hooks/useHud';
 import { breathLineVisible, breathLineWidth } from '../state/hudLayout';
 import { ControlsCard } from './ControlsCard';
 import { InputIcon } from './InputIcon';
+import { SkillCheck } from './SkillCheck';
 
 interface Props {
   store: HudStore;
@@ -45,7 +46,10 @@ export function Hud({ store, hidden, onBegin }: Props) {
   const low = h.battery < 20;
   return (
     <div className="lw-hud" style={{ ['--lw-fear' as string]: h.fear }}>
-      <div className="lw-hud-objective">{h.objective}</div>
+      <div className={`lw-hud-objective ${h.banner && !h.note ? 'lw-hud-objective-hidden' : ''}`}>
+        {h.objective}
+        {h.objectiveDetail && <span className="lw-hud-objective-detail">{h.objectiveDetail}</span>}
+      </div>
       {h.debug && (
         <div className="lw-dbg-panel">
           <strong>DEBUG VIEW</strong>
@@ -56,7 +60,7 @@ export function Hud({ store, hidden, onBegin }: Props) {
       )}
       <div className="lw-hud-crosshair" />
       {h.controls > 0 && !h.note && <ControlsCard bindings={h.bindings} secondsLeft={h.controls} />}
-      {h.prompt && (
+      {h.prompt && !h.repair?.check && (
         <div className="lw-hud-prompt">
           <span className="lw-prompt-title">{h.prompt.title}</span>
           {h.prompt.verb ? (
@@ -69,14 +73,20 @@ export function Hud({ store, hidden, onBegin }: Props) {
         </div>
       )}
       {h.repair && (
-        <div className={`lw-repair ${h.repair.warn ? 'lw-repair-warn' : ''}`}>
+        <div className={`lw-repair ${h.repair.dead ? 'lw-repair-shorted' : ''}`}>
           <div className="lw-repair-track">
             <div className="lw-repair-fill" style={{ width: `${Math.round(h.repair.progress * 100)}%` }} />
           </div>
           {h.repair.dead && <span className="lw-repair-dead">Shorted out</span>}
         </div>
       )}
-      {h.repair?.warn && <span className="lw-repair-call">LET GO</span>}
+      {h.repair?.check && <SkillCheck key={h.repair.check.spinAtMs} spinAtMs={h.repair.check.spinAtMs} zone={h.repair.check.zone} keyCode={h.bindings.skillCheck} />}
+      {h.banner && !h.note && (
+        <div className="lw-banner" key={h.banner.key}>
+          <span className="lw-banner-label">{h.banner.label}</span>
+          <span className="lw-banner-text">{h.banner.text}</span>
+        </div>
+      )}
       {h.toast && <div className="lw-hud-toast" key={h.toast}>{h.toast}</div>}
       {h.note && (
         <div className="lw-note">

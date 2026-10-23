@@ -44,6 +44,14 @@ PLAN = {
     'player_caught/thrown_sfx': ('oneshot', -14),
     'player_caught/floor_impact_sfx': ('oneshot', -12),
     'player_grunt': ('oneshot', -20),
+    # Update 0.9 — electrical panels: fuse in, repair (loop), skill checks, short-out bang, switch.
+    'electric_panel_logic/fuse_insert': ('oneshot', -18),
+    'electric_panel_logic/repair_loop': ('loop', -24),
+    'electric_panel_logic/skill_check_warning': ('oneshot', -15),
+    'electric_panel_logic/skill_check_good': ('oneshot', -18),
+    'electric_panel_logic/skill_check_great': ('oneshot', -16),
+    'electric_panel_logic/panel_explode': ('oneshot', -10),
+    'electric_panel_logic/breaker_switch': ('oneshot', -15),
 }
 OUT_NAMES = {
     'footSteps_player': 'step_player',
@@ -52,6 +60,13 @@ OUT_NAMES = {
     'player_caught/thrown_sfx': 'thrown',
     'player_caught/floor_impact_sfx': 'floor_impact',
     'player_grunt': 'grunt',
+    'electric_panel_logic/fuse_insert': 'fuse_insert',
+    'electric_panel_logic/repair_loop': 'repair_loop',
+    'electric_panel_logic/skill_check_warning': 'skill_check_warning',
+    'electric_panel_logic/skill_check_good': 'skill_check_good',
+    'electric_panel_logic/skill_check_great': 'skill_check_great',
+    'electric_panel_logic/panel_explode': 'panel_explode',
+    'electric_panel_logic/breaker_switch': 'breaker_switch',
 }
 
 

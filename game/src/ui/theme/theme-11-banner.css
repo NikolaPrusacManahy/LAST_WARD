@@ -1,0 +1,28 @@
+/* theme-11 — Update 0.9: a new objective announced big at the top of the screen, then it settles into
+   the corner line. Hard to miss, gone after a few seconds. */
+.lw-banner {
+  position: absolute; left: 50%; top: 9vh; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 10px; width: max-content; max-width: 90vw;
+  text-align: center; animation: lw-banner 5s ease-out forwards;
+}
+.lw-banner-label {
+  font-family: var(--lw-mono); font-size: 13px; letter-spacing: 0.42em; text-transform: uppercase; color: var(--lw-blood);
+  text-shadow: 0 0 10px rgba(163, 18, 15, 0.8), 0 1px 4px #000;
+}
+.lw-banner-text {
+  font-family: var(--lw-type); font-size: clamp(26px, 3.4vw, 44px); letter-spacing: 0.04em; color: var(--lw-bone);
+  text-shadow: 0 2px 18px #000, 0 0 2px #000;
+}
+.lw-banner::after {
+  content: ''; width: 60%; height: 1px; margin-top: 4px;
+  background: linear-gradient(90deg, transparent, rgba(216, 210, 188, 0.7), transparent);
+}
+@keyframes lw-banner {
+  0% { opacity: 0; transform: translate(-50%, -14px); letter-spacing: 0.2em; }
+  8% { opacity: 1; transform: translate(-50%, 0); }
+  82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.lw-hud-objective-detail { display: block; margin-top: 4px; font-family: var(--lw-mono); font-size: 12px; letter-spacing: 0.12em; color: var(--lw-bone-dim); }
+.lw-hud-objective { transition: opacity 0.6s; }
+.lw-hud-objective.lw-hud-objective-hidden { opacity: 0; }
