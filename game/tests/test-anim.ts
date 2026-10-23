@@ -35,7 +35,7 @@ check('arms hidden while running', armScaleFor('run') === 0);
 }
 check('arms shown otherwise', armScaleFor('walk') === 1 && armScaleFor('idle') === 1 && armScaleFor('crouch') === 1);
 check('walk plays at half speed', playerClipTimeScale('walk', 1.6) === 0.5 && Math.abs(playerClipTimeScale('walk', 3.0) - 0.85) < 1e-9);
-check('run speed not halved', playerClipTimeScale('run', 3.2) === 1);
+check('run plays at half speed', playerClipTimeScale('run', 3.2) === 0.5);
 
 section('Debug panel');
 {

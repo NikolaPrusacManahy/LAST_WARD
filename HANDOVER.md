@@ -1,6 +1,12 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.4.2
+## Current version: 0.4.3
+
+- **Main menu:** The Patient now stands on the right under one failing tube light (`engine/menuScene.ts`, `screens/MenuScene.tsx`). The light holds for 5–10 s, stutters out, stays dark for 1–3 s, then flickers back. It only moves in the dark, so each time the light returns it may be standing further back, closer, looking around, mid-scream, or gone (`state/menuScare.ts`). A faint electrical buzz plays on each flicker once audio is unlocked. The menu text is unchanged.
+- **Player run animation** plays at half speed (`RUN_ANIM_SLOWDOWN`).
+- **Enemy footsteps heard through a wall are 1.5× louder** (`OCCLUDED_STEP_BOOST`). Steps in the open and the breathing are unchanged.
+
+## 0.4.2
 
 - Your own footsteps and the flashlight click are half as loud (`PLAYER_STEP_GAIN`, `FLASHLIGHT_CLICK_GAIN` in `audio/spatial.ts`).
 - **Crouch is now Ctrl and toggles** (press to crouch, press again to stand). Sprinting while moving stands you up. Ctrl+S/D/A and similar no longer reach the browser while playing. Browsers never let a page block Ctrl+W, so mid-run the game asks "Leave site?" before the tab closes.
@@ -60,13 +66,13 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + 124 rule tests) and `npm run verify` (adds the production build).
+From `game/`: `npm run verify:quick` (typecheck + 133 rule tests) and `npm run verify` (adds the production build).
 
 ## How to publish
 `npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready).
 
 ## Verified vs unverified
-- ✅ Typecheck, 124 rule tests and the production build pass.
+- ✅ Typecheck, 133 rule tests and the production build pass.
 - ✅ A headless browser test (software rendering, in Claude's cloud workspace) ran the full loop: menu → intro → all items → generator → exit, plus a caught → death screen run. Screenshots looked right.
 - ⚠️ **Not verified:** real-GPU frame rate, how the audio actually sounds, mouse feel under pointer lock, and Pause → Resume (the headless test ran without pointer lock). Check these first.
 - ⚠️ Difficulty is tuned on paper only. Expect to adjust `ENEMY` / `PLAYER` numbers after playing.

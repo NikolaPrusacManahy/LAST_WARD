@@ -49,6 +49,8 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, signs, flashlight cookie) | no |
 | `engine/input.ts` | Keys by `code`, mouse deltas under pointer lock | no |
 | `engine/hudStore.ts` | External store between the engine and React | no |
+| `state/menuScare.ts` | Main-menu light/pose schedule (lit → stutter out → dark → stutter in; pose swaps only in the dark) | yes |
+| `engine/menuScene.ts` + `screens/MenuScene.tsx` | Main-menu 3D backdrop: Patient model, tube light, floor + wall; disposed when leaving the menu | no |
 | `audio/spatial.ts` | `enemyMix(distance, occluded)`: low-pass cutoff + gain for enemy sounds; `ENEMY_STEP_GAIN` | yes |
 | `audio/uiSounds.ts` + `hooks/useUiSounds.ts` | Menu hover/click sounds (own AudioContext, document-level listener on `.lw-menu-btn`) | no (throttle `hoverAllowed` is tested) |
 | `audio/audio.ts` | Sound engine: loads `public/audio/manifest.json` samples, plays them (3D via PannerNode for enemy/generator), synth fallback per sound; synth tension, stinger, clanks | no |

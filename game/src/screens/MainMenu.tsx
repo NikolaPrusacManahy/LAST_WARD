@@ -1,4 +1,5 @@
 import { SaveData, formatTime } from '../state/settings';
+import { MenuScene } from './MenuScene';
 
 interface Props {
   save: SaveData;
@@ -9,6 +10,7 @@ interface Props {
 export function MainMenu({ save, onStart, onSettings }: Props) {
   return (
     <div className="lw-menu">
+      <MenuScene />
       <div className="lw-menu-inner">
         <p className="lw-menu-kicker">St. Brigid's Hospital · Ward 13</p>
         <h1 className="lw-title">LAST WARD</h1>

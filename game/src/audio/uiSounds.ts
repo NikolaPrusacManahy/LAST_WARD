@@ -116,3 +116,25 @@ export function uiClick() {
   thump(c, t, 160, 55, 0.4, 0.13);
   tick(c, t + 0.07, 3400, 2, 0.08, 0.04);
 }
+
+/** Update 0.4.3 — electrical buzz when the menu light stutters (silent until audio is unlocked). */
+export function flickerBuzz() {
+  const c = ctx;
+  if (!c || c.state !== 'running' || !out) return;
+  const t = c.currentTime;
+  const o = c.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.value = 100 + Math.random() * 20;
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 900;
+  bp.Q.value = 0.9;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0, t);
+  // Chopped on/off like a dying ballast.
+  for (let i = 0; i < 8; i++) g.gain.setValueAtTime(Math.random() < 0.6 ? 0.05 : 0, t + i * 0.06);
+  g.gain.setValueAtTime(0, t + 0.5);
+  o.connect(bp).connect(g).connect(out);
+  o.start(t);
+  o.stop(t + 0.55);
+}

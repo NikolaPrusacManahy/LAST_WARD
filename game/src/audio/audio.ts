@@ -1,7 +1,7 @@
 // Sound engine. Recorded samples from public/audio (see manifest.json) with a synthesised
 // fallback per sound. Enemy and generator sounds are 3D (PannerNode, HRTF); enemy sounds are
 // also filtered by distance and walls (audio/spatial.ts).
-import { ENEMY_STEP_GAIN, EnemyMix, FLASHLIGHT_CLICK_GAIN, PLAYER_STEP_GAIN } from './spatial';
+import { EnemyMix, FLASHLIGHT_CLICK_GAIN, PLAYER_STEP_GAIN, enemyStepGain } from './spatial';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -128,8 +128,8 @@ export class AudioEngine {
   }
 
   /** 3D footstep at its position, darker with distance and muffled behind walls. */
-  enemyStep(p: V3, heavy: boolean, mix: EnemyMix = { cutoff: 16000, gain: 1 }) {
-    const gain = (heavy ? 1 : 0.7) * ENEMY_STEP_GAIN * mix.gain;
+  enemyStep(p: V3, heavy: boolean, mix: EnemyMix = { cutoff: 16000, gain: 1, occluded: false }) {
+    const gain = enemyStepGain(heavy, mix);
     if (!this.playSample('step_patient', { at: p, ref: 2.5, rolloff: 1.3, gain, cutoff: mix.cutoff, rate: 0.9 * this.jitter(0.06) })) this.synthEnemyStep(p, heavy);
   }
 
@@ -334,7 +334,7 @@ export class AudioEngine {
     this.breath = { panner: pn, gain };
   }
 
-  updateEnemy(p: V3, chasing: boolean, mix: EnemyMix = { cutoff: 16000, gain: 1 }) {
+  updateEnemy(p: V3, chasing: boolean, mix: EnemyMix = { cutoff: 16000, gain: 1, occluded: false }) {
     if (!this.breath) return;
     this.place(this.breath.panner, p);
     this.breath.gain.gain.setTargetAtTime((chasing ? 1.1 : 0.55) * mix.gain, this.now, 0.3);

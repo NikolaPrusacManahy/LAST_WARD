@@ -14,6 +14,15 @@ export interface EnemyMix {
   cutoff: number;
   /** Extra gain on top of normal distance falloff. */
   gain: number;
+  /** A wall is between you and it. */
+  occluded: boolean;
+}
+
+/** Update 0.4.3 — footsteps heard through a wall were too faint to track: ×1.5 (steps only). */
+export const OCCLUDED_STEP_BOOST = 1.5;
+
+export function enemyStepGain(heavy: boolean, mix: EnemyMix): number {
+  return (heavy ? 1 : 0.7) * ENEMY_STEP_GAIN * mix.gain * (mix.occluded ? OCCLUDED_STEP_BOOST : 1);
 }
 
 const OPEN_MAX_HZ = 16000;
@@ -26,5 +35,5 @@ export function enemyMix(distance: number, occluded: boolean): EnemyMix {
   const k = Math.min(1, Math.max(0, distance / FAR_M));
   // Log-style sweep so the highs fade gradually, not all at once.
   const open = OPEN_MAX_HZ * Math.pow(OPEN_FAR_HZ / OPEN_MAX_HZ, k);
-  return occluded ? { cutoff: Math.min(open, WALL_HZ), gain: WALL_GAIN } : { cutoff: open, gain: 1 };
+  return occluded ? { cutoff: Math.min(open, WALL_HZ), gain: WALL_GAIN, occluded } : { cutoff: open, gain: 1, occluded };
 }

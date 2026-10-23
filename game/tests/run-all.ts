@@ -6,5 +6,6 @@ import './test-enemy';
 import './test-rules';
 import './test-anim';
 import './test-audio';
+import './test-menu';
 
 process.exit(summary() > 0 ? 1 : 0);

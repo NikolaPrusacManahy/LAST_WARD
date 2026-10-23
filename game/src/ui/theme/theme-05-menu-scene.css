@@ -1,0 +1,10 @@
+/* theme-05 — Update 0.4.3: 3D Patient behind the main menu, fading into the dark on its left. */
+.lw-menu-scene {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 62%; z-index: 0;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 32%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 32%);
+  pointer-events: none;
+}
+.lw-menu-scene-canvas { display: block; width: 100%; height: 100%; }
+.lw-menu::before, .lw-menu::after { z-index: 1; }
+.lw-menu-inner { z-index: 2; }
