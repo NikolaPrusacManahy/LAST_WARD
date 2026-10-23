@@ -11,5 +11,6 @@ import './test-light';
 import './test-input';
 import './test-credit';
 import './test-stuck';
+import './test-patient';
 
 process.exit(summary() > 0 ? 1 : 0);

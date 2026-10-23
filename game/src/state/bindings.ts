@@ -1,7 +1,7 @@
 // Update 0.5 — rebindable controls. Pure: codes are KeyboardEvent.code ('KeyW', 'ShiftLeft')
 // or mouse buttons as 'Mouse0'..'Mouse4' (left, middle, right, back, forward).
 
-export type Action = 'forward' | 'back' | 'left' | 'right' | 'sprint' | 'crouch' | 'flashlight' | 'interact';
+export type Action = 'forward' | 'back' | 'left' | 'right' | 'sprint' | 'crouch' | 'flashlight' | 'interact' | 'lookBack';
 export type Bindings = Record<Action, string>;
 
 /** Order shown in settings and the controls card. */
@@ -14,6 +14,7 @@ export const ACTIONS: { id: Action; label: string }[] = [
   { id: 'crouch', label: 'Crouch' },
   { id: 'flashlight', label: 'Flashlight' },
   { id: 'interact', label: 'Collect / interact' },
+  { id: 'lookBack', label: 'Look back (running)' }, // Update 0.5.4
 ];
 
 export const DEFAULT_BINDINGS: Bindings = {
@@ -25,6 +26,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   crouch: 'ControlLeft',
   flashlight: 'Mouse2', // right click
   interact: 'Mouse0', // left click
+  lookBack: 'KeyQ', // Update 0.5.4 — hold while running
 };
 
 /** Never bindable: Esc pauses (the browser owns it), F2/F3 are the debug view, Win/Cmd opens the OS. */
@@ -39,6 +41,9 @@ export function isBindable(code: string): boolean {
 }
 
 export const mouseCode = (button: number) => `Mouse${button}`;
+
+/** Free keys handed to a new action whose default is already taken in an old save. */
+const SPARE_KEYS = ['KeyQ', 'KeyE', 'KeyR', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'Mouse1', 'Mouse3', 'Mouse4'];
 
 /** Left and right Shift / Ctrl / Alt count as the same key. */
 export function codesFor(code: string): string[] {
@@ -66,6 +71,14 @@ export function hydrateBindings(raw: unknown): Bindings {
     const v = r[id];
     if (typeof v === 'string' && isBindable(v)) out[id] = v;
   }
-  const used = ACTIONS.map((a) => codesFor(out[a.id])[0]);
-  return new Set(used).size === used.length ? out : { ...DEFAULT_BINDINGS };
+  const firstCode = (a: Action) => codesFor(out[a])[0];
+  const clashes = () => ACTIONS.filter((a, i) => ACTIONS.some((b, j) => j !== i && firstCode(a.id) === firstCode(b.id)));
+  // Update 0.5.4 — a new action (Look back) missing from an old save whose default key the player
+  // already uses elsewhere: give it a free key instead of wiping every custom binding.
+  for (const a of clashes()) {
+    if (typeof r[a.id] === 'string') continue;
+    const taken = new Set(ACTIONS.map((x) => firstCode(x.id)));
+    out[a.id] = SPARE_KEYS.find((k) => !taken.has(k)) ?? out[a.id];
+  }
+  return clashes().length === 0 ? out : { ...DEFAULT_BINDINGS };
 }

@@ -3,7 +3,9 @@
 import * as THREE from 'three';
 import { LEVEL_01 } from '../world/content/level01';
 import { Level, cellCenter, dist, itemPos, parseLevel, worldToCell } from '../world/level';
-import { EnemyState, Noise, createEnemy, stepEnemy, visibility } from '../world/enemyAI';
+import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, visibility } from '../world/enemyAI';
+import { shuffleItems } from '../world/itemShuffle';
+import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackTimeScale, lookBackYaw, stepLookBack } from '../state/lookBack';
 import { createRng } from '../world/rng';
 import { findTarget, Target } from '../world/interact';
 import { CONTROLS_CARD_SECONDS, Prompt, promptFor, samePrompt, tickControlsCard } from '../state/prompts';
@@ -66,6 +68,11 @@ export class Game {
   private toast: { text: string; until: number } | null = null;
   private note: { text: string; until: number } | null = null;
   private lastPrompt: Prompt | null = null;
+  /** Update 0.5.4 — look over your shoulder on the run + slow-motion burst. */
+  private lookBack: LookBack = createLookBack();
+  /** World clock: runs slower during the look-back slow motion (this.t stays real time). */
+  private worldT = 0;
+  private realDt = 0;
   private controlsLeft = 0;
   private enemyStepAccum = 0;
   private resizeObs: ResizeObserver;
@@ -103,13 +110,15 @@ export class Game {
     this.ambient = new THREE.HemisphereLight(LIGHT.skyColor, LIGHT.groundColor, atmo.ambient);
     this.scene.add(this.ambient);
 
-    this.level = parseLevel(LEVEL_01);
+    // Update 0.5.4 — fuses, batteries and notes land on different tables every run.
+    this.level = shuffleItems(parseLevel(LEVEL_01), this.rng);
     this.view = buildLevel(this.level);
     this.scene.add(this.view.root);
     this.lights = createLighting(this.view);
     this.player = new PlayerController(this.level, this.camera, this.scene);
     this.player.baseFov = settings.fov;
-    this.enemy = createEnemy(this.level);
+    // Update 0.5.4 — starts in one of the four corners, never the one by you.
+    this.enemy = spawnAtCorner(this.level, this.rng, cellCenter(this.level.playerStart));
     this.enemyView = createEnemyView();
     this.scene.add(this.enemyView.root);
     this.swapInRiggedEnemy();
@@ -219,12 +228,25 @@ export class Game {
       this.speed = 0;
     }
 
-    if (this.phase === 'playing') this.updatePlaying(dt);
+    // Update 0.5.4 — Q while running: camera swings round, time slows for a moment.
+    let wdt = dt;
+    if (this.phase === 'playing') {
+      this.lookBack = stepLookBack(this.lookBack, dt, this.input.action('lookBack'), this.gait === 'sprint');
+      wdt = dt * lookBackTimeScale(this.lookBack);
+    } else if (this.lookBack.amount > 0 || this.lookBack.active) {
+      this.lookBack = createLookBack();
+    }
+    this.player.lookBackYaw = lookBackYaw(this.lookBack);
+    this.body?.setVisible(!hideBodyWhileLookingBack(this.lookBack));
+    this.worldT += wdt;
+    this.realDt = dt;
+
+    if (this.phase === 'playing') this.updatePlaying(wdt);
     else if (this.phase === 'dying') this.updateDying(dt);
     else if (this.phase === 'escaping') this.updateEscaping(dt);
     else {
       this.player.updateView(dt, 'idle', this.status, this.t);
-      this.enemyView.update(this.enemy.pos, this.enemy.dir, this.enemy.mode, 0, this.t, this.enemy.windup > 0);
+      this.enemyView.update(this.enemy.pos, this.enemy.dir, this.enemy.mode, 0, this.worldT, this.enemy.windup > 0);
     }
 
     this.body?.update({
@@ -236,7 +258,7 @@ export class Game {
       speed: this.speed,
       velocity: this.phase === 'playing' ? this.player.velocity : undefined,
       camera: this.camera,
-      dt: this.phase === 'paused' ? 0 : dt,
+      dt: this.phase === 'paused' ? 0 : wdt,
       flashlightOn: this.status.flashlightOn,
       // Update 0.5.2 — keep the body out of the wall behind you.
       roomBehind: freeBehind(this.level, this.player.pos, this.player.forward, 1.2, BODY_RADIUS),
@@ -288,7 +310,7 @@ export class Game {
     );
     this.noise = null;
     const moved = dist(before, this.enemy.pos);
-    this.enemyView.update(this.enemy.pos, this.enemy.dir, this.enemy.mode, moved, this.t, this.enemy.windup > 0);
+    this.enemyView.update(this.enemy.pos, this.enemy.dir, this.enemy.mode, moved, this.worldT, this.enemy.windup > 0);
     this.enemyStepAccum += moved;
     const chasing = this.enemy.mode === 'chase';
     // Update 0.4.1 — enemy sounds get darker with distance and muffled behind walls.
@@ -308,7 +330,8 @@ export class Game {
 
     const targetFear = fearLevel(dist(this.enemy.pos, player.pos), chasing);
     this.fear += (targetFear - this.fear) * (1 - Math.exp(-dt * 3));
-    player.updateView(dt, step.gait, status, this.t, 0);
+    // Camera + flashlight follow in real time, so the look-back swing isn't slowed by its own slow motion.
+    player.updateView(this.realDt, step.gait, status, this.t, 0);
     this.audio.setListener(this.camera.position, this.camForward());
     this.audio.updateEnemy(this.enemy3D(), chasing, mix);
     this.audio.tickFear(dt, this.fear, chasing);
@@ -387,7 +410,7 @@ export class Game {
     this.enemy.dir = { x: -f.x, z: -f.z };
     this.enemyView.root.position.set(ePos.x, 0, ePos.z);
     this.enemyView.root.rotation.y = Math.atan2(-f.x, -f.z);
-    this.enemyView.lunge(Math.min(1, this.phaseTime / 0.25), this.t);
+    this.enemyView.lunge(Math.min(1, this.phaseTime / 0.25), this.worldT);
     // Keep its face in the middle of the screen whatever the attack animation does.
     const hp = this.enemyView.head.getWorldPosition(this.tmpV);
     const horiz = Math.max(0.2, Math.hypot(hp.x - this.camera.position.x, hp.z - this.camera.position.z));
@@ -456,6 +479,7 @@ export class Game {
             frozen: this.enemyFrozen,
             fuses: this.progress.fuses,
             powered: this.progress.powered,
+            teleportIn: this.enemy.mode === 'chase' ? null : ENEMY.teleportAfter - this.enemy.sinceSpotted,
           })
         : null,
       cinematic: this.phase === 'dying' || this.phase === 'escaping' || this.phase === 'over',

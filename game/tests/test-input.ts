@@ -72,3 +72,38 @@ section('Controls card (0.5)');
   check('gone after 10 s', left === 0);
   check('Enter closes it right away', tickControlsCard(7, 1 / 60, true) === 0);
 }
+
+section('Look back (0.5.4)');
+{
+  const { LOOK_BACK, createLookBack, stepLookBack, lookBackTimeScale, lookBackYaw, hideBodyWhileLookingBack } = await import('../src/state/lookBack');
+  check('Q by default, rebindable like the rest', DEFAULT_BINDINGS.lookBack === 'KeyQ' && ACTIONS.some((a) => a.id === 'lookBack'));
+  const run = (s: ReturnType<typeof createLookBack>, sec: number, held: boolean, running: boolean) => {
+    for (let i = 0; i < Math.round(sec * 60); i++) s = stepLookBack(s, 1 / 60, held, running);
+    return s;
+  };
+  let s = run(createLookBack(), 0.3, true, true);
+  check('holding Q while running turns the camera fully round', Math.abs(lookBackYaw(s) - Math.PI) < 1e-9);
+  check('…hides your own body so it does not block the view', hideBodyWhileLookingBack(s));
+  check('…and the first moment is slow motion', lookBackTimeScale(stepLookBack(createLookBack(), 1 / 60, true, true)) === LOOK_BACK.slowScale);
+  check('slow motion lasts about half a second', LOOK_BACK.slowSeconds === 0.5 && lookBackTimeScale(run(createLookBack(), 0.55, true, true)) === 1);
+  check('slow-mo eases back to full speed (no snap)', (() => { const x = run(createLookBack(), 0.42, true, true); const k = lookBackTimeScale(x); return k > LOOK_BACK.slowScale && k < 1; })());
+  s = run(s, 0.3, false, true);
+  check('letting go swings back to the front', lookBackYaw(s) === 0 && !hideBodyWhileLookingBack(s));
+  check('does nothing while walking or standing', lookBackYaw(run(createLookBack(), 0.5, true, false)) === 0);
+  check('stopping the run (out of breath) ends it', lookBackYaw(run(run(createLookBack(), 0.3, true, true), 0.3, true, false)) === 0);
+  // Spam guard: a second look straight away turns the camera but doesn't slow time again.
+  let spam = run(createLookBack(), 0.3, true, true);
+  spam = run(spam, 0.3, false, true);
+  spam = stepLookBack(spam, 1 / 60, true, true);
+  check('slow motion has a 3 s cooldown (camera still turns)', lookBackTimeScale(spam) === 1 && spam.active && LOOK_BACK.cooldown === 3);
+  check('…and works again after the cooldown', lookBackTimeScale(stepLookBack(run(spam, 3.1, false, true), 1 / 60, true, true)) === LOOK_BACK.slowScale);
+  check('letting go mid slow-mo returns to full speed at once', lookBackTimeScale(stepLookBack(stepLookBack(createLookBack(), 1 / 60, true, true), 1 / 60, false, true)) === 1);
+  // Old saves: a player who already put something on Q keeps it; Look back gets a free key.
+  const old = { ...DEFAULT_BINDINGS, flashlight: 'KeyQ' } as Record<string, string>;
+  delete old.lookBack;
+  const h = hydrateBindings(old);
+  check('old save with Q taken: keeps their Q, Look back gets a free key', h.flashlight === 'KeyQ' && h.lookBack !== 'KeyQ' && isBindable(h.lookBack));
+  const old2 = { ...DEFAULT_BINDINGS } as Record<string, string>;
+  delete old2.lookBack;
+  check('old save without Look back gets Q', hydrateBindings(old2).lookBack === 'KeyQ');
+}

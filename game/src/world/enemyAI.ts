@@ -7,7 +7,8 @@ import { clearLine, moveWithCollision, overlapsWall } from './collision';
 import { Rng } from './rng';
 
 export type EnemyMode = 'patrol' | 'investigate' | 'chase' | 'search';
-export type EnemyEvent = 'spotted' | 'lost' | 'heard' | 'caught';
+/** Update 0.5.4 — 'teleported': moved to another corner after a minute without finding you. */
+export type EnemyEvent = 'spotted' | 'lost' | 'heard' | 'caught' | 'teleported';
 
 export const ENEMY = {
   speed: { patrol: 1.5, investigate: 2.6, chase: 4.3, search: 2.1 } as Record<EnemyMode, number>,
@@ -30,6 +31,14 @@ export const ENEMY = {
   muffledNoiseMul: 0.6, // noise through walls carries less
   /** Update 0.2 — it screams before it charges: your head start. */
   windupSeconds: 1.0,
+  /** Update 0.5.4 — a minute without spotting you: it vanishes and turns up at another corner. */
+  teleportAfter: 60,
+  /** Never teleports from or to anywhere you can see, or closer than this to you (m). */
+  teleportMinDist: 14,
+  /** Patrols within this many tiles of its home corner. */
+  homeRadiusTiles: 6,
+  /** Start corner must be at least this far from the player's start (m). */
+  spawnMinDist: 20,
 };
 
 export interface EnemyState {
@@ -48,6 +57,10 @@ export interface EnemyState {
   rage: number;
   /** Seconds left of the scream before the chase starts. */
   windup: number;
+  /** Update 0.5.4 — the corner it patrols around. */
+  home: Cell;
+  /** Seconds since it last spotted you (chasing counts as spotting). */
+  sinceSpotted: number;
 }
 
 export interface PlayerSense {
@@ -77,7 +90,56 @@ export function createEnemy(level: Level): EnemyState {
     repath: 0,
     rage: 0,
     windup: 0,
+    home: level.enemyStart,
+    sinceSpotted: 0,
   };
+}
+
+/** Update 0.5.4 — the open cell nearest each corner of the map (its four spawn / teleport points). */
+export function cornerCells(level: Level): Cell[] {
+  const cells = floorCells(level);
+  const corners = [
+    { col: 0, row: 0 },
+    { col: level.cols - 1, row: 0 },
+    { col: 0, row: level.rows - 1 },
+    { col: level.cols - 1, row: level.rows - 1 },
+  ];
+  return corners.map((c) => cells.reduce((best, x) => (Math.abs(x.col - c.col) + Math.abs(x.row - c.row) < Math.abs(best.col - c.col) + Math.abs(best.row - c.row) ? x : best)));
+}
+
+/** Update 0.5.4 — start of a run: one of the four corners, never the one by the player. */
+export function spawnAtCorner(level: Level, rng: Rng, playerStart: Vec2): EnemyState {
+  const far = cornerCells(level).filter((c) => dist(cellCenter(c), playerStart) >= ENEMY.spawnMinDist);
+  const pick = far[Math.floor(rng() * far.length)] ?? level.enemyStart;
+  const e = createEnemy(level);
+  e.pos = cellCenter(pick);
+  e.home = pick;
+  return e;
+}
+
+/** Hidden from the player: no line of sight, or far into the dark. */
+const outOfSight = (level: Level, a: Vec2, player: Vec2) => !lineOfSight(level, a, player) || dist(a, player) > 25;
+
+/** Update 0.5.4 — after a minute without finding you, move to another corner you can't see. */
+function tryTeleport(level: Level, e: EnemyState, player: Vec2, rng: Rng): boolean {
+  if (e.mode === 'chase' || e.sinceSpotted < ENEMY.teleportAfter) return false;
+  if (dist(e.pos, player) < ENEMY.teleportMinDist || !outOfSight(level, e.pos, player)) return false;
+  const options = cornerCells(level).filter(
+    (c) => !sameCell(c, e.home) && dist(cellCenter(c), player) >= ENEMY.teleportMinDist && outOfSight(level, cellCenter(c), player),
+  );
+  if (!options.length) return false;
+  const to = options[Math.floor(rng() * options.length)];
+  e.pos = cellCenter(to);
+  e.home = to;
+  e.mode = 'patrol';
+  e.modeTime = 0;
+  e.goal = null;
+  e.path = [];
+  e.lastKnown = null;
+  e.alert = 0;
+  e.idle = 1;
+  e.sinceSpotted = 0;
+  return true;
 }
 
 /** 0 = can't see you, 1 = sees you clearly. */
@@ -186,11 +248,16 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
   e.rage = input.fuses * ENEMY.ragePerFuse;
   e.modeTime += dt;
 
+  // Update 0.5.4 — a minute without finding you: teleport to another corner (only when unseen).
+  e.sinceSpotted = e.mode === 'chase' ? 0 : e.sinceSpotted + dt;
+  if (tryTeleport(level, e, player.pos, rng)) events.push('teleported');
+
   const vis = visibility(level, e, player);
   const close = vis > 0 && dist(e.pos, player.pos) <= ENEMY.senseRadius;
   if (vis > 0) {
     e.alert = Math.min(1, e.alert + vis * ENEMY.alertRise * dt);
     e.sinceSeen = 0;
+    e.sinceSpotted = 0; // any sighting restarts the teleport clock
   } else {
     e.alert = Math.max(0, e.alert - ENEMY.alertDecay * dt);
     e.sinceSeen += dt;
@@ -271,9 +338,9 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
         break;
       }
       if (!e.goal) {
-        // Drifts toward the player a third of the time, so it never wanders off for long.
-        const near = rng() < 0.35 ? player.pos : null;
-        pickWanderGoal(level, e, rng, near, 6);
+        // Update 0.5.4 — patrols its own corner of the map; noise still draws it anywhere, and after a
+        // minute without finding you it moves to another corner (tryTeleport).
+        pickWanderGoal(level, e, rng, cellCenter(e.home), ENEMY.homeRadiusTiles);
       }
       if (followPath(e, speed, dt)) {
         e.goal = null;

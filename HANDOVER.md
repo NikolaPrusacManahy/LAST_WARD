@@ -1,6 +1,14 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.5.3
+## Current version: 0.5.4
+
+- **Look back (Q, rebindable):** hold it while running and the camera swings 180° (0.18 s) to look over your shoulder; you keep running the way you were going and the flashlight turns with your view. Your own body hides while you look back. Letting go, or running out of breath, swings you back. Does nothing while walking or standing. `state/lookBack.ts` (tested).
+- **Slow motion:** the start of each look back slows the world to 0.4× for 0.5 s (eases back to full speed); camera and flashlight stay real-time. 3 s cooldown so it can't be spammed: a second look back inside 3 s still turns the camera, just without the slow-mo. Old saves get Q for Look back, or a free key if they already used Q.
+- **The Patient's corners:** it starts each run in one of the map's four corners (never the one by your start), and patrols its own corner area (within 6 tiles) instead of drifting toward you. If it hasn't spotted you for 60 s (any sighting resets the clock, chasing never teleports), it vanishes and turns up at another corner, but only when you can't see it, and never closer than 14 m to you. Noise still pulls it anywhere. F2 shows "new corner in Ns". `cornerCells`, `spawnAtCorner`, `ENEMY.teleportAfter` in `world/enemyAI.ts`.
+- **Random tables:** every run, the 3 fuses, 3 batteries and 4 notes swap places across the 10 cabinets, and which note text is where changes too (`world/itemShuffle.ts`). Same cabinets, so everything stays reachable.
+- Settings rows are a touch shorter so the extra Controls row still fits 1280×720.
+
+## 0.5.3
 
 - **Strafe animations:** walking sideways (A or D on its own) plays your new `player_strafe_left` / `player_strafe_right` clips; forward, back and diagonals keep the walk. Running and crouching keep their own clips. Strafe plays at the same half pace as the walk. Chosen from your velocity in your own frame (`strafeSide`, `localVelocity` in `engine/playerAnim.ts`, tested). `player.glb` reconverted with clips `idle walk run crouch strafeLeft strafeRight` (3.0 MB). Checked from the clip data that strafeLeft steps to the character's left and strafeRight to its right.
 - **W+A / W+D:** the body (not the camera) turns up to 45° toward the move, eased, so the legs walk along the diagonal instead of straight ahead (`bodyTurnFor`). Forward diagonals only; S+A / S+D, strafing and standing don't turn it.

@@ -53,6 +53,8 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/inputIcons.ts` | Code → Kenney icon name + label (`glyphFor`), the icon list `tools/prepare-input-icons.ts` ships | yes |
 | `state/prompts.ts` | Crosshair prompt words (`promptFor`: collect / read / interact / what's missing) + controls-card timer | yes |
 | `audio/menuAmbience.ts` + `state/menuAudio.ts` | Ambience under the credit screen + main menu (own AudioContext, starts on the first gesture) | no / yes |
+| `state/lookBack.ts` | Look back on the run: 180° camera swing, slow-mo burst + cooldown, body hide (0.5.4) | yes |
+| `world/itemShuffle.ts` | Shuffles fuses / batteries / notes across the item cabinets each run (0.5.4) | yes |
 | `state/creditIntro.ts` + `screens/CreditIntro.tsx` | Boot credit screen: 3 s hold, 1 s fade, click → 0.5 s fade (real time, not frame-capped) | yes / no |
 | `screens/InputIcon.tsx`, `ControlsCard.tsx`, `KeyBindings.tsx` | Icon (or text key cap), the 10 s controls box, the rebind list in Settings | no |
 | `engine/hudStore.ts` | External store between the engine and React | no |
@@ -83,6 +85,8 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | Enemy sight | `ENEMY.viewDistLight / Dark` | 20.8 m with your flashlight on, 10.4 m off (×0.7 crouched), 130° cone (0.4.4: ×1.3) |
 | Lose it | `ENEMY.memorySeconds`, `searchSeconds` | tracks you 1.2 s after losing sight, searches 7 s |
 | Scream head start | `ENEMY.windupSeconds` | screams in place 1.0 s after spotting you, then charges |
+| Corner teleport | `ENEMY.teleportAfter`, `teleportMinDist`, `homeRadiusTiles` | 60 s without spotting you → another corner, ≥ 14 m from you and out of sight; patrols within 6 tiles of its corner |
+| Look back | `LOOK_BACK` (state/lookBack.ts) | 0.18 s swing, 0.4× time for 0.5 s, 3 s cooldown |
 | Ward brightness | `LIGHT` (state/lightLevels.ts) | flashlight 44.2 (34 × 1.3), fill light 0.6 dark / 0.9 powered, fog 0.065 / 0.05, eye glow 1.1 |
 
 ## Character models

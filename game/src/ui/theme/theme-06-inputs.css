@@ -59,10 +59,10 @@
 }
 .lw-keys-row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  min-height: 40px; border-bottom: 1px solid rgba(216, 210, 188, 0.08); font-size: 14px;
+  min-height: 35px; border-bottom: 1px solid rgba(216, 210, 188, 0.08); font-size: 14px;
 }
 .lw-keys-btn {
-  display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 150px; height: 36px; padding: 0 8px;
+  display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 150px; height: 33px; padding: 0 8px;
   border: 1px solid transparent; transition: border-color 0.15s, background 0.15s;
 }
 button.lw-keys-btn:hover, button.lw-keys-btn:focus-visible { border-color: rgba(216, 210, 188, 0.3); background: rgba(216, 210, 188, 0.04); outline: none; }
