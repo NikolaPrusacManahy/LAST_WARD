@@ -18,7 +18,7 @@ export function showCredits(isDev: boolean, search: string): boolean {
   return !debugFlag(isDev, search) || new URLSearchParams(search).has('credits');
 }
 
-/** Update 0.7 — ?level=2 starts on that level (1 = the hospital). Dev build only; public always starts at 1. */
+/** Update 0.7 — ?level=N starts on that level (1 = the hospital). Dev build only; public always starts at 1. */
 export function startLevelIndex(isDev: boolean, search: string, count: number): number {
   if (!isDev) return 0;
   const n = Number(new URLSearchParams(search).get('level'));

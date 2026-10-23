@@ -1,6 +1,12 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.7.1
+## Current version: 0.7.2
+
+- **Level 2 removed** (Ashgrove House, the mansion): the focus is making level 1 as good as it can be, quality over quantity. Its map, notes and tests are gone; escaping the hospital ends the run again, as before 0.7.
+- Kept for later (no level uses them now): the engine's support for several floors and stairs, The Patient walking stairs, per-level intro text and AI tuning, and loading the next level after an exit. `tests/test-floors.ts` checks the stairs on a tiny two-floor test map so it stays working. The tester level picker only appears when there's more than one level.
+- Ideas on the table: Level 0 (an apartment prologue before the capture, waiting on the model file) and an electrical-panel repair step / minigame for level 1 ("Simple electrical environment" from Sketchfab, free licence, GLB 1k, waiting on the download in `ASSETS/models/electrical/`).
+
+## 0.7.1
 
 - **Tester level picker:** when the game runs locally (`START_GAME.bat`), the main menu has a small "TESTER · START LEVEL" panel in the top-right corner: pick 1 (the hospital) or 2 (Ashgrove House), press Begin, and you wake up on that level. The pick is remembered in that browser. The public build (`npm run build`) never shows it and always starts at level 1 (`state/devTools.ts` `chooseStartLevel`, tested; the panel is `screens/TesterLevelPicker.tsx`, styles `theme-08-tester.css`). `?level=2` still works too.
 

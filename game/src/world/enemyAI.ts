@@ -122,7 +122,7 @@ export function cornerCells(level: Level): Cell[] {
   return out;
 }
 
-/** Update 0.7 — ENEMY numbers with this level's tweaks (the mansion: it keeps tracking you much longer). */
+/** Update 0.7 — ENEMY numbers with this level's tweaks (a big level can make it keep tracking you longer). */
 export function tuningFor(level: Level) {
   return {
     memorySeconds: level.ai.memorySeconds ?? ENEMY.memorySeconds,

@@ -30,7 +30,6 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/interact.ts` | What's in reach and in front of the player | yes |
 | `world/rng.ts` | Seeded RNG | yes |
 | `world/content/level01.ts` | Ward 13 map + notes + wall notes (0.6.3) | data |
-| `world/content/level02.ts` | Ashgrove House: three floors, stairs, notes, intro text, longer tracking (0.7) | data |
 | `world/content/levels.ts` | Play order of the levels (0.7) | data |
 | `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve | yes |
 | `state/objectives.ts` | Fuses → generator → exit chain, objective text | yes |

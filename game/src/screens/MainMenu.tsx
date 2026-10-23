@@ -1,6 +1,7 @@
 import { SaveData, formatTime } from '../state/settings';
 import { MenuScene } from './MenuScene';
 import { TesterLevelPicker } from './TesterLevelPicker';
+import { LEVELS } from '../world/content/levels';
 
 interface Props {
   save: SaveData;
@@ -15,7 +16,7 @@ export function MainMenu({ save, onStart, onSettings, startLevel, onPickLevel }:
   return (
     <div className="lw-menu">
       <MenuScene />
-      {import.meta.env.DEV && <TesterLevelPicker level={startLevel} onPick={onPickLevel} />}
+      {import.meta.env.DEV && LEVELS.length > 1 && <TesterLevelPicker level={startLevel} onPick={onPickLevel} />}
       <div className="lw-menu-inner">
         <p className="lw-menu-kicker">St. Brigid's Hospital · Ward 13</p>
         <h1 className="lw-title">LAST WARD</h1>
