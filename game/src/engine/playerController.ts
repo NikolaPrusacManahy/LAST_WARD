@@ -6,6 +6,7 @@ import { moveWithCollision } from '../world/collision';
 import { Gait, PLAYER, PlayerStatus, chooseGait, flickerAmount, gaitNoise, gaitSpeed, tickStatus, nextCrouch } from '../state/playerRules';
 import { Input } from './input';
 import { flashlightCookie } from './textures';
+import { LIGHT } from '../state/lightLevels';
 import { BOB, BobAmp, blendAmp, bobOffset } from '../state/cameraBob';
 import { DEFAULT_SETTINGS } from '../state/settings';
 import type { Settings } from '../state/settings';
@@ -55,8 +56,8 @@ export class PlayerController {
     this.flashlight.target.position.set(0, 0, -1);
     this.rig.add(this.flashlight, this.flashlight.target);
     scene.add(this.rig);
-    // Faint bounce light so walls right in front of you are never pitch black.
-    this.spill = new THREE.PointLight(0xffe8c8, 0, 5, 2);
+    // Faint glow so walls right in front of you are never pitch black (Update 0.4.4: brighter, wider).
+    this.spill = new THREE.PointLight(0xdfe4f0, 0, 6.5, 2);
     camera.add(this.spill);
     scene.add(camera);
   }
@@ -142,8 +143,8 @@ export class PlayerController {
     if (on && flick > 0 && Math.random() < flick * 0.25) on = Math.random() * 0.3;
     if (shake > 0.5) on *= Math.random() < 0.5 ? 0.1 : 1;
     const strength = on * (0.55 + 0.45 * Math.min(1, status.battery / 40));
-    this.flashlight.intensity = 34 * strength * lightMul;
-    this.spill.intensity = 0.35 + 0.9 * strength;
+    this.flashlight.intensity = LIGHT.flashlight * strength * lightMul;
+    this.spill.intensity = LIGHT.eyeGlow + LIGHT.eyeGlowFlashlight * strength;
   }
 
   dispose(scene: THREE.Scene) {

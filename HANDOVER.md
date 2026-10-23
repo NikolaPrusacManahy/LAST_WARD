@@ -1,6 +1,12 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.4.3
+## Current version: 0.4.4
+
+- **The ward is easier to see without the flashlight.** The fill light is a lighter grey-blue and stronger (0.6 before the generator, 0.9 after), fog is a bit thinner, and the soft glow around you is brighter. You can make out corridor walls and floor tiles with the flashlight off; it's still dark. All levels live in `state/lightLevels.ts` (`LIGHT`).
+- **Flashlight 1.3× stronger** (`LIGHT.flashlight` = 34 × 1.3).
+- **The Patient sees you 1.3× further:** 20.8 m with the flashlight on (was 16), 10.4 m with it off (was 8). Crouching still cuts that by 30%. The flashlight is still the bigger giveaway.
+
+## 0.4.3
 
 - **Main menu:** The Patient stands on the right under one failing tube light, staring at you (`engine/menuScene.ts`, `screens/MenuScene.tsx`), using its own `stare` clip (`Patient_menu_stare.fbx`, merged into `patient.glb`). The loop (`state/menuScare.ts`): lit 5–9 s → the tube stutters out → dark, it's gone → its face fills the screen under a crazy cold strobe for 1–1.6 s → dark, gone again → the tube stutters back on and it's standing there again. What's on screen only changes while the light is off. A faint buzz plays on each flicker and a harsher, longer one on the face scare (once audio is unlocked). The menu text is unchanged and stays clickable throughout.
 - **Player run animation** plays at half speed (`RUN_ANIM_SLOWDOWN`).

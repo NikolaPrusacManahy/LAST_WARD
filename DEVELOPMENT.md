@@ -45,6 +45,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/debugInfo.ts` | F2 panel text | yes |
 | `engine/enemyAnim.ts` | Which clip to play for an AI mode/speed, and playback speed so feet match the ground | yes |
 | `engine/lighting.ts` | Lamp flicker before power, steady after; item spin | no |
+| `state/lightLevels.ts` | Every light level (flashlight, fill, fog, eye glow) + `atmosphereFor(powered, debug)` | yes |
 | `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades | no |
 | `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, signs, flashlight cookie) | no |
 | `engine/input.ts` | Keys by `code`, mouse deltas under pointer lock | no |
@@ -73,9 +74,10 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | Flashlight battery | `PLAYER.batteryDrainPerSec` | ~90 s per full battery, +45% per pickup |
 | Footstep noise radius | `PLAYER.noise` | walk 6 m, sprint 15 m, crouch silent |
 | Enemy speed | `ENEMY.speed` | patrol 1.5, investigate 2.6, chase 4.3 m/s (+7% per fuse) |
-| Enemy sight | `ENEMY.viewDistLight / Dark` | 16 m with your flashlight on, 8 m off (×0.7 crouched), 130° cone |
+| Enemy sight | `ENEMY.viewDistLight / Dark` | 20.8 m with your flashlight on, 10.4 m off (×0.7 crouched), 130° cone (0.4.4: ×1.3) |
 | Lose it | `ENEMY.memorySeconds`, `searchSeconds` | tracks you 1.2 s after losing sight, searches 7 s |
 | Scream head start | `ENEMY.windupSeconds` | screams in place 1.0 s after spotting you, then charges |
+| Ward brightness | `LIGHT` (state/lightLevels.ts) | flashlight 44.2 (34 × 1.3), fill light 0.6 dark / 0.9 powered, fog 0.065 / 0.05, eye glow 1.1 |
 
 ## Character models
 

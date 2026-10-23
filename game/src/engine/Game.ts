@@ -6,6 +6,7 @@ import { Level, cellCenter, dist, itemPos, parseLevel, worldToCell } from '../wo
 import { EnemyState, Noise, createEnemy, stepEnemy, visibility } from '../world/enemyAI';
 import { createRng } from '../world/rng';
 import { findTarget, Target } from '../world/interact';
+import { LIGHT, atmosphereFor } from '../state/lightLevels';
 import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
 import { RunPhase, guardLeave } from '../state/session';
@@ -92,8 +93,9 @@ export class Game {
 
     this.camera = new THREE.PerspectiveCamera(settings.fov, 1, 0.05, 80);
     this.scene.background = new THREE.Color(0x020203);
-    this.scene.fog = new THREE.FogExp2(0x020203, 0.085);
-    this.ambient = new THREE.HemisphereLight(0x2a3040, 0x0a0806, 0.12);
+    const atmo = atmosphereFor(false, false);
+    this.scene.fog = new THREE.FogExp2(0x020203, atmo.fog);
+    this.ambient = new THREE.HemisphereLight(LIGHT.skyColor, LIGHT.groundColor, atmo.ambient);
     this.scene.add(this.ambient);
 
     this.level = parseLevel(LEVEL_01);
@@ -485,10 +487,10 @@ export class Game {
 
   private applyAtmosphere() {
     const dbg = this.debugView.enabled;
-    const powered = this.progress.powered;
-    (this.scene.fog as THREE.FogExp2).density = dbg ? 0.004 : powered ? 0.06 : 0.085;
-    this.ambient.intensity = dbg ? 1.2 : powered ? 0.3 : 0.12;
-    this.renderer.toneMappingExposure = dbg ? 1.3 : 1.1;
+    const a = atmosphereFor(this.progress.powered, dbg); // Update 0.4.4 — state/lightLevels.ts
+    (this.scene.fog as THREE.FogExp2).density = a.fog;
+    this.ambient.intensity = a.ambient;
+    this.renderer.toneMappingExposure = a.exposure;
     this.fx.set({ clean: dbg });
   }
 

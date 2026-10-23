@@ -15,8 +15,9 @@ export const ENEMY = {
   ragePerFuse: 0.07,
   catchRadius: 1.1,
   fovHalf: (65 * Math.PI) / 180,
-  viewDistLight: 16,
-  viewDistDark: 8,
+  /** Update 0.4.4 — brighter ward + 1.3× flashlight: it sees you 1.3× further (was 16 / 8). */
+  viewDistLight: 16 * 1.3,
+  viewDistDark: 8 * 1.3,
   crouchSightMul: 0.7,
   senseRadius: 3, // sees you at any angle this close
   alertRise: 2.4,
