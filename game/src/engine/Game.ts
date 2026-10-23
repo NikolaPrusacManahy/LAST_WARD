@@ -23,7 +23,7 @@ import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools'
 import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
 import { RepairState, SKILL, cancelCheck, createRepair, stepRepair } from '../state/skillCheck';
 import { lockerSpots, panelSpots, panelSwitches, propFront } from '../world/props';
-import { HideState, LOCKER, clampLook, doorOpen, hiddenFrom, insideness, requestExit, startHide, stepHide } from '../state/hiding';
+import { HideState, LOCKER, clampLook, doorOpen, hiddenFrom, insideness, peekLean, requestExit, startHide, stepHide } from '../state/hiding';
 import { createPropsView, PropsView } from './propsView';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
@@ -586,7 +586,7 @@ export class Game {
     // Camera + flashlight follow in real time, so the look-back swing isn't slowed by its own slow motion.
     player.injured = this.injured; // Update 0.9.1 — heavier bob and a limp
     // Update 0.9.5 — shut in a locker it's nearly black: only a trace of the glow around your eyes.
-    player.updateView(this.realDt, step.gait, status, this.t, 0, this.hide ? 0.1 + 0.9 * (1 - insideness(this.hide)) : 1);
+    player.updateView(this.realDt, step.gait, status, this.t, 0, this.hide ? 0.1 + Math.max(0.9 * (1 - insideness(this.hide)), 0.5 * (peekLean(this.hide.peek).forward / LOCKER.leanForward)) : 1); // (0.9.5.1: head out, some of the glow back)
     this.easeCameraBack(this.realDt);
     // Update 0.6 — injured: a grunt every 5–7 s.
     if (this.injured) {
@@ -620,6 +620,12 @@ export class Game {
       const outside = { x: l.x + f.x * LOCKER.exitOut, z: l.z + f.z * LOCKER.exitOut };
       const k = insideness(this.hide);
       player.pos = { x: outside.x + (inside.x - outside.x) * k, z: outside.z + (inside.z - outside.z) * k };
+      // Update 0.9.5.1 — peeking: your head leans out through the gap (the door hinges on your left, so
+      // the gap opens on your right) and tilts with it.
+      const lean = peekLean(this.hide.peek);
+      const right = { x: -f.z, z: f.x }; // your right, looking out of the locker
+      player.pos = { x: player.pos.x + f.x * lean.forward + right.x * lean.side, z: player.pos.z + f.z * lean.forward + right.z * lean.side };
+      player.leanRoll = lean.roll;
       const facing = Math.atan2(-f.x, -f.z); // looking out of the locker
       if (this.hide.phase === 'entering') {
         // Step in and turn round to face the door.
@@ -659,6 +665,7 @@ export class Game {
     const f = propFront(l);
     this.player.pos = { x: l.x + f.x * LOCKER.exitOut, z: l.z + f.z * LOCKER.exitOut };
     this.props.setLockerDoor(h.locker, 0);
+    this.player.leanRoll = 0;
     this.player.crouching = grabbed ? false : this.hideWasCrouching;
     if (grabbed) {
       const d = dist(this.player.pos, this.enemy.pos) || 1;

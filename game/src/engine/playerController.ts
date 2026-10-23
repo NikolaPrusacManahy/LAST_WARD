@@ -44,6 +44,8 @@ export class PlayerController {
   injured = false;
   /** Update 0.9.3 — Easy: the light switch drives night vision goggles; the flashlight beam stays dark. */
   nightVision = false;
+  /** Update 0.9.5.1 — head tilt while peeking out of a locker (rad, + = leaning right). */
+  leanRoll = 0;
   /** Update 0.4.1 — from the FOV setting. */
   baseFov = DEFAULT_SETTINGS.fov;
   /** Update 0.5.4 — extra camera yaw while looking back over your shoulder (0..π). */
@@ -148,7 +150,7 @@ export class PlayerController {
     const rx = Math.cos(this.yaw);
     const rz = -Math.sin(this.yaw);
     this.camera.position.set(this.pos.x + rx * b.side, this.rise + this.eye + b.y + jy, this.pos.z + rz * b.side);
-    this.camera.rotation.set(this.pitch - b.nod + jy * 0.5, this.yaw + this.lookBackYaw + jx, -b.roll + jx * 0.5, 'YXZ');
+    this.camera.rotation.set(this.pitch - b.nod + jy * 0.5, this.yaw + this.lookBackYaw + jx, -b.roll - this.leanRoll + jx * 0.5, 'YXZ');
     const fov = this.baseFov + this.bobAmp.fov;
     if (Math.abs(this.camera.fov - fov) > 0.01) {
       this.camera.fov = fov;

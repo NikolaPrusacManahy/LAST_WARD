@@ -19,7 +19,20 @@ export const LOCKER = {
   /** Where your eyes are: this far behind the locker's middle; where you stand when you get out (m). */
   eyeBack: 0.06,
   exitOut: 1.05,
+  /** Update 0.9.5.1 — peeking leans your head out through the gap: forward past the door's edge, sideways
+   *  towards the open side, with a tilt (m, m, rad) at the full 60°. */
+  leanForward: 0.4,
+  leanSide: 0.17,
+  leanRoll: 0.16,
 };
+
+/** Update 0.9.5.1 — how far your head leans out for a peek of `peek` (0..1): eases in so the first
+ *  creak of the door is just the door, then your head follows it out. */
+export function peekLean(peek: number): { forward: number; side: number; roll: number } {
+  const c = Math.max(0, Math.min(1, peek));
+  const k = c * c * (3 - 2 * c);
+  return { forward: LOCKER.leanForward * k, side: LOCKER.leanSide * k, roll: LOCKER.leanRoll * k };
+}
 
 export type HidePhase = 'entering' | 'inside' | 'exiting';
 

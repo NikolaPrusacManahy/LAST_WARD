@@ -1,6 +1,10 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.5
+## Current version: 0.9.5.1
+
+- **Peeking leans you out.** As the locker door creaks open, your head follows it: forward past the door's edge and sideways into the gap (the door hinges on your left, so you lean right), with a tilt of the head. At the full 60° you're looking down the room, not at the inside of the door. Some of the glow round your eyes comes back while your head is out. It still doesn't give you away (`state/hiding.ts` `peekLean`).
+
+## 0.9.5
 
 - **Lockers to hide in** (`state/hiding.ts`; seven in Ward 13, at least one in every quarter). Look at one and left click to step in: the door swings open, you turn round, it shuts. Inside it's nearly black: the flashlight / goggles go off (and come back on when you get out). You crouch down in there (eyes at crouch height, well under the roof), and stand back up as you were when you get out.
   - **Peek:** hold Space and W together and the door creaks open slowly, up to 60°, then stops. Let go and it swings shut.

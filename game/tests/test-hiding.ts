@@ -6,7 +6,7 @@ import { lockerSpots, placedProps, propBlockers, propFront } from '../src/world/
 import { findTarget } from '../src/world/interact';
 import { promptFor } from '../src/state/prompts';
 import { createProgress } from '../src/state/objectives';
-import { LOCKER, clampLook, doorOpen, hiddenFrom, insideness, requestExit, startHide, stepHide } from '../src/state/hiding';
+import { LOCKER, clampLook, doorOpen, hiddenFrom, insideness, peekLean, requestExit, startHide, stepHide } from '../src/state/hiding';
 import { createEnemy, stepEnemy, visibility } from '../src/world/enemyAI';
 import { overlapsWall } from '../src/world/collision';
 import { PLAYER } from '../src/state/playerRules';
@@ -54,6 +54,10 @@ section('Hiding (0.9.5)');
   check('peeking is slow (not fully open after a second)', p.peek < 0.6 && p.peek > 0.2);
   for (let i = 0; i < 600; i++) p = stepHide(p, { dt: 1 / 60, peekHeld: true, seen: false }).state;
   check('the door stops at 60°', Math.abs(doorOpen(p) - Math.PI / 3) < 1e-9);
+  // 0.9.5.1 — and your head leans out through the gap, tilted.
+  const full = peekLean(p.peek);
+  check('peeking leans your head out past the door, to the open side, tilted', full.forward === LOCKER.leanForward && full.side > 0 && full.roll > 0);
+  check('the first creak is just the door (head barely moves)', peekLean(0.1).forward < LOCKER.leanForward * 0.05);
   for (let i = 0; i < 60; i++) p = stepHide(p, { dt: 1 / 60, peekHeld: false, seen: false }).state;
   check('let go: it swings shut', p.peek === 0);
   check('peeking doesn\'t give you away', hiddenFrom(p));
