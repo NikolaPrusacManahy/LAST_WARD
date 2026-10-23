@@ -1,6 +1,13 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.3
+## Current version: 0.9.4
+
+- **The Patient's sounds behind walls are now the right loudness** (`world/soundPath.ts`, `audio/spatial.ts` `enemyHearing`). Before, a wall only took off 45% and footsteps got a 1.5× boost back through it, so two walls away it sounded nearly as close as in the open. Now its steps and breathing take the louder of two ways to you:
+  - straight through the walls: each wall keeps only 30% (about −10 dB) and turns it into a dull thud;
+  - round through the halls: the longer walking distance, minus 45% for every right angle it bends, a bit clearer, and it seems to come from the corner you can see (you hear it coming down the corridor).
+- Examples: in the generator room with one wall between you, about 2.8× quieter than before; two walls away, about 5–6× quieter, and fainter than it would be 18 m down an open corridor. In the open nothing changes.
+
+## 0.9.3
 
 - **The flashlight reaches 1.5× further** (`state/lightLevels.ts`, `FLASHLIGHT_BEAM` / `flashlightFog`). The beam's cut-off goes from 32 to 48 m, and its falloff is gentler: the same brightness at arm's length, and a wall 1.5× as far gets what one at 15 m used to. The ward's fog (its darkness) also thins by 1.5× while the beam is on, easing in and out with it; without that, the fog would still hide anything past ~20 m however brightly lit. The Patient standing 21 m down a hall is now visible in the beam; before, it wasn't.
 - Trade-off to keep in mind: with the flashlight on it already sees you from about 21 m, so you now see it at roughly the same range.

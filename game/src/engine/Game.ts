@@ -26,7 +26,8 @@ import { panelSpots, panelSwitches } from '../world/props';
 import { createPropsView, PropsView } from './propsView';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
-import { enemyMix } from '../audio/spatial';
+import { EnemyMix, enemyHearing } from '../audio/spatial';
+import { SoundPath, soundPath } from '../world/soundPath';
 import { lineOfSight } from '../world/lineOfSight';
 import { freeBehind } from '../world/collision';
 import { BODY_RADIUS } from './playerAnim';
@@ -101,6 +102,9 @@ export class Game {
   /** World clock: runs slower during the look-back slow motion (this.t stays real time). */
   private worldT = 0;
   private realDt = 0;
+  /** Update 0.9.4 — the last worked-out way its sound reaches you. */
+  private sound: SoundPath | null = null;
+  private soundIn = 0;
   /** Update 0.9.3 — fog density before the flashlight, and the beam eased 0..1. */
   private beam = 0;
   /** Update 0.6 — two lives; the first catch throws you and leaves you injured. */
@@ -383,6 +387,29 @@ export class Game {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Update 0.9.4 — how its sound reaches you, re-worked out a few times a second (a path search). */
+  private enemyHearing(dt: number): EnemyMix {
+    this.soundIn -= dt;
+    if (!this.sound || this.soundIn <= 0) {
+      this.soundIn = 0.15;
+      this.sound = soundPath(this.level, this.enemy.pos, this.player.pos);
+    }
+    return enemyHearing(this.sound);
+  }
+
+  /** Where its sound seems to come from: itself, or the corner it comes round (same distance away, so
+   *  the panner's falloff is unchanged and `mix.gain` does the rest). */
+  private enemySoundPos(mix: EnemyMix) {
+    const real = this.enemy3D();
+    const via = this.sound?.via;
+    if (!mix.around || !via) return real;
+    const p = this.player.pos;
+    const d = dist(p, via) || 1;
+    const far = dist(p, this.enemy.pos);
+    const at = this.toWorld({ x: p.x + ((via.x - p.x) / d) * far, z: p.z + ((via.z - p.z) / d) * far });
+    return { x: at.x, y: real.y, z: at.z };
+  }
+
   private enemy3D() {
     const w = this.toWorld(this.enemy.pos);
     return { x: w.x, y: w.y + 1.6, z: w.z };
@@ -517,10 +544,12 @@ export class Game {
     this.enemyStepAccum += moved;
     const chasing = this.enemy.mode === 'chase';
     // Update 0.4.1 — enemy sounds get darker with distance and muffled behind walls.
-    const mix = enemyMix(dist(this.enemy.pos, player.pos), !lineOfSight(this.level, this.enemy.pos, player.pos));
+    // Update 0.9.4 — properly: through each wall, or round through the halls (world/soundPath.ts).
+    const mix = this.enemyHearing(dt);
+    const heardAt = this.enemySoundPos(mix);
     if (this.enemyStepAccum > (chasing ? 1.4 : 1.0)) {
       this.enemyStepAccum = 0;
-      this.audio.enemyStep(this.enemy3D(), chasing, mix);
+      this.audio.enemyStep(heardAt, chasing, mix);
     }
     if (events.includes('spotted')) {
       this.audio.enemyScream(this.enemy3D());
@@ -548,7 +577,7 @@ export class Game {
       }
     }
     this.audio.setListener(this.camAbs(), this.camForward());
-    this.audio.updateEnemy(this.enemy3D(), chasing, mix);
+    this.audio.updateEnemy(heardAt, chasing, mix);
     this.audio.tickFear(dt, this.fear, chasing);
     this.audio.tickAmbient(dt, this.camAbs());
   }

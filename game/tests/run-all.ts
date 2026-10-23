@@ -19,5 +19,6 @@ import './test-floors';
 import './test-props';
 import './test-panels';
 import './test-difficulty';
+import './test-hearing';
 
 process.exit(summary() > 0 ? 1 : 0);

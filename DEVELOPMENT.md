@@ -29,6 +29,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2) | yes |
 | `world/interact.ts` | What's in reach and in front of the player (0.9: also the four electrical panels; 0.9.1: their switches, and what you aim at wins over what's closer) | yes |
 | `world/props.ts` | Real props: sizes, which way each faces, `placeProp` (cell + wall it backs onto), collision circles, `findProp` (0.8); `panelSpots` / `panelSwitches` (panel i and its switch, level order) and `brickLining` (brick on every wall of `brickRooms`) (0.9) | yes |
+| `world/soundPath.ts` | How The Patient's sound reaches you: walls through, the way round (length, bends), the corner it comes from (0.9.4) | yes |
 | `world/rng.ts` | Seeded RNG | yes |
 | `world/content/level01.ts` | Ward 13 map + notes + wall notes (0.6.3) | data |
 | `world/content/levels.ts` | Play order of the levels (0.7) | data |
