@@ -1,6 +1,12 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.6.2
+## Current version: 0.6.3
+
+- **Waking up:** after "Click to begin" the same intro text (03:14 AM…) stays on black and fades over 0.9 s while your eyes are shut. Then the eyelids open (1.4 s, heavy, same curve as after a throw) onto the floor: you're lying face down where you spawn, the get-up clip held on its first pose, cheek to the tiles. 1 s of lying there, then you get up (the get-up clip, 5 s) with the grunt cut to 1 s, and the run starts: "Find a way out." + the controls card. Control returns ~8.3 s after the click. The Patient is frozen during this. The flashlight and the glow around you are dim on the floor (full strength point-blank turned the frame white) and come up as you stand. Esc pauses it like a running game. `state/wakeSequence.ts` (timeline), `engine/wakeScene.ts` (camera = your body's eyes), phase `'waking'`.
+- **Note on the wall:** straight ahead as you step out of the spawn room (wall cell 3,6, facing the corridor): a torn page, "It can hear you...". New `wallNotes` in level files (wall cell + face + text, checked by `parseLevel`), drawn by `wallNoteTexture()`.
+- **The victim's note:** the table note with the "it hears everything, walk slowly" advice is now a previous victim's story: thrown five metres down the corridor, his leg broken against the wall, left shaking. Still shuffled onto a random table like the others.
+
+## 0.6.2
 
 - **Studio intro:** the credit screen is now two cards. First your studio GIF (`studio_gif.gif` at the project root → `public/ui/studio.gif`): "DEVELOPED BY / NIKO GAME COLLECTION" types itself out (done at 1.6 s), holds, and fades (4.0 s in all). Then the full-screen [F11] and headphones tips fade in, hold 3 s and fade into the main menu. Black stays solid between the cards. A click fades whichever card is up within 0.5 s.
 - The GIF was cropped to the text (420×64, shown at up to 720 px wide), set to **play once** (the original loops forever and would restart before the fade), 61 KB. Its background is exactly the game's black, so it sits seamlessly. The studio card's clock starts when the GIF has loaded (fallback 1.5 s); one stalled frame counts at most 0.25 s.

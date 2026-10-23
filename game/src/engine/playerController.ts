@@ -155,7 +155,7 @@ export class PlayerController {
     if (shake > 0.5) on *= Math.random() < 0.5 ? 0.1 : 1;
     const strength = on * (0.55 + 0.45 * Math.min(1, status.battery / 40));
     this.flashlight.intensity = LIGHT.flashlight * strength * lightMul;
-    this.spill.intensity = LIGHT.eyeGlow + LIGHT.eyeGlowFlashlight * strength;
+    this.spill.intensity = (LIGHT.eyeGlow + LIGHT.eyeGlowFlashlight * strength) * lightMul;
   }
 
   dispose(scene: THREE.Scene) {

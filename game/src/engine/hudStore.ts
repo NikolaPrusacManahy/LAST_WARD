@@ -16,6 +16,8 @@ export interface HudState {
   fear: number;
   time: number;
   started: boolean;
+  /** Update 0.6.3 — the intro text's opacity while it fades on black as you wake (0 once gone). */
+  intro: number;
   /** Death / escape sequence: hide the HUD. */
   cinematic: boolean;
   /** Update 0.3 — F2 debug panel lines, or null when closed. */
@@ -38,6 +40,7 @@ export const initialHud: HudState = {
   fear: 0,
   time: 0,
   started: false,
+  intro: 1,
   cinematic: false,
   debug: null,
   bindings: DEFAULT_BINDINGS,

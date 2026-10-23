@@ -26,8 +26,10 @@ export const LEVEL_01: LevelDef = {
   ],
   notes: [
     'NIGHT LOG, 03:12 — Patient in 13 is out of restraints again. Orderly says it walks when the lights go out. Keep the generator running. Whatever happens, keep it running.',
-    'To whoever finds this: it can\'t see well in the dark, but it hears EVERYTHING. Walk slowly. Crouch if it\'s close. Don\'t run unless it\'s already seen you.',
+    'I don\'t know who\'ll read this. It picked me up like I weighed nothing — one hand, by the collar — and threw me down the corridor. Five metres, maybe more. I heard my leg go before I hit the wall. I lay there with my eyes shut while it walked away, like it was done with me. Like it was saving me for later. I can\'t stop shaking. If it gets hold of you, it won\'t let go twice.',
     'Maintenance: the generator takes three fuses. I hid the spares around the ward so it couldn\'t pull them. The exit door is on the mag-lock. No power, no way out.',
     'It got faster every time someone fixed something. Like it knew. Like it was angry we were trying to leave.',
   ],
+  // Update 0.6.3 — straight ahead as you leave the spawn room (its door is cell 3,4; this wall closes the corridor).
+  wallNotes: [{ cell: { col: 3, row: 6 }, face: 'north', text: 'It can hear you...' }],
 };

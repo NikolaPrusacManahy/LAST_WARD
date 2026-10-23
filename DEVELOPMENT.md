@@ -29,7 +29,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2) | yes |
 | `world/interact.ts` | What's in reach and in front of the player | yes |
 | `world/rng.ts` | Seeded RNG | yes |
-| `world/content/level01.ts` | Ward 13 map + notes | data |
+| `world/content/level01.ts` | Ward 13 map + notes + wall notes (0.6.3) | data |
 | `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve | yes |
 | `state/objectives.ts` | Fuses → generator → exit chain, objective text | yes |
 | `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time | yes (+ localStorage I/O) |
@@ -47,7 +47,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/lighting.ts` | Lamp flicker before power, steady after; item spin | no |
 | `state/lightLevels.ts` | Every light level (flashlight, fill, fog, eye glow) + `atmosphereFor(powered, debug)` | yes |
 | `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades | no |
-| `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, signs, flashlight cookie) | no |
+| `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, wall notes, signs, flashlight cookie) | no |
 | `engine/input.ts` | Keys by `code`, mouse buttons as `Mouse0..4`, mouse deltas under pointer lock; `action(a)` / `actionPressed(a)` read `Settings.bindings` | no |
 | `state/bindings.ts` | Actions, `DEFAULT_BINDINGS` (left click interact, right click flashlight), `rebind` (clash = swap), reserved keys, `hydrateBindings` | yes |
 | `state/inputIcons.ts` | Code → Kenney icon name + label (`glyphFor`), the icon list `tools/prepare-input-icons.ts` ships | yes |
@@ -56,6 +56,8 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/caughtSequence.ts` | Lives (2), caught timeline + cues, flight curve, thrown clip timing, dazed blink, injured tint, grunt delay (0.6) | yes |
 | `world/throwLanding.ts` | Where you land: behind the enemy, up to 3 m, room for a lying body, never through a wall (0.6) | yes |
 | `engine/caughtScene.ts` | Films the caught sequence: camera in its hands, then your body's eyes (`PlayerBody.cinematic` / `eyes`) | no |
+| `state/wakeSequence.ts` | Start-of-run wake-up timeline: intro text fade, eyelids, 1 s wait, get-up, 1 s grunt, dim torch (0.6.3) | yes |
+| `engine/wakeScene.ts` | Films the wake-up from your body's eyes (get-up clip held, then played) | no |
 | `state/lookBack.ts` | Look back on the run: 180° camera swing, slow-mo burst + cooldown, body hide (0.5.4) | yes |
 | `world/itemShuffle.ts` | Shuffles fuses / batteries / notes across the item cabinets each run (0.5.4) | yes |
 | `state/creditIntro.ts` + `screens/CreditIntro.tsx` | Boot credit cards: studio GIF (3.2 s + 0.8 s fade), then the tips (3 s + 1 s fade); click → 0.5 s fade of the current card | yes / no |

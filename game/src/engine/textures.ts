@@ -168,6 +168,51 @@ export function noteTexture(): THREE.CanvasTexture {
   return toTexture(c);
 }
 
+/** Update 0.6.3 — a torn page pinned to a wall, a short line scrawled on it (Special Elite, redrawn once the font loads). */
+export function wallNoteTexture(text: string): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 384;
+  c.height = 256;
+  const ctx = c.getContext('2d')!;
+  const draw = () => {
+    ctx.clearRect(0, 0, c.width, c.height);
+    // Paper with a ragged bottom edge.
+    ctx.fillStyle = '#d8d2bc';
+    ctx.beginPath();
+    ctx.moveTo(8, 10);
+    ctx.lineTo(376, 6);
+    ctx.lineTo(372, 228);
+    for (let x = 372; x > 10; x -= 18) ctx.lineTo(x - 9, 236 + ((x * 13) % 14) - 7);
+    ctx.lineTo(10, 240);
+    ctx.closePath();
+    ctx.fill();
+    // Grime and a pin.
+    ctx.fillStyle = 'rgba(70,55,30,0.18)';
+    ctx.fillRect(10, 160, 362, 70);
+    ctx.fillStyle = 'rgba(110,12,12,0.55)';
+    ctx.beginPath(); ctx.arc(300, 200, 18, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5a5a5a';
+    ctx.beginPath(); ctx.arc(192, 22, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a1410';
+    ctx.font = '54px "Special Elite", "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.save();
+    ctx.translate(192, 124);
+    ctx.rotate(-0.05);
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  };
+  draw();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  document.fonts?.load('54px "Special Elite"').then(() => {
+    draw();
+    t.needsUpdate = true;
+  }, () => undefined);
+  return t;
+}
+
 export function signTexture(text: string, color: string): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 256;

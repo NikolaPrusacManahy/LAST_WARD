@@ -13,14 +13,27 @@ interface Props {
 export function Hud({ store, hidden, onBegin }: Props) {
   const h = useHud(store);
 
+  const introText = (
+    <>
+      <span className="lw-intro-time">03:14 AM</span>
+      <span className="lw-intro-line">You wake up on a gurney in Ward 13.</span>
+      <span className="lw-intro-line">The power is out. Something is breathing down the hall.</span>
+    </>
+  );
   if (!h.started) {
     return (
       <button className="lw-intro" onClick={onBegin}>
-        <span className="lw-intro-time">03:14 AM</span>
-        <span className="lw-intro-line">You wake up on a gurney in Ward 13.</span>
-        <span className="lw-intro-line">The power is out. Something is breathing down the hall.</span>
+        {introText}
         <span className="lw-intro-cta">Click to begin</span>
       </button>
+    );
+  }
+  // Update 0.6.3 — the same text stays on black and fades as your eyes start to open.
+  if (h.intro > 0 && !hidden) {
+    return (
+      <div className="lw-intro lw-intro-waking" style={{ opacity: h.intro }}>
+        {introText}
+      </div>
     );
   }
 

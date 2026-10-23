@@ -183,8 +183,18 @@ export class AudioEngine {
   floorImpact() {
     if (!this.playSample('floor_impact', { gain: 1.1 })) this.synthFootstep('sprint');
   }
-  grunt() {
-    this.playSample('grunt', { gain: 0.8, rate: this.jitter(0.05) });
+  /** Update 0.6.3 — `maxSeconds` cuts it short with a quick fade (the 1 s grunt as you first get up). */
+  grunt(maxSeconds?: number) {
+    if (maxSeconds === undefined) {
+      this.playSample('grunt', { gain: 0.8, rate: this.jitter(0.05) });
+      return;
+    }
+    const g = this.ctx.createGain();
+    g.connect(this.master);
+    const end = this.now + maxSeconds;
+    g.gain.setValueAtTime(1, end - 0.15);
+    g.gain.linearRampToValueAtTime(0, end);
+    this.playSample('grunt', { gain: 0.8, rate: this.jitter(0.05), to: g })?.stop(end + 0.02);
   }
 
   resume() {

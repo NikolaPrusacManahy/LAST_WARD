@@ -1,7 +1,7 @@
 // Turns a parsed Level into three.js meshes. Rendering only — rules live in world/.
 import * as THREE from 'three';
-import { Level, TILE, WALL_HEIGHT, cellCenter, isSolid, Cell, itemPos } from '../world/level';
-import { ceilingTexture, floorTexture, noteTexture, signTexture, wallTexture, WallVariant } from './textures';
+import { Level, TILE, WALL_HEIGHT, cellCenter, isSolid, Cell, itemPos, FACE_DIR } from '../world/level';
+import { ceilingTexture, floorTexture, noteTexture, signTexture, wallNoteTexture, wallTexture, WallVariant } from './textures';
 
 export interface LampView {
   light: THREE.PointLight;
@@ -193,6 +193,22 @@ export function buildLevel(level: Level): LevelView {
   sign.position.set(face.x + es.dc * 0.03, 2.75, face.z + es.dr * 0.03);
   sign.lookAt(sign.position.x + es.dc, sign.position.y, sign.position.z + es.dr);
   root.add(sign);
+  // --- Update 0.6.3: notes pinned to walls (level.wallNotes), slightly off the face they hang on.
+  const wallNoteGeo = track(new THREE.PlaneGeometry(0.96, 0.64));
+  for (const w of level.wallNotes) {
+    const d = FACE_DIR[w.face];
+    const cc = cellCenter(w.cell);
+    const mat = track(
+      new THREE.MeshStandardMaterial({ map: track(wallNoteTexture(w.text)), transparent: true, alphaTest: 0.5, roughness: 0.95, emissive: 0x3a3628, emissiveIntensity: 0.35 }),
+    );
+    mat.emissiveMap = mat.map;
+    const paper = new THREE.Mesh(wallNoteGeo, mat);
+    paper.position.set(cc.x + d.dc * (TILE / 2 + 0.015), 1.55, cc.z + d.dr * (TILE / 2 + 0.015));
+    paper.lookAt(paper.position.x + d.dc, paper.position.y, paper.position.z + d.dr);
+    paper.rotation.z += 0.04;
+    root.add(paper);
+  }
+
   const exitDoorSlide = new THREE.Vector3(es.dr !== 0 ? 1.7 : 0, 0, es.dc !== 0 ? 1.7 : 0);
 
   return {

@@ -7,6 +7,8 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   background: rgba(0, 0, 0, 0.88); text-align: center; cursor: pointer;
 }
+/* Update 0.6.3 — the same text left on black (the shut eyelids) while you wake; it can't be clicked. */
+.lw-intro-waking { background: transparent; cursor: default; pointer-events: none; }
 .lw-intro-time { font-family: var(--lw-type); font-size: 54px; color: var(--lw-blood); letter-spacing: 0.08em; margin-bottom: 12px; }
 .lw-intro-line { font-family: var(--lw-type); font-size: 20px; color: var(--lw-bone); opacity: 0; animation: lw-fade-in 1.2s forwards; }
 .lw-intro-line:nth-of-type(3) { animation-delay: 0.9s; }

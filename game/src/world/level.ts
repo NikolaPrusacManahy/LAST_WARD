@@ -25,10 +25,27 @@ export interface LevelItem {
   noteIndex?: number;
 }
 
+/** Update 0.6.3 — which side of a wall cell a pinned note hangs on (the open floor it faces). */
+export type WallFace = 'north' | 'south' | 'east' | 'west';
+export const FACE_DIR: Record<WallFace, { dc: number; dr: number }> = {
+  north: { dc: 0, dr: -1 },
+  south: { dc: 0, dr: 1 },
+  east: { dc: 1, dr: 0 },
+  west: { dc: -1, dr: 0 },
+};
+
+/** Update 0.6.3 — a scrap of paper pinned to a wall (decoration you read from a distance, not an item). */
+export interface WallNote {
+  cell: Cell;
+  face: WallFace;
+  text: string;
+}
+
 export interface LevelDef {
   name: string;
   map: string[];
   notes: string[];
+  wallNotes?: WallNote[];
 }
 
 export interface Level {
@@ -44,6 +61,7 @@ export interface Level {
   generator: Cell;
   exit: Cell;
   notes: string[];
+  wallNotes: WallNote[];
 }
 
 /**
@@ -99,7 +117,17 @@ export function parseLevel(def: LevelDef): Level {
   }
   if (noteCount > def.notes.length) throw new Error('Level has more N tiles than note texts');
 
-  return { name: def.name, cols, rows, solid, playerStart, enemyStart, items, lamps, generator, exit, notes: def.notes };
+  const wallNotes = def.wallNotes ?? [];
+  for (const w of wallNotes) {
+    const d = FACE_DIR[w.face];
+    const wallAt = solid[w.cell.row * cols + w.cell.col];
+    const c = w.cell.col + d.dc;
+    const r = w.cell.row + d.dr;
+    const open = c >= 0 && r >= 0 && c < cols && r < rows && !solid[r * cols + c];
+    if (!wallAt || !open) throw new Error(`Wall note at ${w.cell.col},${w.cell.row} must be on a wall facing floor`);
+  }
+
+  return { name: def.name, cols, rows, solid, playerStart, enemyStart, items, lamps, generator, exit, notes: def.notes, wallNotes };
 }
 
 export function isSolid(level: Level, col: number, row: number): boolean {

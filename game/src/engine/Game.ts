@@ -6,6 +6,8 @@ import { Level, cellCenter, dist, itemPos, parseLevel, worldToCell } from '../wo
 import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, teleportAway, visibility } from '../world/enemyAI';
 import { CAUGHT, LIVES, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
 import { CaughtScene, createCaughtScene } from './caughtScene';
+import { WakeScene, createWakeScene } from './wakeScene';
+import { WAKE, wakeEyelids, wakeLight, wakeTextOpacity } from '../state/wakeSequence';
 import { shuffleItems } from '../world/itemShuffle';
 import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackTimeScale, lookBackYaw, stepLookBack } from '../state/lookBack';
 import { createRng } from '../world/rng';
@@ -79,6 +81,7 @@ export class Game {
   private lives = LIVES;
   private injured = false;
   private caught: CaughtScene | null = null;
+  private wake: WakeScene | null = null;
   private impactT = -99;
   private gruntIn = 0;
   private camReturn: { pos: THREE.Vector3; quat: THREE.Quaternion; t: number } | null = null;
@@ -158,10 +161,40 @@ export class Game {
     void this.audio.resume();
     this.audio.startAmbience();
     this.audio.startEnemyBreath(this.enemy3D());
-    this.phase = 'playing';
-    this.toastMsg('Find a way out.', 4);
-    this.controlsLeft = CONTROLS_CARD_SECONDS; // Update 0.5 — controls card, Enter closes it
+    // Update 0.6.3 — you come to on the floor first (engine/wakeScene.ts); the run starts once you're up.
+    this.phase = 'waking';
+    this.wake = createWakeScene({
+      camera: this.camera,
+      body: () => this.body,
+      pos: { ...this.player.pos },
+      yaw: this.player.yaw,
+      eyeHeight: PLAYER.eyeHeight,
+    });
     void this.lockPointer();
+  }
+
+  private updateWaking(dt: number) {
+    const scene = this.wake;
+    if (!scene) return;
+    for (const cue of scene.update(dt)) {
+      if (cue === 'getUp') this.audio.grunt(WAKE.gruntSeconds);
+      else if (cue === 'done') {
+        const view = scene.lastView();
+        this.wake = null;
+        this.fx.set({ lids: 0 });
+        this.camReturn = { pos: view.pos, quat: view.quat, t: 0 };
+        this.player.pitch = 0;
+        this.input.clear();
+        this.phase = 'playing';
+        this.toastMsg('Find a way out.', 4);
+        this.controlsLeft = CONTROLS_CARD_SECONDS; // Update 0.5 — controls card, Enter closes it
+        return;
+      }
+    }
+    this.fx.set({ lids: wakeEyelids(scene.t) });
+    this.player.updateLight(dt, this.status, 0, wakeLight(scene.t));
+    this.audio.setListener(this.camera.position, this.camForward());
+    this.audio.updateEnemy(this.enemy3D(), false);
   }
 
   /** Resume after pause (also needs a click). */
@@ -202,7 +235,7 @@ export class Game {
     const locked = document.pointerLockElement === this.renderer.domElement;
     if (locked && this.phase === 'paused') {
       this.phase = this.resumePhase;
-    } else if (!locked && (this.phase === 'playing' || this.phase === 'caught')) {
+    } else if (!locked && (this.phase === 'playing' || this.phase === 'caught' || this.phase === 'waking')) {
       this.resumePhase = this.phase;
       this.phase = 'paused';
       this.input.clear();
@@ -249,11 +282,13 @@ export class Game {
       this.lookBack = createLookBack();
     }
     this.player.lookBackYaw = lookBackYaw(this.lookBack);
-    if (this.phase !== 'caught') this.body?.setVisible(!hideBodyWhileLookingBack(this.lookBack));
+    const scripted = this.phase === 'caught' || this.phase === 'waking';
+    if (!scripted) this.body?.setVisible(!hideBodyWhileLookingBack(this.lookBack));
     this.worldT += wdt;
     this.realDt = dt;
 
     if (this.phase === 'playing') this.updatePlaying(wdt);
+    else if (this.phase === 'waking') this.updateWaking(dt);
     else if (this.phase === 'caught') this.updateCaught(dt);
     else if (this.phase === 'dying') this.updateDying(dt);
     else if (this.phase === 'escaping') this.updateEscaping(dt);
@@ -262,7 +297,7 @@ export class Game {
       this.enemyView.update(this.enemy.pos, this.enemy.dir, this.enemy.mode, 0, this.worldT, this.enemy.windup > 0);
     }
 
-    if (this.phase !== 'caught') this.body?.update({
+    if (!scripted) this.body?.update({
       pos: this.player.pos,
       yaw: this.player.yaw,
       pitch: this.player.pitch,
@@ -569,6 +604,7 @@ export class Game {
       fear: Math.round(this.fear * 20) / 20,
       time: Math.floor(this.playTime),
       started: this.phase !== 'intro',
+      intro: this.phase === 'intro' ? 1 : this.phase === 'waking' && this.wake ? Math.round(wakeTextOpacity(this.wake.t) * 20) / 20 : 0,
       debug: this.debugView.enabled
         ? debugLines({
             fps: this.fps,
@@ -586,7 +622,7 @@ export class Game {
             injured: this.injured,
           })
         : null,
-      cinematic: this.phase === 'caught' || this.phase === 'dying' || this.phase === 'escaping' || this.phase === 'over',
+      cinematic: this.phase === 'waking' || this.phase === 'caught' || this.phase === 'dying' || this.phase === 'escaping' || this.phase === 'over',
     });
   }
 
@@ -621,7 +657,7 @@ export class Game {
     else this.startDying();
   }
   debugState() {
-    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, enemy: { ...this.enemy, path: undefined }, progress: this.progress, status: this.status, pos: this.player.pos };
+    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, enemy: { ...this.enemy, path: undefined }, progress: this.progress, status: this.status, pos: this.player.pos };
   }
 
   /** Update 0.3 — F2: full light, no fog or screen FX, enemy marked through walls. */

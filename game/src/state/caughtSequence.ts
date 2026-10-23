@@ -96,9 +96,14 @@ export function eyelids(t: number): number {
     const flutter = 0.3 * Math.sin(k * Math.PI * 3) * (1 - k); // half-close, drag open, give in
     return Math.max(0, Math.min(1, k * k * (3 - 2 * k) + flutter));
   }
-  const k = Math.min(1, sinceUp / EYELIDS.open);
+  return openingLids(sinceUp / EYELIDS.open);
+}
+
+/** Lids opening, k = 0 → 1 over the opening time: first crack of light, a droop, then open. */
+export function openingLids(k: number): number {
+  if (k <= 0) return 1;
   if (k >= 1) return 0;
-  const bump = 0.22 * Math.sin(k * Math.PI * 2) * (1 - k); // first crack of light, droop, then open
+  const bump = 0.22 * Math.sin(k * Math.PI * 2) * (1 - k);
   return Math.max(0, Math.min(1, 1 - k * k * (3 - 2 * k) + bump));
 }
 
