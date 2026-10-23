@@ -52,6 +52,7 @@ PLAN = {
     'electric_panel_logic/skill_check_great': ('oneshot', -16),
     'electric_panel_logic/panel_explode': ('oneshot', -10),
     'electric_panel_logic/breaker_switch': ('oneshot', -15),
+    'night_vision/deploy': ('oneshot', -16),  # Update 0.9.3 — Easy: goggles on
 }
 OUT_NAMES = {
     'footSteps_player': 'step_player',
@@ -67,6 +68,7 @@ OUT_NAMES = {
     'electric_panel_logic/skill_check_great': 'skill_check_great',
     'electric_panel_logic/panel_explode': 'panel_explode',
     'electric_panel_logic/breaker_switch': 'breaker_switch',
+    'night_vision/deploy': 'night_vision_on',
 }
 
 

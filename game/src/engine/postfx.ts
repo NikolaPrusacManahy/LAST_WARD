@@ -18,6 +18,7 @@ const HorrorShader = {
     uWhite: { value: 0 },
     uBlack: { value: 0 },
     uClean: { value: 0 }, // Update 0.3 — F2 debug view: no grain / vignette / aberration
+    uNight: { value: 0 }, // Update 0.9.3 — Easy: night vision goggles
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -25,7 +26,7 @@ const HorrorShader = {
   `,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
-    uniform float uTime, uFear, uGrain, uRed, uWhite, uBlack, uClean, uInjured, uLids;
+    uniform float uTime, uFear, uGrain, uRed, uWhite, uBlack, uClean, uInjured, uLids, uNight;
     varying vec2 vUv;
     float rand(vec2 co) { return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }
     // Update 0.6.1 — eyelids: top and bottom lids close toward the middle in a curve (the centre stays
@@ -60,6 +61,16 @@ const HorrorShader = {
       // Slight desaturation, cold tint.
       float l = dot(col, vec3(0.299, 0.587, 0.114));
       col = mix(col, vec3(l) * vec3(0.92, 1.0, 1.02), 0.35);
+      // Update 0.9.3 — night vision: brightness as phosphor green, lifted shadows, a goggle edge and
+      // its own sparkle of noise.
+      if (uNight > 0.0) {
+        float nl = dot(col, vec3(0.299, 0.587, 0.114));
+        nl = pow(clamp(nl, 0.0, 1.0), 0.75) * 1.25 + 0.02;
+        vec3 nv = vec3(0.16, 1.0, 0.3) * nl;
+        nv += (rand(uv * vec2(1280.0, 720.0) + fract(uTime * 23.0)) - 0.5) * 0.09 * vec3(0.3, 1.0, 0.4);
+        float tube = smoothstep(0.78, 0.5, length(c * vec2(1.25, 1.0)) * 1.25);
+        col = mix(col, nv * mix(0.15, 1.0, tube), uNight);
+      }
       // Vignette tightens with fear.
       float v = 1.0 - smoothstep(0.25, 0.85 - uFear * 0.25, length(c) * 1.25);
       col *= mix(0.25, 1.0, v);
@@ -89,7 +100,8 @@ export function createPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, 
   const u = horror.uniforms;
   return {
     composer,
-    set(v: { time?: number; fear?: number; grain?: number; red?: number; white?: number; black?: number; clean?: boolean; injured?: number; lids?: number }) {
+    set(v: { time?: number; fear?: number; grain?: number; red?: number; white?: number; black?: number; clean?: boolean; injured?: number; lids?: number; night?: number }) {
+      if (v.night !== undefined) u.uNight.value = v.night;
       if (v.injured !== undefined) u.uInjured.value = v.injured;
       if (v.lids !== undefined) u.uLids.value = v.lids;
       if (v.clean !== undefined) u.uClean.value = v.clean ? 1 : 0;

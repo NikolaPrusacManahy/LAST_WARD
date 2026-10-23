@@ -25,11 +25,13 @@ export interface PlayerStatus {
   exhausted: boolean;
   regenWait: number;
   battery: number;
+  /** Update 0.9.3 — Hard drains it faster (state/difficulty.ts). */
+  batteryDrainMul: number;
   flashlightOn: boolean;
 }
 
-export function createPlayerStatus(): PlayerStatus {
-  return { stamina: PLAYER.staminaMax, exhausted: false, regenWait: 0, battery: PLAYER.batteryMax, flashlightOn: false }; // 0.9.1: you start in the dark
+export function createPlayerStatus(batteryDrainMul = 1): PlayerStatus {
+  return { stamina: PLAYER.staminaMax, exhausted: false, regenWait: 0, battery: PLAYER.batteryMax, batteryDrainMul, flashlightOn: false }; // 0.9.1: you start in the dark
 }
 
 export function chooseGait(moving: boolean, wantSprint: boolean, wantCrouch: boolean, s: PlayerStatus): Gait {
@@ -71,7 +73,7 @@ export function tickStatus(s: PlayerStatus, gait: Gait, dt: number): void {
   }
 
   if (s.flashlightOn) {
-    s.battery = Math.max(0, s.battery - PLAYER.batteryDrainPerSec * dt);
+    s.battery = Math.max(0, s.battery - PLAYER.batteryDrainPerSec * s.batteryDrainMul * dt);
     if (s.battery === 0) s.flashlightOn = false;
   }
 }

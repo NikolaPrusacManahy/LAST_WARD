@@ -7,15 +7,17 @@ import { InputIcon } from './InputIcon';
 interface Props {
   bindings: Bindings;
   secondsLeft: number;
+  /** Update 0.9.3 — Easy: the flashlight key is the night vision goggles. */
+  nightVision?: boolean;
 }
 
-export function ControlsCard({ bindings: b, secondsLeft }: Props) {
+export function ControlsCard({ bindings: b, secondsLeft, nightVision }: Props) {
   const rows: [string, JSX.Element][] = [
     ['Move', <><InputIcon code={b.forward} /><InputIcon code={b.left} /><InputIcon code={b.back} /><InputIcon code={b.right} /></>],
     ['Look', <InputIcon glyph={MOUSE_LOOK} />],
     ['Run', <InputIcon code={b.sprint} />],
     ['Crouch', <InputIcon code={b.crouch} />],
-    ['Flashlight', <InputIcon code={b.flashlight} />],
+    [nightVision ? 'Night vision' : 'Flashlight', <InputIcon code={b.flashlight} />],
     ['Collect / interact', <InputIcon code={b.interact} />],
     ['Skill check', <InputIcon code={b.skillCheck} />],
     ['Look back (running)', <InputIcon code={b.lookBack} />],

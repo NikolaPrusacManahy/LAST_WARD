@@ -1,0 +1,12 @@
+/* theme-12 — Update 0.9.3: the difficulty picker after Begin. */
+.lw-difficulty { width: min(620px, 92vw); }
+.lw-diff-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+.lw-diff {
+  display: grid; grid-template-columns: 110px 1fr; align-items: baseline; gap: 18px; padding: 14px 18px;
+  text-align: left; border: 1px solid rgba(216, 210, 188, 0.14); background: rgba(216, 210, 188, 0.03);
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.lw-diff:hover, .lw-diff:focus-visible { border-color: var(--lw-blood); background: rgba(163, 18, 15, 0.12); transform: translateX(4px); outline: none; }
+.lw-diff-current { border-color: rgba(216, 210, 188, 0.4); }
+.lw-diff-name { font-family: var(--lw-type); font-size: 24px; letter-spacing: 0.04em; color: var(--lw-bone); }
+.lw-diff-blurb { font-size: 13px; line-height: 1.5; color: var(--lw-bone-dim); }

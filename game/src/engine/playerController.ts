@@ -7,7 +7,7 @@ import { placedProps, propBlockers } from '../world/props';
 import { Gait, PLAYER, PlayerStatus, chooseGait, flickerAmount, gaitNoise, gaitSpeed, tickStatus, nextCrouch } from '../state/playerRules';
 import { Input } from './input';
 import { flashlightCookie } from './textures';
-import { LIGHT } from '../state/lightLevels';
+import { LIGHT, FLASHLIGHT_BEAM } from '../state/lightLevels';
 import { BOB, BobAmp, INJURED, blendAmp, bobOffset, injuredAmp } from '../state/cameraBob';
 import { DEFAULT_SETTINGS } from '../state/settings';
 import type { Settings } from '../state/settings';
@@ -42,6 +42,8 @@ export class PlayerController {
   private bobAmp: BobAmp = { ...BOB.idle };
   /** Update 0.9.1 — after the first catch: heavier bob and a limp (set by the Game). */
   injured = false;
+  /** Update 0.9.3 — Easy: the light switch drives night vision goggles; the flashlight beam stays dark. */
+  nightVision = false;
   /** Update 0.4.1 — from the FOV setting. */
   baseFov = DEFAULT_SETTINGS.fov;
   /** Update 0.5.4 — extra camera yaw while looking back over your shoulder (0..π). */
@@ -56,7 +58,8 @@ export class PlayerController {
   constructor(level: Level, private camera: THREE.PerspectiveCamera, scene: THREE.Scene) {
     this.pos = cellCenter(level.playerStart);
     this.reset(level);
-    this.flashlight = new THREE.SpotLight(0xfff1d6, 0, 32, 0.6, 0.35, 1.5);
+    // Update 0.9.3 — reaches 1.5× further (state/lightLevels.ts FLASHLIGHT_BEAM).
+    this.flashlight = new THREE.SpotLight(0xfff1d6, 0, FLASHLIGHT_BEAM.distance, 0.6, 0.35, FLASHLIGHT_BEAM.decay);
     this.cookie = flashlightCookie();
     this.flashlight.map = this.cookie;
     this.flashlight.castShadow = true;
@@ -167,11 +170,11 @@ export class PlayerController {
     this.rig.quaternion.slerp(this.tmpQ, 1 - Math.exp(-dt * 16));
 
     const flick = flickerAmount(status.battery);
-    let on = status.flashlightOn ? 1 : 0;
+    let on = status.flashlightOn && !this.nightVision ? 1 : 0;
     if (on && flick > 0 && Math.random() < flick * 0.25) on = Math.random() * 0.3;
     if (shake > 0.5) on *= Math.random() < 0.5 ? 0.1 : 1;
     const strength = on * (0.55 + 0.45 * Math.min(1, status.battery / 40));
-    this.flashlight.intensity = LIGHT.flashlight * strength * lightMul;
+    this.flashlight.intensity = LIGHT.flashlight * FLASHLIGHT_BEAM.intensityMul * strength * lightMul;
     this.spill.intensity = (LIGHT.eyeGlow + LIGHT.eyeGlowFlashlight * strength) * lightMul;
   }
 

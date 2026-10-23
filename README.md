@@ -15,6 +15,14 @@ Current version: 0.9. The full patch history is in `HANDOVER.md`.
 - **Electrical panels** are spread across the ward, one in each quarter. Fit a fuse, hold to repair the panel, then throw its switch. While you repair, skill checks come up: a circle with a needle sweeping round it. Press Space while the needle is in the marked zone (the white slice at its start is a perfect hit). Miss and the panel blows, loud enough for The Patient to hear.
 - **Restarting the generator** needs all four panels live. It turns the lights back on, but The Patient hears it. It screams, then sprints to the generator room, so don't stay there.
 
+## Difficulty
+
+Picked each time you press Begin:
+
+- **Easy:** night vision goggles instead of the flashlight (right click). Everything turns green and you can see The Patient from far away.
+- **Normal:** the game as designed.
+- **Hard:** the battery lasts 40% less and you have one life.
+
 ## Controls
 
 | Action | Default |

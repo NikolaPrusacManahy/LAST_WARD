@@ -18,5 +18,6 @@ import './test-hunt';
 import './test-floors';
 import './test-props';
 import './test-panels';
+import './test-difficulty';
 
 process.exit(summary() > 0 ? 1 : 0);

@@ -59,7 +59,7 @@ export function Hud({ store, hidden, onBegin }: Props) {
         </div>
       )}
       <div className="lw-hud-crosshair" />
-      {h.controls > 0 && !h.note && <ControlsCard bindings={h.bindings} secondsLeft={h.controls} />}
+      {h.controls > 0 && !h.note && <ControlsCard bindings={h.bindings} secondsLeft={h.controls} nightVision={h.nightVision} />}
       {h.prompt && !h.repair?.check && (
         <div className="lw-hud-prompt">
           <span className="lw-prompt-title">{h.prompt.title}</span>
@@ -98,7 +98,7 @@ export function Hud({ store, hidden, onBegin }: Props) {
       )}
       <div className="lw-hud-bars">
         <div className={`lw-bar ${low ? 'lw-bar-low' : ''} ${h.flashlightOn ? '' : 'lw-bar-off'}`}>
-          <label>LIGHT</label>
+          <label>{h.nightVision ? 'NV' : 'LIGHT'}</label>
           <div className="lw-bar-track">
             <div className="lw-bar-fill" style={{ width: `${h.battery}%` }} />
           </div>

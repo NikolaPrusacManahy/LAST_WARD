@@ -36,6 +36,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/objectives.ts` | Fuses → four panels (fit, repair, switch on) → generator → exit (0.9), objective text + detail line | yes |
 | `state/skillCheck.ts` + `screens/SkillCheck.tsx` | Panel repair with Dead by Daylight skill checks: timing, judging, misses (0.9). The circle is drawn from the same clock it's judged on | yes / no |
 | `state/credits.ts` | Credits for every outside asset; which credit each prop comes under (0.8) | yes |
+| `state/difficulty.ts` + `screens/DifficultyPanel.tsx` | Easy / Normal / Hard rules (lives, battery drain, night vision) and the picker after Begin (0.9.3) | yes / no |
 | `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time; `mixVolumes` master × SFX / BGM (0.9.2) | yes (+ localStorage I/O) |
 | `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring | no |
 | `engine/playerController.ts` | Camera, head bob, footsteps, flashlight rig | no |

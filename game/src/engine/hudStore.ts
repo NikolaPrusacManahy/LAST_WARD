@@ -35,6 +35,8 @@ export interface HudState {
   banner: { text: string; label: string; key: number } | null;
   /** Update 0.9 — panel repair bar and the skill check circle (times on performance.now(), ms). */
   repair: { progress: number; dead: boolean; check: { spinAtMs: number; zone: number } | null } | null;
+  /** Update 0.9.3 — Easy: the light is night vision goggles (battery bar + controls card say so). */
+  nightVision: boolean;
 }
 
 export const initialHud: HudState = {
@@ -56,6 +58,7 @@ export const initialHud: HudState = {
   bindings: DEFAULT_BINDINGS,
   controls: 0,
   objectiveDetail: '',
+  nightVision: false,
   banner: null,
   repair: null,
 };

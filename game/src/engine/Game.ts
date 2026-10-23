@@ -13,10 +13,11 @@ import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackTimeScale, 
 import { createRng } from '../world/rng';
 import { findTarget, Target } from '../world/interact';
 import { CONTROLS_CARD_SECONDS, Prompt, promptFor, samePrompt, tickControlsCard } from '../state/prompts';
-import { LIGHT, atmosphereFor } from '../state/lightLevels';
+import { LIGHT, atmosphereFor, blendAtmosphere } from '../state/lightLevels';
 import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
 import { mixVolumes } from '../state/settings';
+import { DIFFICULTY, DifficultyRules } from '../state/difficulty';
 import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
 import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
 import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
@@ -100,8 +101,12 @@ export class Game {
   /** World clock: runs slower during the look-back slow motion (this.t stays real time). */
   private worldT = 0;
   private realDt = 0;
+  /** Update 0.9.3 — fog density before the flashlight, and the beam eased 0..1. */
+  private beam = 0;
   /** Update 0.6 — two lives; the first catch throws you and leaves you injured. */
   private lives = LIVES;
+  /** Update 0.9.3 — picked before the run (lives, battery drain, night vision). Fixed for the run. */
+  private rules: DifficultyRules;
   private injured = false;
   private caught: CaughtScene | null = null;
   private wake: WakeScene | null = null;
@@ -135,6 +140,9 @@ export class Game {
     /** Update 0.7.1 — tester level picker / ?level=N; the public build always starts at 0. */
     startLevel = 0,
   ) {
+    this.rules = DIFFICULTY[settings.difficulty];
+    this.lives = this.rules.lives;
+    this.status = createPlayerStatus(this.rules.batteryDrainMul);
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
@@ -164,6 +172,7 @@ export class Game {
     this.progress = createProgress(panelSpots(this.level).length);
     this.lights = createLighting(this.view);
     this.player = new PlayerController(this.level, this.camera, this.scene);
+    this.player.nightVision = this.rules.nightVision; // Update 0.9.3 — Easy: right click is the goggles, no beam
     this.player.baseFov = settings.fov;
     // Update 0.5.4 — starts in one of the four corners, never the one by you.
     this.enemy = spawnAtCorner(this.level, this.rng, cellCenter(this.level.playerStart));
@@ -440,6 +449,10 @@ export class Game {
     this.debugView.update(this.enemy, this.t, this.toWorld);
     this.lights.update(this.t, this.curFloor);
     this.fx.set({ time: this.t, fear: this.debugView.enabled ? 0 : this.fear, injured: this.debugView.enabled ? 0 : injuredTint(this.injured, this.t - this.impactT) });
+    // Update 0.9.3 — the beam thins the fog (you see further down the hall while it's on).
+    // (0.9.3: on Easy the same switch is the night vision goggles.)
+    this.beam += ((this.status.flashlightOn ? 1 : 0) - this.beam) * (1 - Math.exp(-dt * 5));
+    this.applyAtmosphere();
     this.fx.render();
     this.input.endFrame();
 
@@ -480,7 +493,11 @@ export class Game {
     }
 
     // Update 0.5 — rebindable: right click flashlight, left click collect / interact by default.
-    if (input.actionPressed('flashlight') && toggleFlashlight(status)) this.audio.click();
+    if (input.actionPressed('flashlight') && toggleFlashlight(status)) {
+      // Update 0.9.3 — on Easy the key is the night vision goggles: their own sound going on.
+      if (this.rules.nightVision && status.flashlightOn) this.audio.nightVisionOn();
+      else this.audio.click();
+    }
     this.controlsLeft = tickControlsCard(this.controlsLeft, dt, input.wasPressed('Enter') || input.wasPressed('NumpadEnter'));
     if (input.actionPressed('interact')) this.interact();
     this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected);
@@ -491,7 +508,7 @@ export class Game {
     const events = this.enemyFrozen ? [] : stepEnemy(
       this.level,
       this.enemy,
-      { dt, player: { pos: player.pos, flashlightOn: status.flashlightOn, crouching: player.crouching, running: step.gait === 'sprint' }, noise: this.noise, fuses: this.progress.fuses },
+      { dt, player: { pos: player.pos, flashlightOn: this.lightShows(), crouching: player.crouching, running: step.gait === 'sprint' }, noise: this.noise, fuses: this.progress.fuses },
       this.rng,
     );
     this.noise = null;
@@ -868,6 +885,7 @@ export class Game {
     this.hud.set({
       battery: Math.round(s.battery),
       flashlightOn: s.flashlightOn,
+      nightVision: this.rules.nightVision,
       stamina: Math.round((s.stamina / 4.5) * 100) / 100,
       exhausted: s.exhausted,
       objective: objectiveText(this.progress),
@@ -892,7 +910,7 @@ export class Game {
             alert: this.enemy.alert,
             windup: this.enemy.windup,
             distance: dist(this.enemy.pos, this.player.pos),
-            seesYou: visibility(this.level, this.enemy, { pos: this.player.pos, flashlightOn: s.flashlightOn, crouching: this.player.crouching }) > 0,
+            seesYou: visibility(this.level, this.enemy, { pos: this.player.pos, flashlightOn: this.lightShows(), crouching: this.player.crouching }) > 0,
             frozen: this.enemyFrozen,
             fuses: this.progress.fuses,
             panels: `${this.progress.panels.filter((x) => x.on).length}/${this.progress.panels.length}`,
@@ -954,13 +972,20 @@ export class Game {
     this.applyAtmosphere();
   }
 
+  /** Update 0.9.3 — is there a beam it can see? The goggles (Easy) give off no light. */
+  private lightShows() {
+    return this.status.flashlightOn && !this.rules.nightVision;
+  }
+
   private applyAtmosphere() {
     const dbg = this.debugView.enabled;
-    const a = atmosphereFor(this.progress.powered, dbg); // Update 0.4.4 — state/lightLevels.ts
+    // Update 0.4.4 — state/lightLevels.ts. 0.9.3: blended with the goggles (Easy) or the flashlight beam.
+    const nv = this.rules.nightVision ? this.beam : 0;
+    const a = blendAtmosphere(this.progress.powered, dbg, nv, this.rules.nightVision ? 0 : this.beam);
     (this.scene.fog as THREE.FogExp2).density = a.fog;
     this.ambient.intensity = a.ambient;
     this.renderer.toneMappingExposure = a.exposure;
-    this.fx.set({ clean: dbg });
+    this.fx.set({ clean: dbg, night: nv });
   }
 
   /** Update 0.3 — first-person body (loads in the background; the game plays fine without it). */

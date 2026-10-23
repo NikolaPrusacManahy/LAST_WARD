@@ -13,6 +13,8 @@ export const FLASHLIGHT_CLICK_GAIN = 0.5;
 export const SPOT_SCREAM_GAIN = 0.6;
 /** Update 0.9.1 — the electrical panel sounds (fuse, repair loop, skill checks, bang, switch): 60% quieter. */
 export const PANEL_SFX_GAIN = 0.4;
+/** Update 0.9.3 — Easy: the night vision goggles' deploy sound, 80% quieter. */
+export const NIGHT_VISION_SFX_GAIN = 0.2;
 
 export interface EnemyMix {
   /** Low-pass cutoff in Hz. */

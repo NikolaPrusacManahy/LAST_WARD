@@ -1,6 +1,15 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.2
+## Current version: 0.9.3
+
+- **The flashlight reaches 1.5× further** (`state/lightLevels.ts`, `FLASHLIGHT_BEAM` / `flashlightFog`). The beam's cut-off goes from 32 to 48 m, and its falloff is gentler: the same brightness at arm's length, and a wall 1.5× as far gets what one at 15 m used to. The ward's fog (its darkness) also thins by 1.5× while the beam is on, easing in and out with it; without that, the fog would still hide anything past ~20 m however brightly lit. The Patient standing 21 m down a hall is now visible in the beam; before, it wasn't.
+- Trade-off to keep in mind: with the flashlight on it already sees you from about 21 m, so you now see it at roughly the same range.
+- **Difficulty picker** after Begin (`state/difficulty.ts`, `screens/DifficultyPanel.tsx`); the last pick is saved and Try again keeps it.
+  - **Easy:** right click is night vision goggles instead of the flashlight. On: the ward turns phosphor green and bright, the fog nearly lifts (something 30 m away is still clearly there), with a goggle edge and its own noise. They use the battery like the flashlight, but give off no light, so The Patient can't spot you by them. Their deploy sound (`ASSETS/audio/night_vision/deploy.mp3` → `night_vision_on`) plays 80% quieter. The battery bar reads NV and the controls card says Night vision.
+  - **Normal:** unchanged.
+  - **Hard:** the battery drains 1/0.6 times as fast (lasts 40% less, pickups too) and one life: the first catch kills you.
+
+## 0.9.2
 
 - **Three volume sliders** in Settings: Master volume, Sound effects, Background. Background is the in-game ambience and tension layer and the main-menu ambience; everything else (including menu clicks) is a sound effect. Each plays at master × its own slider. Old saves keep their volume as the master; the other two start at 100%.
 

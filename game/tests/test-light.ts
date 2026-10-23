@@ -1,6 +1,6 @@
 // Update 0.4.4 — brighter ward, 1.3× flashlight, and an enemy that sees you further because of it.
 import { check, section } from './harness';
-import { FLASHLIGHT_BOOST, LIGHT, atmosphereFor } from '../src/state/lightLevels';
+import { FLASHLIGHT_BEAM, FLASHLIGHT_BOOST, FLASHLIGHT_RANGE, LIGHT, atmosphereFor, flashlightFog } from '../src/state/lightLevels';
 import { ENEMY, createEnemy, visibility } from '../src/world/enemyAI';
 import { LEVEL_01 } from '../src/world/content/level01';
 import { parseLevel } from '../src/world/level';
@@ -33,3 +33,19 @@ section('Enemy sight (0.4.4)');
   }
   check('spots you at 9 m in the dark where it used to miss you', found, 'needs a 9 m open line from its spawn');
 }
+
+section('Flashlight reach (0.9.3)');
+{
+  // Light reaching a wall d metres away (three.js: intensity / d^decay, ignoring the cut-off).
+  const oldAt = (d: number) => LIGHT.flashlight / d ** 1.5;
+  const newAt = (d: number) => (LIGHT.flashlight * FLASHLIGHT_BEAM.intensityMul) / d ** FLASHLIGHT_BEAM.decay;
+  check('reaches 1.5× further: cut-off 32 → 48 m', FLASHLIGHT_RANGE === 1.5 && FLASHLIGHT_BEAM.distance === 48);
+  check('as bright as before at arm\'s length (2 m)', Math.abs(newAt(2) / oldAt(2) - 1) < 1e-9);
+  check('a wall at 22.5 m gets what one at 15 m used to', Math.abs(newAt(22.5) / oldAt(15) - 1) < 1e-9);
+  const dark = atmosphereFor(false, false).fog;
+  // FogExp2: what's left of a thing d metres away is exp(-(density·d)²).
+  const seen = (density: number, d: number) => Math.exp(-((density * d) ** 2));
+  check('with the beam on, the fog lets you see 1.5× as far', Math.abs(seen(flashlightFog(dark, 1), 22.5) - seen(dark, 15)) < 1e-9);
+  check('beam off: fog as before', flashlightFog(dark, 0) === dark);
+}
+

@@ -1,7 +1,7 @@
 // Sound engine. Recorded samples from public/audio (see manifest.json) with a synthesised
 // fallback per sound. Enemy and generator sounds are 3D (PannerNode, HRTF); enemy sounds are
 // also filtered by distance and walls (audio/spatial.ts).
-import { EnemyMix, FLASHLIGHT_CLICK_GAIN, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, SPOT_SCREAM_GAIN, enemyStepGain } from './spatial';
+import { EnemyMix, FLASHLIGHT_CLICK_GAIN, NIGHT_VISION_SFX_GAIN, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, SPOT_SCREAM_GAIN, enemyStepGain } from './spatial';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -584,6 +584,11 @@ export class AudioEngine {
     const g = this.env(0.7, 0.2, 1.5);
     s.connect(lp).connect(g).connect(this.sfx);
     s.start(t, 0, 1.8);
+  }
+
+  /** Update 0.9.3 — Easy: the night vision goggles switching on (click if the sound is missing). */
+  nightVisionOn() {
+    if (!this.playSample('night_vision_on', { gain: NIGHT_VISION_SFX_GAIN })) this.click();
   }
 
   /** Update 0.9 — a fuse pushed into an electrical panel. */

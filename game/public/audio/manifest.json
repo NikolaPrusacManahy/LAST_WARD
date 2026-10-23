@@ -77,5 +77,8 @@
   ],
   "breaker_switch": [
     "breaker_switch.mp3"
+  ],
+  "night_vision_on": [
+    "night_vision_on.mp3"
   ]
 }
