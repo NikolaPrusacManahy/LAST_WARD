@@ -1,6 +1,10 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.1
+## Current version: 0.9.2
+
+- **Three volume sliders** in Settings: Master volume, Sound effects, Background. Background is the in-game ambience and tension layer and the main-menu ambience; everything else (including menu clicks) is a sound effect. Each plays at master × its own slider. Old saves keep their volume as the master; the other two start at 100%.
+
+## 0.9.1
 
 - **Panel switches fixed:** they were mounted backwards (face to the wall, lever in the wall, text mirrored); the model's face is its -z. The lever never moved either (three.js drops the '.' from `Switch.001` on load); now it sits down at OFF and swings up to ON.
 - **The switch is its own target:** look at the box to fit the fuse and repair, look at the switch to throw it ("Power switch"). Whatever you aim at wins over whatever is closer.

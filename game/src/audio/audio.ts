@@ -9,7 +9,10 @@ const SAMPLE_BASE = '/audio';
 
 export class AudioEngine {
   ctx: AudioContext;
+  /** Update 0.9.2 — master → compressor → speakers; the SFX and BGM buses feed it. */
   private master: GainNode;
+  private sfx: GainNode;
+  private bgm: GainNode;
   private noiseBuf: AudioBuffer;
   private ambience: GainNode;
   private tension: GainNode;
@@ -22,14 +25,20 @@ export class AudioEngine {
   private loops: AudioBufferSourceNode[] = [];
   private clankTimer = 12;
 
-  constructor(volume: number) {
+  constructor(volume: { master: number; sfx: number; bgm: number }) {
     this.ctx = new AudioContext();
     const comp = this.ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
     comp.ratio.value = 6;
     this.master = this.ctx.createGain();
-    this.master.gain.value = volume;
+    this.master.gain.value = volume.master;
     this.master.connect(comp).connect(this.ctx.destination);
+    this.sfx = this.ctx.createGain();
+    this.sfx.gain.value = volume.sfx;
+    this.sfx.connect(this.master);
+    this.bgm = this.ctx.createGain();
+    this.bgm.gain.value = volume.bgm;
+    this.bgm.connect(this.master);
 
     this.noiseBuf = this.ctx.createBuffer(1, this.ctx.sampleRate * 2, this.ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
@@ -37,10 +46,10 @@ export class AudioEngine {
 
     this.ambience = this.ctx.createGain();
     this.ambience.gain.value = 0;
-    this.ambience.connect(this.master);
+    this.ambience.connect(this.bgm);
     this.tension = this.ctx.createGain();
     this.tension.gain.value = 0;
-    this.tension.connect(this.master);
+    this.tension.connect(this.bgm);
     this.ready = this.loadSamples().catch((err) => console.warn('Sound files failed to load, using synth sounds.', err));
   }
 
@@ -83,8 +92,8 @@ export class AudioEngine {
       lp.frequency.value = o.cutoff;
       src.connect(lp).connect(g);
     } else src.connect(g);
-    if (o.at) g.connect(this.panner(o.at, o.ref ?? 2, o.rolloff ?? 1.3)).connect(o.to ?? this.master);
-    else g.connect(o.to ?? this.master);
+    if (o.at) g.connect(this.panner(o.at, o.ref ?? 2, o.rolloff ?? 1.3)).connect(o.to ?? this.sfx);
+    else g.connect(o.to ?? this.sfx);
     src.start(o.when ?? this.now, o.loop ? src.loopStart : 0);
     if (o.loop) this.loops.push(src);
     return src;
@@ -115,7 +124,7 @@ export class AudioEngine {
       const lp = this.ctx.createBiquadFilter();
       lp.type = 'lowpass';
       lp.frequency.value = 16000;
-      lp.connect(gain).connect(pn).connect(this.master);
+      lp.connect(gain).connect(pn).connect(this.sfx);
       this.playSample('enemy_breath', { loop: true, to: lp });
       this.breath = { panner: pn, gain, filter: lp };
     });
@@ -143,7 +152,7 @@ export class AudioEngine {
     const lp = this.ctx.createBiquadFilter();
     lp.type = 'lowpass';
     lp.frequency.value = 2400;
-    lp.connect(this.master);
+    lp.connect(this.sfx);
     if (!this.playSample('enemy_scream', { gain: 0.9, rate: 0.92, to: lp })) this.stinger();
   }
 
@@ -173,7 +182,7 @@ export class AudioEngine {
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0, this.now);
     gain.gain.linearRampToValueAtTime(0.8, this.now + 3.5);
-    gain.connect(pn).connect(this.master);
+    gain.connect(pn).connect(this.sfx);
     this.playSample('generator_hum', { loop: true, to: gain, when: this.now + 1.5 });
     this.hum = { panner: pn, gain };
   }
@@ -199,7 +208,7 @@ export class AudioEngine {
       return;
     }
     const g = this.ctx.createGain();
-    g.connect(this.master);
+    g.connect(this.sfx);
     const end = this.now + maxSeconds;
     g.gain.setValueAtTime(1, end - 0.15);
     g.gain.linearRampToValueAtTime(0, end);
@@ -210,8 +219,11 @@ export class AudioEngine {
     return this.ctx.resume();
   }
 
-  setVolume(v: number) {
-    this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
+  setVolume(v: { master: number; sfx: number; bgm: number }) {
+    const at = this.ctx.currentTime;
+    this.master.gain.setTargetAtTime(v.master, at, 0.05);
+    this.sfx.gain.setTargetAtTime(v.sfx, at, 0.05);
+    this.bgm.gain.setTargetAtTime(v.bgm, at, 0.05);
   }
 
   private get now() {
@@ -360,7 +372,7 @@ export class AudioEngine {
     const gg = this.ctx.createGain();
     gg.gain.value = 0.18;
     growl.connect(glp).connect(gg).connect(gain);
-    gain.connect(pn).connect(this.master);
+    gain.connect(pn).connect(this.sfx);
     n.start();
     lfo.start();
     growl.start();
@@ -382,7 +394,7 @@ export class AudioEngine {
     lp.frequency.value = kind === 'sprint' ? 1400 : kind === 'walk' ? 950 : 500;
     const g = this.env((kind === 'sprint' ? 0.45 : kind === 'walk' ? 0.28 : 0.08) * PLAYER_STEP_GAIN, 0.004, 0.12);
     s.playbackRate.value = 0.8 + Math.random() * 0.4;
-    s.connect(lp).connect(g).connect(this.master);
+    s.connect(lp).connect(g).connect(this.sfx);
     s.start(t, Math.random(), 0.2);
   }
 
@@ -392,7 +404,7 @@ export class AudioEngine {
     const o = this.osc('sine', 85);
     o.frequency.exponentialRampToValueAtTime(38, t + 0.18);
     const g = this.env(heavy ? 1.1 : 0.7, 0.005, 0.22);
-    o.connect(g).connect(pn).connect(this.master);
+    o.connect(g).connect(pn).connect(this.sfx);
     o.start(t);
     o.stop(t + 0.3);
     // Wet drag.
@@ -423,7 +435,7 @@ export class AudioEngine {
     bp.frequency.value = 250 + Math.random() * 600;
     bp.Q.value = 18;
     const g = this.env(1.4, 0.002, 1.8);
-    s.connect(bp).connect(g).connect(pn).connect(this.master);
+    s.connect(bp).connect(g).connect(pn).connect(this.sfx);
     s.start(t, 0, 2);
   }
 
@@ -445,7 +457,7 @@ export class AudioEngine {
       const o = this.osc('sine', 58);
       o.frequency.exponentialRampToValueAtTime(34, t + off + 0.12);
       const g = this.env(amp * (0.35 + fear * 0.65), 0.008, 0.16, t + off);
-      o.connect(g).connect(this.master);
+      o.connect(g).connect(this.sfx);
       o.start(t + off);
       o.stop(t + off + 0.25);
     }
@@ -455,7 +467,7 @@ export class AudioEngine {
   stinger() {
     const t = this.now;
     const g = this.env(0.5, 0.01, 1.6);
-    g.connect(this.master);
+    g.connect(this.sfx);
     for (const f of [180, 254, 359, 508]) {
       const o = this.osc('sawtooth', f);
       o.frequency.linearRampToValueAtTime(f * 0.94, t + 1.5);
@@ -468,7 +480,7 @@ export class AudioEngine {
     hp.type = 'highpass';
     hp.frequency.value = 2000;
     const ng = this.env(0.4, 0.005, 0.5);
-    s.connect(hp).connect(ng).connect(this.master);
+    s.connect(hp).connect(ng).connect(this.sfx);
     s.start(t, 0, 0.6);
   }
 
@@ -483,7 +495,7 @@ export class AudioEngine {
     }
     shaper.curve = curve;
     const g = this.env(0.9 * level, 0.01, 1.4);
-    shaper.connect(g).connect(this.master);
+    shaper.connect(g).connect(this.sfx);
     for (const f of [420, 610, 890, 1290]) {
       const o = this.osc('sawtooth', f);
       const vib = this.osc('sine', 23 + Math.random() * 10);
@@ -507,7 +519,7 @@ export class AudioEngine {
     for (const [f, d] of [[660, 0], [990, 0.07]] as const) {
       const o = this.osc('sine', f);
       const g = this.env(0.18, 0.005, 0.6, t + d);
-      o.connect(g).connect(this.master);
+      o.connect(g).connect(this.sfx);
       o.start(t + d);
       o.stop(t + d + 0.7);
     }
@@ -519,7 +531,7 @@ export class AudioEngine {
     hp.type = 'highpass';
     hp.frequency.value = 2500;
     const g = this.env(0.2, 0.02, 0.3);
-    s.connect(hp).connect(g).connect(this.master);
+    s.connect(hp).connect(g).connect(this.sfx);
     s.start(this.now, 0, 0.4);
   }
 
@@ -527,7 +539,7 @@ export class AudioEngine {
     const t = this.now;
     const o = this.osc('square', 2200);
     const g = this.env(0.06 * FLASHLIGHT_CLICK_GAIN, 0.001, 0.03);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(this.sfx);
     o.start(t);
     o.stop(t + 0.05);
   }
@@ -536,7 +548,7 @@ export class AudioEngine {
     const t = this.now;
     const o = this.osc('square', 110);
     const g = this.env(0.12, 0.005, 0.25);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(this.sfx);
     o.start(t);
     o.stop(t + 0.3);
   }
@@ -558,7 +570,7 @@ export class AudioEngine {
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0, t);
     gain.gain.linearRampToValueAtTime(0.5, t + 2.5);
-    hum.connect(lp).connect(gain).connect(pn).connect(this.master);
+    hum.connect(lp).connect(gain).connect(pn).connect(this.sfx);
     hum.start(t);
     this.hum = { panner: pn, gain };
   }
@@ -570,7 +582,7 @@ export class AudioEngine {
     lp.type = 'lowpass';
     lp.frequency.value = 300;
     const g = this.env(0.7, 0.2, 1.5);
-    s.connect(lp).connect(g).connect(this.master);
+    s.connect(lp).connect(g).connect(this.sfx);
     s.start(t, 0, 1.8);
   }
 
@@ -586,7 +598,7 @@ export class AudioEngine {
       const gain = this.ctx.createGain();
       gain.gain.setValueAtTime(0, this.now);
       gain.gain.linearRampToValueAtTime(0.9 * PANEL_SFX_GAIN, this.now + 0.15);
-      gain.connect(this.panner(p, 2, 1.2)).connect(this.master);
+      gain.connect(this.panner(p, 2, 1.2)).connect(this.sfx);
       const src = this.playSample('repair_loop', { loop: true, to: gain });
       if (src) this.repair = { src, gain };
     } else if (!on && this.repair) {
@@ -622,7 +634,7 @@ export class AudioEngine {
   sparkCrackle(p: V3) {
     const t = this.now;
     const pn = this.panner(p, 2, 1.2);
-    pn.connect(this.master);
+    pn.connect(this.sfx);
     for (let i = 0; i < 9; i++) {
       const at = t + i * 0.075 + Math.random() * 0.03;
       const s = this.noise();
@@ -640,7 +652,7 @@ export class AudioEngine {
   shortBang(p: V3) {
     const t = this.now;
     const pn = this.panner(p, 4, 0.9);
-    pn.connect(this.master);
+    pn.connect(this.sfx);
     const s = this.noise();
     const lp = this.ctx.createBiquadFilter();
     lp.type = 'lowpass';
@@ -662,7 +674,7 @@ export class AudioEngine {
   panelClunk(p: V3) {
     const t = this.now;
     const pn = this.panner(p, 2, 1.2);
-    pn.connect(this.master);
+    pn.connect(this.sfx);
     const o = this.osc('square', 70);
     o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
     const g = this.env(0.35, 0.002, 0.18, t);
@@ -683,7 +695,7 @@ export class AudioEngine {
     this.panelClunk(p);
     const t = this.now + 0.05;
     const pn = this.panner(p, 2, 1.2);
-    pn.connect(this.master);
+    pn.connect(this.sfx);
     const o = this.osc('triangle', 180);
     o.frequency.exponentialRampToValueAtTime(60, t + 0.2);
     const g = this.env(0.4, 0.002, 0.3, t);

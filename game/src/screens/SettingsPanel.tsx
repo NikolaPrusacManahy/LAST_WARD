@@ -1,6 +1,12 @@
 import { FOV_MAX, FOV_MIN, Settings } from '../state/settings';
 import { KeyBindings } from './KeyBindings';
 
+const VOLUMES: [key: 'volume' | 'sfxVolume' | 'bgmVolume', label: string][] = [
+  ['volume', 'Master volume'],
+  ['sfxVolume', 'Sound effects'],
+  ['bgmVolume', 'Background'],
+];
+
 interface Props {
   settings: Settings;
   onChange(s: Settings): void;
@@ -26,11 +32,14 @@ export function SettingsPanel({ settings: s, onChange, onClose }: Props) {
               <input type="range" min={FOV_MIN} max={FOV_MAX} step={1} value={s.fov} onChange={(e) => set('fov', +e.target.value)} />
               <output>{s.fov}°</output>
             </label>
-            <label className="lw-set-row">
-              <span>Volume</span>
-              <input type="range" min={0} max={1} step={0.01} value={s.volume} onChange={(e) => set('volume', +e.target.value)} />
-              <output>{Math.round(s.volume * 100)}%</output>
-            </label>
+            {/* Update 0.9.2 — master, then sound effects and background (ambience) under it. */}
+            {VOLUMES.map(([key, label]) => (
+              <label className="lw-set-row" key={key}>
+                <span>{label}</span>
+                <input type="range" min={0} max={1} step={0.01} value={s[key]} onChange={(e) => set(key, +e.target.value)} />
+                <output>{Math.round(s[key] * 100)}%</output>
+              </label>
+            ))}
             <label className="lw-set-row lw-set-check">
               <span>Invert mouse Y</span>
               <input type="checkbox" checked={s.invertY} onChange={(e) => set('invertY', e.target.checked)} />

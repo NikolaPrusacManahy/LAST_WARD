@@ -1,7 +1,7 @@
 import { check, section } from './harness';
 import { PLAYER, nextCrouch, addBattery, chooseGait, createPlayerStatus, fearLevel, flickerAmount, tickStatus, toggleFlashlight } from '../src/state/playerRules';
 import { FUSES_NEEDED, createProgress, objectiveText, startGenerator, tryExit } from '../src/state/objectives';
-import { DEFAULT_SETTINGS, defaultSave, formatTime, hydrateSave, recordEscape } from '../src/state/settings';
+import { DEFAULT_SETTINGS, defaultSave, formatTime, hydrateSave, mixVolumes, recordEscape } from '../src/state/settings';
 import { findTarget } from '../src/world/interact';
 import { guardLeave } from '../src/state/session';
 import { LEVEL_01 } from '../src/world/content/level01';
@@ -72,6 +72,13 @@ section('Saves');
   const r = recordEscape(recordEscape(defaultSave(), 300), 200);
   check('best time keeps the fastest', r.bestTime === 200 && r.escapes === 2);
   check('formats time', formatTime(125.7) === '2:05');
+  // Update 0.9.2 — three volume sliders.
+  const old = hydrateSave({ settings: { volume: 0.5 } });
+  check('old saves keep their volume as master, SFX and BGM start full', old.settings.volume === 0.5 && old.settings.sfxVolume === 1 && old.settings.bgmVolume === 1);
+  const bad = hydrateSave({ settings: { sfxVolume: 4, bgmVolume: 'loud' } });
+  check('SFX / BGM clamped, junk falls back', bad.settings.sfxVolume === 1 && bad.settings.bgmVolume === DEFAULT_SETTINGS.bgmVolume);
+  const mix = mixVolumes({ volume: 0.5, sfxVolume: 0.4, bgmVolume: 0 });
+  check('menu sounds follow master × their slider', Math.abs(mix.uiSfx - 0.2) < 1e-9 && mix.menuBgm === 0 && mix.master === 0.5);
   check('FOV defaults to 72', defaultSave().settings.fov === 72 && hydrateSave({ settings: {} }).settings.fov === 72);
   check('FOV clamps to 60–100', hydrateSave({ settings: { fov: 20 } }).settings.fov === 60 && hydrateSave({ settings: { fov: 140 } }).settings.fov === 100);
   check('FOV keeps a valid value', hydrateSave({ settings: { fov: 90 } }).settings.fov === 90);

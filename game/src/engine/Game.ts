@@ -16,6 +16,7 @@ import { CONTROLS_CARD_SECONDS, Prompt, promptFor, samePrompt, tickControlsCard 
 import { LIGHT, atmosphereFor } from '../state/lightLevels';
 import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
+import { mixVolumes } from '../state/settings';
 import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
 import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
 import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
@@ -177,7 +178,7 @@ export class Game {
     this.fx.set({ grain: settings.grain ? 1 : 0 });
     this.input = new Input(this.renderer.domElement, this.debug);
     this.input.bindings = settings.bindings;
-    this.audio = new AudioEngine(settings.volume);
+    this.audio = new AudioEngine(mixVolumes(settings));
 
     document.addEventListener('pointerlockchange', this.onLockChange);
     window.addEventListener('beforeunload', this.onBeforeUnload);
@@ -255,7 +256,7 @@ export class Game {
     this.applyAtmosphere();
     this.fx.set({ white: 0, lids: 1 }); // white flash of the door → black, eyes shut
     this.audio.stopGenerator();
-    this.audio.setVolume(this.settings.volume);
+    this.audio.setVolume(mixVolumes(this.settings));
     this.startWake();
   }
 
@@ -337,7 +338,7 @@ export class Game {
 
   setSettings(s: Settings) {
     this.settings = s;
-    this.audio.setVolume(s.volume);
+    this.audio.setVolume(mixVolumes(s));
     this.fx.set({ grain: s.grain ? 1 : 0 });
     this.player.baseFov = s.fov;
     this.input.bindings = s.bindings;

@@ -4,7 +4,12 @@ import { Bindings, DEFAULT_BINDINGS, hydrateBindings } from './bindings';
 
 export interface Settings {
   sensitivity: number; // 0.2 – 3
-  volume: number; // 0 – 1
+  /** Master volume 0 – 1 (the key stays `volume` so old saves keep it). */
+  volume: number;
+  /** Update 0.9.2 — sound effects (everything but the music / ambience bed), 0 – 1. */
+  sfxVolume: number;
+  /** Update 0.9.2 — background: the in-game ambience and tension, the main-menu ambience, 0 – 1. */
+  bgmVolume: number;
   invertY: boolean;
   grain: boolean;
   /** Update 0.4.1 — vertical field of view in degrees (sprinting adds a little on top). */
@@ -26,7 +31,7 @@ export const SAVE_KEY = 'last-ward-save';
 export const FOV_MIN = 60;
 export const FOV_MAX = 100;
 
-export const DEFAULT_SETTINGS: Settings = { sensitivity: 1, volume: 0.8, invertY: false, grain: true, fov: 72, bindings: DEFAULT_BINDINGS };
+export const DEFAULT_SETTINGS: Settings = { sensitivity: 1, volume: 0.8, sfxVolume: 1, bgmVolume: 1, invertY: false, grain: true, fov: 72, bindings: DEFAULT_BINDINGS };
 
 export function defaultSave(): SaveData {
   return { version: 1, settings: { ...DEFAULT_SETTINGS, bindings: { ...DEFAULT_BINDINGS } }, bestTime: null, escapes: 0, deaths: 0 };
@@ -46,6 +51,8 @@ export function hydrateSave(raw: unknown): SaveData {
     settings: {
       sensitivity: clamp(s.sensitivity, 0.2, 3, DEFAULT_SETTINGS.sensitivity),
       volume: clamp(s.volume, 0, 1, DEFAULT_SETTINGS.volume),
+      sfxVolume: clamp(s.sfxVolume, 0, 1, DEFAULT_SETTINGS.sfxVolume),
+      bgmVolume: clamp(s.bgmVolume, 0, 1, DEFAULT_SETTINGS.bgmVolume),
       invertY: typeof s.invertY === 'boolean' ? s.invertY : DEFAULT_SETTINGS.invertY,
       grain: typeof s.grain === 'boolean' ? s.grain : DEFAULT_SETTINGS.grain,
       fov: Math.round(clamp(s.fov, FOV_MIN, FOV_MAX, DEFAULT_SETTINGS.fov)),
@@ -55,6 +62,11 @@ export function hydrateSave(raw: unknown): SaveData {
     escapes: clamp(r.escapes, 0, 1e9, 0),
     deaths: clamp(r.deaths, 0, 1e9, 0),
   };
+}
+
+/** Update 0.9.2 — what each sound bus actually plays at: master × its own slider. */
+export function mixVolumes(s: Pick<Settings, 'volume' | 'sfxVolume' | 'bgmVolume'>) {
+  return { master: s.volume, sfx: s.sfxVolume, bgm: s.bgmVolume, uiSfx: s.volume * s.sfxVolume, menuBgm: s.volume * s.bgmVolume };
 }
 
 export function loadSave(): SaveData {

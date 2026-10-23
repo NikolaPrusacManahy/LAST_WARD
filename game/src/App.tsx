@@ -6,7 +6,7 @@ import { PauseMenu } from './screens/PauseMenu';
 import { EndScreen } from './screens/EndScreen';
 import { SettingsPanel } from './screens/SettingsPanel';
 import { CreditsPanel } from './screens/CreditsPanel';
-import { Settings, loadSave, recordEscape, writeSave, SaveData } from './state/settings';
+import { Settings, loadSave, recordEscape, writeSave, SaveData, mixVolumes } from './state/settings';
 import { useUiSounds } from './hooks/useUiSounds';
 import { CreditIntro } from './screens/CreditIntro';
 import { setMenuAmbience } from './audio/menuAmbience';
@@ -53,9 +53,10 @@ export default function App() {
     : () => {};
 
   useEffect(() => writeSave(save), [save]);
-  useUiSounds(save.settings.volume);
+  const mix = mixVolumes(save.settings); // Update 0.9.2 — master × SFX / BGM
+  useUiSounds(mix.uiSfx);
   // Update 0.5.2 — ambience under the credit screen + main menu; fades out when a run starts.
-  useEffect(() => setMenuAmbience(wantsMenuAmbience(screen), save.settings.volume), [screen, save.settings.volume]);
+  useEffect(() => setMenuAmbience(wantsMenuAmbience(screen), mix.menuBgm), [screen, mix.menuBgm]);
 
   const updateSettings = useCallback((s: Settings) => {
     setSave((d) => ({ ...d, settings: s }));
