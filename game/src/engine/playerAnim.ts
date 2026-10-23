@@ -18,6 +18,25 @@ export function armScaleFor(clip: PlayerClip): number {
   return clip === 'run' ? 0 : 1;
 }
 
+/**
+ * Update 0.4.2 — where to stand the body so its (animated) head sits `back` metres behind the
+ * camera. The crouch and run clips lean the head forward of the feet; placing the feet at a fixed
+ * offset put the camera inside the neck/collar when crouched. `headDelta` = head minus body root.
+ */
+export function bodyRootFor(
+  camera: { x: number; z: number },
+  headDelta: { x: number; z: number },
+  forward: { x: number; z: number },
+  back: number,
+): { x: number; z: number } {
+  return { x: camera.x - headDelta.x - forward.x * back, z: camera.z - headDelta.z - forward.z * back };
+}
+
+/** How far behind the camera the head sits; more when looking down so the chest stays below view. */
+export function bodyBackOffset(pitch: number): number {
+  return 0.12 + 0.3 * Math.max(0, -pitch);
+}
+
 /** Update 0.4.1 — the walk looked rushed; it plays at half the matched speed. */
 export const WALK_ANIM_SLOWDOWN = 0.5;
 

@@ -27,7 +27,7 @@
   border-radius: 50%; background: rgba(216, 210, 188, 0.55);
 }
 .lw-hud-prompt {
-  position: absolute; left: 50%; top: calc(50% + 36px); transform: translateX(-50%);
+  position: absolute; left: 50%; top: calc(50% + 44px); transform: translateX(-50%);
   font-size: 14px; letter-spacing: 0.08em; color: var(--lw-bone); text-shadow: 0 1px 6px #000; white-space: nowrap;
 }
 .lw-hud-toast {
@@ -37,13 +37,23 @@
 }
 
 .lw-hud-bars { position: absolute; left: 32px; bottom: 32px; display: flex; flex-direction: column; gap: 10px; }
-.lw-bar { display: grid; grid-template-columns: 64px 160px; align-items: center; transition: opacity 0.4s; }
-.lw-bar label { font-size: 10px; letter-spacing: 0.24em; color: var(--lw-bone-dim); }
-.lw-bar-track { height: 4px; background: rgba(216, 210, 188, 0.12); }
-.lw-bar-fill { height: 100%; background: var(--lw-bone); transition: width 0.15s linear; }
-.lw-bar-stamina .lw-bar-fill { background: var(--lw-sick); }
-.lw-bar-low .lw-bar-fill { background: var(--lw-blood); animation: lw-pulse 0.8s infinite; }
-.lw-bar-off { opacity: 0.4; }
+/* Update 0.4.2 — battery: warm amber, thicker, glowing so it reads in the dark. */
+.lw-bar { display: grid; grid-template-columns: 64px 200px; align-items: center; transition: opacity 0.4s; }
+.lw-bar label { font-size: 11px; font-weight: 600; letter-spacing: 0.24em; color: #ffcf5a; text-shadow: 0 0 8px rgba(255, 190, 60, 0.5); }
+.lw-bar-track { height: 6px; background: rgba(255, 207, 90, 0.16); border-radius: 3px; overflow: hidden; }
+.lw-bar-fill { height: 100%; background: #ffcf5a; box-shadow: 0 0 10px rgba(255, 190, 60, 0.75); transition: width 0.15s linear; }
+.lw-bar-low label { color: #ff4a3d; text-shadow: 0 0 8px rgba(255, 60, 40, 0.6); }
+.lw-bar-low .lw-bar-fill { background: #ff4a3d; box-shadow: 0 0 10px rgba(255, 60, 40, 0.8); animation: lw-pulse 0.8s infinite; }
+.lw-bar-off { opacity: 0.45; }
+
+/* Update 0.4.2 — breath: a white line under the crosshair, hidden when rested, shrinking to a dot. */
+.lw-breath {
+  position: absolute; left: 50%; top: calc(50% + 26px); height: 2px; transform: translateX(-50%);
+  background: #fff; border-radius: 2px; box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+  opacity: 0; transition: width 0.12s linear, opacity 0.35s ease;
+}
+.lw-breath-on { opacity: 0.9; }
+.lw-breath-out { animation: lw-pulse 0.7s infinite; }
 
 .lw-note {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-1.2deg);

@@ -8,6 +8,7 @@ import { createRng } from '../world/rng';
 import { findTarget, Target } from '../world/interact';
 import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
+import { RunPhase, guardLeave } from '../state/session';
 import { FUSES_NEEDED, Progress, activateGenerator, createProgress, objectiveText, tryExit } from '../state/objectives';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
@@ -24,7 +25,7 @@ import { HudStore } from './hudStore';
 import { loadPlayerBody, PlayerBody } from './playerBody';
 import { createDebugView, DebugView } from './debugView';
 
-type Phase = 'intro' | 'playing' | 'paused' | 'dying' | 'escaping' | 'over';
+type Phase = RunPhase;
 
 export interface GameCallbacks {
   onEnd(result: 'dead' | 'escaped', seconds: number): void;
@@ -114,6 +115,7 @@ export class Game {
     this.audio = new AudioEngine(settings.volume);
 
     document.addEventListener('pointerlockchange', this.onLockChange);
+    window.addEventListener('beforeunload', this.onBeforeUnload);
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(container);
     this.resize();
@@ -158,6 +160,13 @@ export class Game {
     this.fx.set({ grain: s.grain ? 1 : 0 });
     this.player.baseFov = s.fov;
   }
+
+  /** Ctrl+W (or closing the tab) mid-run asks before leaving. */
+  private onBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (!guardLeave(this.phase)) return;
+    e.preventDefault();
+    e.returnValue = '';
+  };
 
   private onLockChange = () => {
     const locked = document.pointerLockElement === this.renderer.domElement;
@@ -512,6 +521,7 @@ export class Game {
     cancelAnimationFrame(this.raf);
     clearTimeout(this.stingerTimer);
     document.removeEventListener('pointerlockchange', this.onLockChange);
+    window.removeEventListener('beforeunload', this.onBeforeUnload);
     if (document.pointerLockElement) document.exitPointerLock();
     this.resizeObs.disconnect();
     this.input.dispose();

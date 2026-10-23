@@ -13,7 +13,7 @@ check('patrol walk plays near authored speed', Math.abs(clipTimeScale('walk', EN
 check('fastest chase stays under the clamp', clipTimeScale('run', ENEMY.speed.chase * 1.21) <= 1.9);
 check('idle ignores speed', clipTimeScale('idle', 3) === 1);
 
-import { armScaleFor, choosePlayerClip, playerClipTimeScale } from '../src/engine/playerAnim';
+import { armScaleFor, bodyBackOffset, bodyRootFor, choosePlayerClip, playerClipTimeScale } from '../src/engine/playerAnim';
 import { debugLines } from '../src/state/debugInfo';
 
 section('Player body animation');
@@ -23,6 +23,16 @@ check('idle → idle', choosePlayerClip('idle', false) === 'idle');
 check('crouching wins', choosePlayerClip('walk', true) === 'crouch' && choosePlayerClip('idle', true) === 'crouch');
 check('crouch still = frozen pose', playerClipTimeScale('crouch', 0) === 0);
 check('arms hidden while running', armScaleFor('run') === 0);
+{
+  // Crouch clip leans the head 0.29 m forward of the feet: the body must step back by that much.
+  const cam = { x: 10, z: 10 };
+  const fwd = { x: 0, z: -1 };
+  const lean = { x: 0, z: -0.29 };
+  const root = bodyRootFor(cam, lean, fwd, 0.12);
+  const head = { x: root.x + lean.x, z: root.z + lean.z };
+  check('crouched head sits behind the camera, not in front', Math.abs(head.z - (cam.z + 0.12)) < 1e-9 && head.x === cam.x);
+  check('looking down pushes the body further back', bodyBackOffset(-1) > bodyBackOffset(0));
+}
 check('arms shown otherwise', armScaleFor('walk') === 1 && armScaleFor('idle') === 1 && armScaleFor('crouch') === 1);
 check('walk plays at half speed', playerClipTimeScale('walk', 1.6) === 0.5 && Math.abs(playerClipTimeScale('walk', 3.0) - 0.85) < 1e-9);
 check('run speed not halved', playerClipTimeScale('run', 3.2) === 1);

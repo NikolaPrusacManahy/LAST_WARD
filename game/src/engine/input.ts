@@ -21,6 +21,9 @@ export class Input {
     if (!this.down.has(e.code)) this.pressed.add(e.code);
     this.down.add(e.code);
     if (['Space', 'ArrowUp', 'ArrowDown', 'Tab', 'F2', 'F3'].includes(e.code)) e.preventDefault();
+    // Update 0.4.2 — Ctrl is crouch: stop Ctrl+S / Ctrl+D / Ctrl+A etc. from reaching the browser.
+    // (Ctrl+W can't be blocked by any page; the leave-page guard in Game catches that one.)
+    if (e.ctrlKey) e.preventDefault();
   };
   private onKeyUp = (e: KeyboardEvent) => this.down.delete(e.code);
   private onBlur = () => this.down.clear();

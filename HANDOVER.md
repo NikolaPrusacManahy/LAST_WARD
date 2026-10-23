@@ -3,6 +3,10 @@
 ## Current version: 0.4.2
 
 - Your own footsteps and the flashlight click are half as loud (`PLAYER_STEP_GAIN`, `FLASHLIGHT_CLICK_GAIN` in `audio/spatial.ts`).
+- **Crouch is now Ctrl and toggles** (press to crouch, press again to stand). Sprinting while moving stands you up. Ctrl+S/D/A and similar no longer reach the browser while playing. Browsers never let a page block Ctrl+W, so mid-run the game asks "Leave site?" before the tab closes.
+- **HUD:** breath is now a white line just under the crosshair. It's hidden while rested, shrinks from both ends toward a dot as you sprint, grows back as you recover, and pulses when you're out of breath. The battery bar (bottom-left) is now warm amber, thicker and glowing, and turns red and pulses below 20%. Maths in `state/hudLayout.ts`.
+- New player run animation (your replacement `player_run.fbx`), converted into `public/models/player.glb`.
+- Fixed: crouching put the camera inside the body's collar. The crouch (and run) animations lean the head forward of the feet, so the body is now placed from where its animated head actually is: the head always sits just behind the camera (`bodyRootFor` / `bodyBackOffset` in `engine/playerAnim.ts`).
 
 ## 0.4.1 "Real Sound" + FOV
 
@@ -46,7 +50,7 @@ A complete, playable vertical slice of one level.
 - **Ward 13** (25×19 grid): 4 patient rooms, a generator room, 3 corridors and 6 ceiling lamps.
 - **Loop:** find 3 fuses → start the generator → escape through the exit door (bottom-right).
 - **The Patient** patrols, investigates footsteps, chases on sight, searches where it lost you, and drifts toward you a third of the time. It gets 7% faster per fuse. Starting the generator is loud enough to bring it from anywhere.
-- **Player:** WASD, mouse look, Shift sprint (stamina), C crouch (silent, harder to see), F flashlight (battery drains; flickers below 20%), E interact.
+- **Player:** WASD, mouse look, Shift sprint (stamina), C crouch (Ctrl toggle since 0.4.2) (silent, harder to see), F flashlight (battery drains; flickers below 20%), E interact.
 - **Items:** 3 fuses, 3 batteries and 4 lore notes, each on a cabinet against a wall.
 - **Presentation:** procedural hospital textures, wall graffiti, flickering lamps that come on after power, a flashlight with a lens cookie and lag, film grain, vignette, and fear-driven chromatic aberration.
 - **Sound:** all synthesised. Room drone, distant clanks, the enemy's 3D breathing and footsteps, a heartbeat that speeds up with fear, chase strings, a stinger when it sees you, and a jumpscare scream.
@@ -56,13 +60,13 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + 113 rule tests) and `npm run verify` (adds the production build).
+From `game/`: `npm run verify:quick` (typecheck + 124 rule tests) and `npm run verify` (adds the production build).
 
 ## How to publish
 `npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready).
 
 ## Verified vs unverified
-- ✅ Typecheck, 113 rule tests and the production build pass.
+- ✅ Typecheck, 124 rule tests and the production build pass.
 - ✅ A headless browser test (software rendering, in Claude's cloud workspace) ran the full loop: menu → intro → all items → generator → exit, plus a caught → death screen run. Screenshots looked right.
 - ⚠️ **Not verified:** real-GPU frame rate, how the audio actually sounds, mouse feel under pointer lock, and Pause → Resume (the headless test ran without pointer lock). Check these first.
 - ⚠️ Difficulty is tuned on paper only. Expect to adjust `ENEMY` / `PLAYER` numbers after playing.

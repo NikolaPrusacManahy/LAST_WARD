@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { Gait } from '../state/playerRules';
-import { PlayerClip, armScaleFor, choosePlayerClip, playerClipTimeScale } from './playerAnim';
+import { PlayerClip, armScaleFor, bodyBackOffset, bodyRootFor, choosePlayerClip, playerClipTimeScale } from './playerAnim';
 
 export const PLAYER_URL = '/models/player.glb';
 const FADE = 0.2;
@@ -88,6 +88,9 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
     current = clip;
   };
 
+  const headPos = new THREE.Vector3();
+  const headDelta = { x: 0, z: 0 };
+
   return {
     root,
     update(i) {
@@ -95,12 +98,18 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
       play(clip, playerClipTimeScale(clip, i.speed));
       mixer.update(i.dt);
 
-      // Stand behind the camera; step further back when looking down so the view never ends up inside the chest.
-      const back = 0.05 + 0.3 * Math.max(0, -i.pitch);
-      const fx = -Math.sin(i.yaw);
-      const fz = -Math.cos(i.yaw);
-      root.position.set(i.pos.x - fx * back, 0, i.pos.z - fz * back);
+      // Update 0.4.2 — measure where the animated head is, then place the body so the head sits
+      // just behind the camera (crouch/run lean forward; a fixed offset put the camera in the collar).
+      const fwd = { x: -Math.sin(i.yaw), z: -Math.cos(i.yaw) };
+      root.position.set(i.pos.x, 0, i.pos.z);
       root.rotation.y = i.yaw + Math.PI; // Mixamo faces +Z
+      root.updateWorldMatrix(true, true);
+      head.getWorldPosition(headPos);
+      const k = Math.min(1, i.dt * 12);
+      headDelta.x += (headPos.x - i.pos.x - headDelta.x) * k;
+      headDelta.z += (headPos.z - i.pos.z - headDelta.z) * k;
+      const at = bodyRootFor(i.pos, headDelta, fwd, bodyBackOffset(i.pitch));
+      root.position.set(at.x, 0, at.z);
 
       // Tuck the arms away (shrink into the shoulders) while sprinting, ease back after.
       armScale += (armScaleFor(clip) - armScale) * Math.min(1, i.dt * 12);

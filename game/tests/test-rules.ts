@@ -1,8 +1,9 @@
 import { check, section } from './harness';
-import { PLAYER, addBattery, chooseGait, createPlayerStatus, fearLevel, flickerAmount, tickStatus, toggleFlashlight } from '../src/state/playerRules';
+import { PLAYER, nextCrouch, addBattery, chooseGait, createPlayerStatus, fearLevel, flickerAmount, tickStatus, toggleFlashlight } from '../src/state/playerRules';
 import { FUSES_NEEDED, createProgress, objectiveText, activateGenerator, tryExit } from '../src/state/objectives';
 import { DEFAULT_SETTINGS, defaultSave, formatTime, hydrateSave, recordEscape } from '../src/state/settings';
 import { findTarget } from '../src/world/interact';
+import { guardLeave } from '../src/state/session';
 import { LEVEL_01 } from '../src/world/content/level01';
 import { cellCenter, itemPos, parseLevel } from '../src/world/level';
 
@@ -31,6 +32,16 @@ section('Battery');
   check('battery caps at max', s.battery === PLAYER.batteryMax);
   check('no flicker when healthy', flickerAmount(80) === 0);
   check('flicker when low', flickerAmount(5) > 0.5);
+}
+
+section('Crouch toggle (Ctrl)');
+{
+  check('press crouches', nextCrouch(false, true, false, false) === true);
+  check('stays crouched without pressing', nextCrouch(true, false, false, true) === true);
+  check('press again stands up', nextCrouch(true, true, false, false) === false);
+  check('sprinting while moving stands you up', nextCrouch(true, false, true, true) === false);
+  check('holding Shift while still keeps the crouch', nextCrouch(true, false, true, false) === true);
+  check('leaving mid-run asks first', guardLeave('playing') && guardLeave('paused') && !guardLeave('intro') && !guardLeave('over'));
 }
 
 section('Fear');
@@ -79,3 +90,10 @@ section('Interaction');
   const te = findTarget(level, { x: ex.x - 3 + 0.4, z: ex.z }, { x: 1, z: 0 }, []);
   check('exit reachable from next tile', te?.type === 'exit');
 }
+
+import { BREATH_LINE_MAX_PX, BREATH_LINE_MIN_PX, breathLineVisible, breathLineWidth } from '../src/state/hudLayout';
+
+section('HUD meters');
+check('breath line full width when rested', breathLineWidth(1) === BREATH_LINE_MAX_PX);
+check('breath line shrinks to a dot when empty', breathLineWidth(0) === BREATH_LINE_MIN_PX);
+check('breath line hidden when full, shown once used', !breathLineVisible(1) && breathLineVisible(0.9));

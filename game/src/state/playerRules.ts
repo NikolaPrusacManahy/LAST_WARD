@@ -4,8 +4,8 @@ export const PLAYER = {
   radius: 0.35,
   eyeHeight: 1.65,
   crouchEyeHeight: 1.25, // Update 0.3 — matches the crouch-walk body's head height
-  speed: { walk: 3.0, sprint: 5.7, crouch: 1.6 },
-  staminaMax: 7.5, // seconds of sprint
+  speed: { walk: 3.0, sprint: 5.4, crouch: 1.6 },
+  staminaMax: 4.5, // seconds of sprint
   staminaRegen: 0.9, // per second while not sprinting
   staminaRegenDelay: 0.8,
   /** Sprinting is locked out until stamina refills to this after running dry. */
@@ -37,6 +37,16 @@ export function chooseGait(moving: boolean, wantSprint: boolean, wantCrouch: boo
   if (wantCrouch) return 'crouch';
   if (wantSprint && !s.exhausted && s.stamina > 0) return 'sprint';
   return 'walk';
+}
+
+/**
+ * Update 0.4.2 — crouch is a toggle on Ctrl (press once to crouch, again to stand).
+ * Sprinting while moving stands you up, like most games.
+ */
+export function nextCrouch(crouching: boolean, togglePressed: boolean, sprintHeld: boolean, moving: boolean): boolean {
+  let c = togglePressed ? !crouching : crouching;
+  if (c && sprintHeld && moving) c = false;
+  return c;
 }
 
 export function gaitSpeed(g: Gait): number {

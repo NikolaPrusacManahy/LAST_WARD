@@ -1,5 +1,6 @@
 import type { HudStore } from '../engine/hudStore';
 import { useHud } from '../hooks/useHud';
+import { breathLineVisible, breathLineWidth } from '../state/hudLayout';
 
 interface Props {
   store: HudStore;
@@ -17,7 +18,7 @@ export function Hud({ store, hidden, onBegin }: Props) {
         <span className="lw-intro-line">You wake up on a gurney in Ward 13.</span>
         <span className="lw-intro-line">The power is out. Something is breathing down the hall.</span>
         <span className="lw-intro-cta">Click to begin</span>
-        <span className="lw-intro-keys">WASD move · Mouse look · Shift run · C crouch · F flashlight · E interact · Esc pause</span>
+        <span className="lw-intro-keys">WASD move · Mouse look · Shift run · Ctrl crouch · F flashlight · E interact · Esc pause</span>
       </button>
     );
   }
@@ -52,13 +53,11 @@ export function Hud({ store, hidden, onBegin }: Props) {
             <div className="lw-bar-fill" style={{ width: `${h.battery}%` }} />
           </div>
         </div>
-        <div className={`lw-bar lw-bar-stamina ${h.exhausted ? 'lw-bar-low' : ''}`} style={{ opacity: h.stamina >= 1 ? 0.25 : 1 }}>
-          <label>BREATH</label>
-          <div className="lw-bar-track">
-            <div className="lw-bar-fill" style={{ width: `${h.stamina * 100}%` }} />
-          </div>
-        </div>
       </div>
+      <div
+        className={`lw-breath ${breathLineVisible(h.stamina) ? 'lw-breath-on' : ''} ${h.exhausted ? 'lw-breath-out' : ''}`}
+        style={{ width: `${breathLineWidth(h.stamina)}px` }}
+      />
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Level, Vec2, cellCenter, dist, itemPos } from '../world/level';
 import { moveWithCollision } from '../world/collision';
-import { Gait, PLAYER, PlayerStatus, chooseGait, flickerAmount, gaitNoise, gaitSpeed, tickStatus } from '../state/playerRules';
+import { Gait, PLAYER, PlayerStatus, chooseGait, flickerAmount, gaitNoise, gaitSpeed, tickStatus, nextCrouch } from '../state/playerRules';
 import { Input } from './input';
 import { flashlightCookie } from './textures';
 import { BOB, BobAmp, blendAmp, bobOffset } from '../state/cameraBob';
@@ -84,8 +84,9 @@ export class PlayerController {
       wx /= len;
       wz /= len;
     }
-    this.crouching = input.isDown('KeyC') // not Ctrl: Ctrl+W would close the tab;
-    const gait = chooseGait(len > 0, input.isDown('ShiftLeft', 'ShiftRight'), this.crouching, status);
+    const sprintHeld = input.isDown('ShiftLeft', 'ShiftRight');
+    this.crouching = nextCrouch(this.crouching, input.wasPressed('ControlLeft') || input.wasPressed('ControlRight'), sprintHeld, len > 0);
+    const gait = chooseGait(len > 0, sprintHeld, this.crouching, status);
     const speed = gaitSpeed(gait);
     const a = 1 - Math.exp(-dt * 12);
     this.vel.x += (wx * speed - this.vel.x) * a;
