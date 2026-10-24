@@ -4,7 +4,7 @@ A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
 You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find four fuses, bring four electrical panels back to life, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 0.9.7. The full patch history is in `HANDOVER.md`.
+Current version: 0.9.8. The full patch history is in `HANDOVER.md`.
 
 ## How the game works
 
@@ -12,10 +12,11 @@ Current version: 0.9.7. The full patch history is in `HANDOVER.md`.
 - **It moves around.** It starts in one corner of the map and patrols that area. If it goes 35 seconds without spotting you, it disappears and turns up at another corner.
 - **It climbs onto the ceiling.** Now and then it screams in a corridor, jumps, and crawls upside down along the corridor ceilings, very fast, for 15 to 20 seconds. Up there it can't enter a room or catch you. If it sees you or hears your footsteps, it drops and chases you. If you make any other noise, it crawls to the doorway nearest it, drops and runs in. Hide in a room and keep quiet.
 - **You have two lives.** The first time it catches you, it picks you up and throws you across the room. You black out, get up injured (red at the edges of the screen, grunting now and then) and it vanishes somewhere else. The second time is the end.
-- **Fuses, batteries and notes** are shuffled across the tables every run. Batteries recharge the flashlight, which starts switched off. Notes are left by people who were here before you, and reading one pauses the game.
-- **Electrical panels** are spread across the ward, one in each quarter. Fit a fuse, hold to repair the panel, then throw its switch. While you repair, skill checks come up: a circle with a needle sweeping round it. Press Space while the needle is in the marked zone (the white slice at its start is a perfect hit). Miss and the panel blows, loud enough for The Patient to hear.
-- **Bricks and bottles** lie in the halls. Pick one up and press Space to throw it: The Patient runs to the noise, so you can send it away from you. A bottle smashes on the first throw; a brick breaks in half and lasts one more. If you're close to where it lands, it will come for you instead.
-- **Lockers** are spread around the ward. Step into one and you're hidden, as long as The Patient didn't see you get in. If it did, it will drag you out. When it loses you it checks the lockers nearby. Hold Space and W to ease the door open and peek.
+- **Fuses, batteries, a med kit and notes** are shuffled across the tables every run. Notes are left by people who were here before you, and reading one pauses the game.
+- **You carry things in three slots.** Everything you pick up (fuses, batteries, the med kit, bricks and bottles) goes into a free slot, shown at the bottom of the screen. Keys 1, 2 and 3 choose what's in your hand; an empty slot means empty hands, and pressing the key of the item you're holding puts it away. With something in your hand, left click uses it: a battery goes in your flashlight (which starts switched off), a fuse goes in the panel you're looking at, a brick or bottle is thrown, and the med kit, held for 5 seconds, heals you if you're injured. Space drops what's in your hand; pick it up again with left click. With empty hands, left click picks things up and uses panels, notes and lockers.
+- **Electrical panels** are spread across the ward, one in each quarter. Fit a fuse (with the fuse in your hand), hold to repair the panel, then throw its switch. While you repair, skill checks come up: a circle with a needle sweeping round it. Press Space while the needle is in the marked zone (the white slice at its start is a perfect hit). Miss and the panel blows, loud enough for The Patient to hear.
+- **Bricks and bottles** lie in the halls. Pick one up and left click to throw it: The Patient runs to the noise, so you can send it away from you. A bottle smashes on the first throw; a brick breaks in half and lasts one more. If you're close to where it lands, it will come for you instead.
+- **Lockers** are spread around the ward. Step into one and you're hidden, as long as The Patient didn't see you get in. If it did, it will drag you out. If it loses you in a chase it goes back to its patrol; if it finds nothing where it heard a noise, it checks the lockers nearby. Hold Space and W to ease the door open and peek.
 - **Restarting the generator** needs all four panels live. It turns the lights back on, but The Patient hears it. It screams, then sprints to the generator room, so don't stay there.
 
 ## Difficulty
@@ -35,13 +36,14 @@ Picked each time you press Begin:
 | Run | Left Shift |
 | Crouch (toggle) | Left Ctrl |
 | Flashlight | Right click |
-| Collect / interact | Left click |
-| Skill check / throw | Space |
+| Interact / use what's in your hand (throw, fit a fuse, load a battery, hold for the med kit) | Left click |
+| Item slots (press again to put it away) | 1 2 3 |
+| Skill check / drop what's in your hand | Space |
 | Peek out of a locker | Hold Space + W |
 | Look back (hold while running) | Q |
 | Pause | Esc |
 
-Everything except Look and Pause can be rebound in Settings. Full screen (F11) and headphones are recommended.
+Everything except Look, the item slots (1 2 3) and Pause can be rebound in Settings. Full screen (F11) and headphones are recommended.
 
 ## Running it
 
@@ -103,7 +105,7 @@ A level is a text map in `game/src/world/content/`, one character per 3 m square
 ```
 #  wall           .  floor
 P  player start   E  enemy start
-F  fuse           B  battery        N  note
+F  fuse           B  battery        N  note           M  med kit
 G  generator      X  exit door      L  ceiling lamp
 ^ v < >  stairs going up in that direction
 o  the stairwell, on the floor above a flight of stairs

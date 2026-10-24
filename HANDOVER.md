@@ -1,6 +1,19 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.7
+## Current version: 0.9.8
+
+- **Three item slots** (`state/inventory.ts`, the slot bar `screens/SlotBar.tsx` + `ItemIcon.tsx`, `theme-13-slots.css`). Everything you carry goes in a slot: bricks, bottles, fuses, batteries and the new med kit. Picking something up puts it in the slot your hand is on if that's free (so you're holding it), else the first free one; with all three full you can't pick anything up ("Your slots are full. Drop something first."). Keys 1, 2, 3 (and the numpad's) choose the slot in your hand; an empty slot means empty hands, and pressing the key of the slot you're holding puts it away (dashed in the bar), so with all three full you can still use your hands. 1–3 aren't rebindable (they're reserved, so nothing else can take them).
+- **Left click uses what's in your hand:** a brick or bottle is thrown (it was Space); a battery goes in your light (+45%, used up; "Your light is full." at 100%); a fuse goes into the panel you're looking at, if it needs one (fuses are fitted from your hand now, not from your pocket); the med kit, held for 5 s with a blood-red bar, heals you. With empty hands, left click picks things up and uses panels, notes, lockers, the generator and the exit as before. The crosshair prompt says what left click will do with what you're holding.
+- **Space drops what's in your hand** on the floor a step in front of you (at your feet against a wall). Left click with empty hands picks it up again. A dropped fuse doesn't count as found twice. Caught by The Patient, what's in your hand drops where you stood; the rest stays in your slots. Space is still the skill check: it's one action, "Skill check / drop" (you repair with empty hands, so they never clash).
+- **Med kit** ("Medkit_low" by 3dmodelsst, CC BY 4.0; converted by `tools/prepare-props.mjs`, its one-bone rig dropped, 19 × 23 × 8 cm, 407 KB). One in Ward 13: a new item table at (16, 1) (map letter `M`), shuffled with the others. Held for 5 s while injured: you're no longer injured (no red edges, limp or grunts) and your second life is back. Not hurt, or on Hard (one life, so never injured): "You're not hurt." It's drawn at 65% in your hand. The credits link is a Sketchfab search until the model page link is filled in.
+- **Fuses, batteries and the med kit lie on the tables** as things to pick up (like a brick on the floor), still glowing so you can spot them. Notes are the only things left that you "read" on a table. The objective line counts the fuses in your slots.
+- **No shadows from things you carry:** a brick or bottle in your hand, with the flashlight on, threw a shadow across the screen. Nothing you carry casts one now.
+- **The Patient no longer searches after losing you.** When it loses you in a chase, it goes to where it last knew you were and then straight back to its patrol. It used to search round there and check the nearest locker, which was always the one you'd just got away into. (It still searches, and checks lockers, where it heard a noise and found nothing.)
+- **Your walk animation is back to half speed** (0.9.7 matched it to the ground; the quick steps looked off).
+- **Fixed: the breath line came in late.** It measured your stamina against 4.5 s, but a full sprint has been 5.5 s since before 0.9.6, so the line stayed hidden for your first second of running and filled up early. It uses the real sprint length now (`staminaShare` in `state/hudLayout.ts`) and shows as soon as you start running.
+- Checked in the browser: picking a fuse off a table, keys 1–3 (empty hands, put away, back), dropping it with Space and picking it up, the slot bar with a fuse, a brick and a med kit, the med kit healing after 5 s, the brick thrown with left click. New checks in `tests/test-slots.ts`.
+
+## 0.9.7
 
 - **The Patient crawls on the ceiling** ("search by crawling", `CRAWL` and `stepCrawl` in `world/enemyAI.ts`). Now and then while it patrols a corridor, it screams, crouches and jumps, turns over in the air and ends up upside down on the ceiling. That takes 2.6 s on the spot, which is your warning. It's never less than 60 s into a run, then 40–70 s after the last time; once it's allowed, it happens after about 12 s of corridor patrol on average. Up there it crawls along the corridors only, never into a room, at 8.6 m/s (twice its run), for 15–20 s. Then it drops down (the jump played backwards, 1.6 s) and patrols again.
 - **It plans its whole route the moment it's up** (`planCrawlRoute`): for all the crawling time it has, always on along the corridors to the nearest stretch it hasn't crawled yet (a random way at a fork). So in 15–20 s it sweeps 45–55 different corridor cells, about half the ward's halls, without doubling back, and every corridor if it had the time. Before, it picked random spots and wandered back and forth. F2 draws the route.
@@ -293,7 +306,7 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + rule tests, 622 at 0.9.7) and `npm run verify` (adds the production build). Run `verify` before every commit.
+From `game/`: `npm run verify:quick` (typecheck + rule tests, 662 at 0.9.8) and `npm run verify` (adds the production build). Run `verify` before every commit.
 
 ## How to publish
 `npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready). The public build has the debug tools (F2, F3, `?debug`, `?level=N`, the tester level picker) switched off.
@@ -306,7 +319,7 @@ From `game/`: `npm run verify:quick` (typecheck + rule tests, 622 at 0.9.7) and 
 - **Assets:** raw files in `ASSETS/` (not shipped), converted by the scripts in `game/tools/` into `game/public/`. Every outside asset needs a line in `game/src/state/credits.ts`.
 
 ## Verified vs unverified
-- ✅ Typecheck, 622 rule tests and the production build pass (0.9.7).
+- ✅ Typecheck, 662 rule tests and the production build pass (0.9.8).
 - ✅ Headless browser checks (software rendering, ~1–2 fps) of each feature as it was added: panels and skill checks, banner, difficulty picker and night vision, lockers and peeking, throwing, locker checks, the furnished generator room.
 - ⚠️ **Not verified by playing:** real-GPU frame rate, how it sounds (volumes, the hearing model; 0.9.6.1: the running breath's level and loop seam, the wake-up sound against the scene), mouse feel, timing of skill checks, chases after throws, how escapable a chase feels after 0.9.6.2 (the next knob if it's still too hard: `ENEMY.windupSeconds`, its scream, 1.0 → 1.5 s), the ceiling crawl in play (how often, how the flip looks at full speed, its scuttle sound). Tuned on paper; adjust `ENEMY` / `PLAYER` / `THROW` / `SKILL` after playing.
 
@@ -320,7 +333,7 @@ From `game/`: `npm run verify:quick` (typecheck + rule tests, 622 at 0.9.7) and 
 - Best time per difficulty (Easy currently counts towards the same best time).
 - Doors that open and close (and make noise).
 - The bottle's smash (16 m) is quieter than a brick's thud (20 m); raise it to match if wanted.
-- Credits: the locker's link is a Sketchfab search until the model page link is filled in; sound effects aren't credited (their sources aren't recorded).
+- Credits: the locker's and the med kit's links are Sketchfab searches until the model page links are filled in; sound effects aren't credited (their sources aren't recorded).
 - Getting caught on a flight of stairs plays the throw at floor height; sounds from other floors are only treated as far away (no multi-floor level in the game right now).
 - Vite warns about bundle size (three.js ~730 kB). Harmless.
 

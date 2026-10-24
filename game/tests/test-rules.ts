@@ -105,7 +105,7 @@ section('Saves');
 section('Interaction');
 {
   const level = parseLevel(LEVEL_01);
-  const fuse = level.items.find((i) => i.kind === 'fuse')!;
+  const fuse = level.items.find((i) => i.kind === 'note')!; // (0.9.8: notes are the table targets left; fuses are carried)
   const c = itemPos(level, fuse.cell);
   // Stand 1.5 m out from the cabinet, looking at it.
   const at = { x: c.x + c.face.x * 1.5, z: c.z + c.face.z * 1.5 };
@@ -119,9 +119,12 @@ section('Interaction');
   check('exit reachable from next tile', te?.type === 'exit');
 }
 
-import { BREATH_LINE_MAX_PX, BREATH_LINE_MIN_PX, breathLineVisible, breathLineWidth } from '../src/state/hudLayout';
+import { BREATH_LINE_MAX_PX, BREATH_LINE_MIN_PX, breathLineVisible, breathLineWidth, staminaShare } from '../src/state/hudLayout';
 
 section('HUD meters');
 check('breath line full width when rested', breathLineWidth(1) === BREATH_LINE_MAX_PX);
 check('breath line shrinks to a dot when empty', breathLineWidth(0) === BREATH_LINE_MIN_PX);
 check('breath line hidden when full, shown once used', !breathLineVisible(1) && breathLineVisible(0.9));
+check('0.9.8: rested is full (5.5 s of sprint, not 4.5)', staminaShare(PLAYER.staminaMax, PLAYER.staminaMax) === 1 && !breathLineVisible(staminaShare(PLAYER.staminaMax, PLAYER.staminaMax)));
+check('0.9.8: the line shows as soon as you start running (0.2 s in)', breathLineVisible(staminaShare(PLAYER.staminaMax - 0.2, PLAYER.staminaMax)));
+check('0.9.8: empty is empty', staminaShare(0, PLAYER.staminaMax) === 0);

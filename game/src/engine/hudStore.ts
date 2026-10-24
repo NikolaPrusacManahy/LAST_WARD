@@ -1,6 +1,7 @@
 // Tiny external store: the engine writes HUD values ~10×/s, React reads them with
 // useSyncExternalStore (see hooks/useHud.ts). Keeps React out of the frame loop.
 import type { Prompt } from '../state/prompts';
+import type { CarryKind } from '../state/throwables';
 import { DEFAULT_INTRO, LevelIntro } from '../world/level';
 import { Bindings, DEFAULT_BINDINGS } from '../state/bindings';
 
@@ -39,8 +40,12 @@ export interface HudState {
   nightVision: boolean;
   /** Update 0.9.5 — inside a locker: show how to peek and get out. */
   hiding: boolean;
-  /** Update 0.9.6 — holding a brick / bottle: show how to throw it. */
-  holding: 'brick' | 'bottle' | null;
+  /** Update 0.9.8 — your three slots (what's in each), the one your hand is on, and whether it's put away. */
+  slots: ({ kind: CarryKind; title: string } | null)[];
+  slot: number;
+  stowed: boolean;
+  /** Update 0.9.8 — using the med kit: 0..1 of the 5 s hold, null when you're not. */
+  use: number | null;
 }
 
 export const initialHud: HudState = {
@@ -64,7 +69,10 @@ export const initialHud: HudState = {
   objectiveDetail: '',
   nightVision: false,
   hiding: false,
-  holding: null,
+  slots: [null, null, null],
+  slot: 0,
+  stowed: false,
+  use: null,
   banner: null,
   repair: null,
 };

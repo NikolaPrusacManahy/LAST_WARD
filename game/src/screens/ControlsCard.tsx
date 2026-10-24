@@ -18,8 +18,10 @@ export function ControlsCard({ bindings: b, secondsLeft, nightVision }: Props) {
     ['Run', <InputIcon code={b.sprint} />],
     ['Crouch', <InputIcon code={b.crouch} />],
     [nightVision ? 'Night vision' : 'Flashlight', <InputIcon code={b.flashlight} />],
-    ['Collect / interact', <InputIcon code={b.interact} />],
-    ['Skill check', <InputIcon code={b.skillCheck} />],
+    ['Interact / use item', <InputIcon code={b.interact} />],
+    // Update 0.9.8 — your three slots, and dropping what's in your hand.
+    ['Item slots', <><InputIcon code="Digit1" /><InputIcon code="Digit2" /><InputIcon code="Digit3" /></>],
+    ['Skill check / drop', <InputIcon code={b.skillCheck} />],
     ['Look back (running)', <InputIcon code={b.lookBack} />],
     ['Pause', <InputIcon code="Escape" />],
   ];

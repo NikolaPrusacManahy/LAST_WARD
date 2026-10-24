@@ -7,7 +7,7 @@ import { ENEMY, createEnemy, heardNoise, stepEnemy } from '../src/world/enemyAI'
 import { lineOfSight } from '../src/world/lineOfSight';
 import { createRng } from '../src/world/rng';
 import { findTarget } from '../src/world/interact';
-import { promptFor } from '../src/state/prompts';
+import { EMPTY_HANDS, promptFor } from '../src/state/prompts';
 import { createProgress } from '../src/state/objectives';
 
 const level = parseLevel(LEVEL_01);
@@ -33,8 +33,8 @@ section('Bricks and bottles in the halls (0.9.6)');
   check('…off the middle of the corridor (where it walks)', items.every((x) => dist(x.pos, cellCenter(worldToCell(x.pos))) > 0.9));
   const b = items[0];
   const t = findTarget(level, { x: b.pos.x + 1.2, z: b.pos.z }, { x: -1, z: 0 }, [], [{ id: b.id, kind: b.kind, pos: b.pos }]);
-  check('looking at one: Press [icon] to pick up', t?.type === 'throwable' && promptFor(t, createProgress(), false)?.verb === 'pick up');
-  check('hands full: one at a time', t !== null && promptFor(t, createProgress(), false, true)?.info === 'Your hands are full.');
+  check('looking at one: Press [icon] to pick up', t?.type === 'loose' && promptFor(t, createProgress(), false)?.verb === 'pick up');
+  check('0.9.8: all three slots full: it says so', t !== null && promptFor(t, createProgress(), false, { ...EMPTY_HANDS, full: true })?.info === 'Your slots are full.');
   const held = heldPos({ x: 0, y: 1.6, z: 0 }, { x: 0, y: 0, z: -1 }, { x: 1, y: 0, z: 0 });
   check('held: floating in front of you, a little right and down', held.z < -0.4 && held.x > 0 && held.y < 1.6);
 }

@@ -1,0 +1,42 @@
+/* theme-13 — Update 0.9.8: the three item slots (bottom centre) and the med kit's use bar. */
+.lw-slots {
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none;
+}
+.lw-slots-row { display: flex; gap: 8px; }
+.lw-slot {
+  position: relative; width: 58px; height: 58px; display: grid; place-items: center;
+  background: linear-gradient(180deg, rgba(13, 13, 15, 0.72), rgba(5, 5, 6, 0.86));
+  border: 1px solid rgba(216, 210, 188, 0.16);
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.85);
+  color: var(--lw-bone);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.lw-slot svg { width: 36px; height: 36px; filter: drop-shadow(0 1px 3px #000); }
+.lw-slot-key {
+  position: absolute; top: 3px; left: 5px;
+  font-family: var(--lw-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--lw-bone-dim);
+}
+/* The one your hand is on: lifted, outlined in bone, a thin line of blood under it. */
+.lw-slot-on {
+  border-color: rgba(216, 210, 188, 0.85); transform: translateY(-4px);
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.85), 0 0 16px rgba(216, 210, 188, 0.16), 0 7px 0 -5px var(--lw-blood);
+}
+.lw-slot-on .lw-slot-key { color: var(--lw-bone); }
+/* Put away: your hand's empty, the item stays in its slot. */
+.lw-slot-stowed { border-style: dashed; transform: none; box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.85); }
+.lw-slot-stowed svg { opacity: 0.4; }
+
+.lw-slots-label {
+  display: flex; align-items: center; gap: 14px; min-height: 20px;
+  font-family: var(--lw-type); font-size: 14px; color: var(--lw-bone); text-shadow: 0 1px 6px #000;
+}
+.lw-slots-idle { opacity: 0.4; }
+.lw-slots-hint {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--lw-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--lw-bone-dim);
+}
+
+/* The med kit: hold use, a blood-red bar where the repair bar goes. */
+.lw-use-fill { background: var(--lw-blood); box-shadow: 0 0 10px rgba(163, 18, 15, 0.8); }
+.lw-use-label { font-family: var(--lw-mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--lw-bone-dim); }

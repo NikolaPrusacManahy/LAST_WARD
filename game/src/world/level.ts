@@ -5,7 +5,7 @@ import type { PropPlacement } from './props';
 export const TILE = 3; // metres per grid cell
 export const WALL_HEIGHT = 3.2;
 
-export type ItemKind = 'fuse' | 'battery' | 'note';
+export type ItemKind = 'fuse' | 'battery' | 'note' | 'medkit'; // Update 0.9.8 — medkit (map: M)
 export type FixtureKind = 'generator' | 'exit';
 
 export interface Vec2 {
@@ -173,7 +173,7 @@ export function parseLevel(def: LevelDef): Level {
   let generator: Cell | null = null;
   let exit: Cell | null = null;
   let noteCount = 0;
-  const counts: Record<ItemKind, number> = { fuse: 0, battery: 0, note: 0 };
+  const counts: Record<ItemKind, number> = { fuse: 0, battery: 0, note: 0, medkit: 0 };
   const charAt = (f: number, col: number, row: number) =>
     col < 0 || row < 0 || col >= cols || row >= floorRows ? '#' : floorMaps[f][row][col];
   const idx = (f: number, col: number, row: number) => (f * stride + row) * cols + col;
@@ -205,6 +205,7 @@ export function parseLevel(def: LevelDef): Level {
           case 'F': addItem('fuse'); break;
           case 'B': addItem('battery'); break;
           case 'N': addItem('note'); break;
+          case 'M': addItem('medkit'); break; // Update 0.9.8
           case 'L': lamps.push(cell); break;
           case 'G': generator = cell; wall(); break;
           case 'X': exit = cell; wall(); break;

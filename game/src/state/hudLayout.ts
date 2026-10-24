@@ -13,3 +13,9 @@ export function breathLineWidth(stamina01: number): number {
 export function breathLineVisible(stamina01: number): boolean {
   return stamina01 < 0.995;
 }
+
+/** Update 0.9.8 — how much breath you have left, 0..1 (rounded for the HUD). It divided by 4.5 s, but a
+ *  full sprint is `max` (5.5 s): the line stayed hidden for your first second of running. */
+export function staminaShare(stamina: number, max: number): number {
+  return Math.min(1, Math.max(0, Math.round((stamina / max) * 100) / 100));
+}

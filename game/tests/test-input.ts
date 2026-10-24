@@ -54,8 +54,8 @@ section('Prompts (0.5)');
 {
   const p = createProgress();
   const item = (kind: LevelItem['kind']): LevelItem => ({ id: `${kind}-0`, kind, cell: { col: 0, row: 0 } } as LevelItem);
-  check('fuse: Press [icon] to collect', promptFor({ type: 'item', item: item('fuse') }, p, false)?.verb === 'collect');
-  check('battery: to collect', promptFor({ type: 'item', item: item('battery') }, p, false)?.verb === 'collect');
+  check('0.9.8: a fuse on a table: Press [icon] to pick up', promptFor({ type: 'loose', id: 1, kind: 'fuse' }, p, false)?.verb === 'pick up');
+  check('0.9.8: a battery too', promptFor({ type: 'loose', id: 2, kind: 'battery' }, p, false)?.title === 'Battery');
   check('note: to read', promptFor({ type: 'item', item: item('note') }, p, false)?.verb === 'read');
   const gen = promptFor({ type: 'generator' }, p, false);
   check('generator before the panels: no key, says what it needs (0.9)', gen?.verb === null && gen.info === 'Dead. Restore the panels (0/4).');
@@ -63,7 +63,7 @@ section('Prompts (0.5)');
   check('generator with all panels live: to start', promptFor({ type: 'generator' }, live, false)?.verb === 'start');
   check('exit without power: no key', promptFor({ type: 'exit' }, p, false)?.verb === null);
   check('exit with power: to interact', promptFor({ type: 'exit' }, { ...p, powered: true }, false)?.verb === 'interact');
-  check('no prompt while a note is open', promptFor({ type: 'item', item: item('fuse') }, p, true) === null);
+  check('no prompt while a note is open', promptFor({ type: 'item', item: item('note') }, p, true) === null);
   check('no prompt with nothing in reach', promptFor(null, p, false) === null);
   check('same words compare equal (no HUD churn)', samePrompt({ title: 'Fuse', verb: 'collect' }, { title: 'Fuse', verb: 'collect' }));
 }

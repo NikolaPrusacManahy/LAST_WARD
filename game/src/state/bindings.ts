@@ -14,7 +14,7 @@ export const ACTIONS: { id: Action; label: string }[] = [
   { id: 'crouch', label: 'Crouch' },
   { id: 'flashlight', label: 'Flashlight' },
   { id: 'interact', label: 'Collect / interact' },
-  { id: 'skillCheck', label: 'Skill check' }, // Update 0.9 — electrical panel repairs
+  { id: 'skillCheck', label: 'Skill check / drop' }, // Update 0.9 — electrical panel repairs; 0.9.8: drop what's in your hand
   { id: 'lookBack', label: 'Look back (running)' }, // Update 0.5.4
 ];
 
@@ -31,8 +31,10 @@ export const DEFAULT_BINDINGS: Bindings = {
   lookBack: 'KeyQ', // Update 0.5.4 — hold while running
 };
 
-/** Never bindable: Esc pauses (the browser owns it), F2/F3 are the debug view, Win/Cmd opens the OS. */
-export const RESERVED = ['Escape', 'F2', 'F3', 'MetaLeft', 'MetaRight', 'ContextMenu'];
+/** Never bindable: Esc pauses (the browser owns it), F2/F3 are the debug view, Win/Cmd opens the OS.
+ *  Update 0.9.8 — 1–3 (and the numpad's) pick your slot. */
+export const SLOT_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Numpad1', 'Numpad2', 'Numpad3'];
+export const RESERVED = ['Escape', 'F2', 'F3', 'MetaLeft', 'MetaRight', 'ContextMenu', ...SLOT_KEYS];
 
 const MOUSE = /^Mouse[0-4]$/;
 const KEY = /^[A-Za-z][A-Za-z0-9]{1,24}$/;

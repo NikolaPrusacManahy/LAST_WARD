@@ -79,6 +79,16 @@ export const PLAN = [
       }
     },
   },
+  // Update 0.9.8 — Medkit_low (3dmodelsst, CC BY 4.0): a 23 cm first-aid case. It came rigged to one
+  // bone; the rig is dropped so it's a plain mesh (copies of a skinned mesh share one skeleton).
+  {
+    out: 'medkit', src: 'props/medkit.glb', keep: ['dev_aptechka_low.ogf'], scale: 1, metal: 0, tex: 512,
+    post: (doc) => {
+      for (const n of doc.getRoot().listNodes()) n.setSkin(null);
+      for (const s of doc.getRoot().listSkins()) s.dispose();
+      for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) p.setAttribute('JOINTS_0', null).setAttribute('WEIGHTS_0', null);
+    },
+  },
 ];
 
 const [srcDir, outDir] = process.argv.slice(2);

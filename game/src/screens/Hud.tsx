@@ -4,6 +4,7 @@ import { breathLineVisible, breathLineWidth } from '../state/hudLayout';
 import { ControlsCard } from './ControlsCard';
 import { InputIcon } from './InputIcon';
 import { SkillCheck } from './SkillCheck';
+import { SlotBar } from './SlotBar';
 
 interface Props {
   store: HudStore;
@@ -97,13 +98,16 @@ export function Hud({ store, hidden, onBegin }: Props) {
           </span>
         </div>
       )}
-      {h.holding && !h.repair && (
-        <div className="lw-hide-hint">
-          <span>
-            Press <InputIcon code={h.bindings.skillCheck} size="sm" /> to throw the {h.holding === 'brick' ? 'brick' : 'bottle'}
-          </span>
+      {/* Update 0.9.8 — the med kit: hold to use, a bar where the repair bar goes. */}
+      {h.use !== null && (
+        <div className="lw-repair">
+          <div className="lw-repair-track">
+            <div className="lw-repair-fill lw-use-fill" style={{ width: `${Math.round(h.use * 100)}%` }} />
+          </div>
+          <span className="lw-use-label">Patching yourself up</span>
         </div>
       )}
+      {!h.hiding && !h.note && <SlotBar slots={h.slots} slot={h.slot} stowed={h.stowed} dropKey={h.bindings.skillCheck} />}
       {h.toast && <div className="lw-hud-toast" key={h.toast}>{h.toast}</div>}
       {h.note && (
         <div className="lw-note">

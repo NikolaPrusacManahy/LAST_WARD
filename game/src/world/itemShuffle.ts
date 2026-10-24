@@ -19,7 +19,7 @@ export function shuffleItems(level: Level, rng: Rng): Level {
     level.items.filter((i) => i.kind === 'note').map((i) => i.noteIndex!),
     rng,
   );
-  const counts = { fuse: 0, battery: 0, note: 0 };
+  const counts = { fuse: 0, battery: 0, note: 0, medkit: 0 };
   const items: LevelItem[] = level.items.map((spot, k) => {
     const kind = kinds[k];
     const item: LevelItem = { id: `${kind}-${counts[kind]}`, kind, cell: spot.cell };

@@ -200,12 +200,7 @@ export function buildLevel(level: Level): LevelView {
   const spinners: THREE.Object3D[] = [];
   const cabinetGeo = track(new THREE.BoxGeometry(0.6, 0.8, 0.5));
   const cabinetMat = track(new THREE.MeshStandardMaterial({ color: 0x5c574d, roughness: 0.8, metalness: 0.2 }));
-  const fuseGeo = track(new THREE.CylinderGeometry(0.06, 0.06, 0.26, 12));
-  const fuseMat = track(new THREE.MeshStandardMaterial({ color: 0x331a00, emissive: 0xff8a1a, emissiveIntensity: 1.6 }));
-  const capGeo = track(new THREE.CylinderGeometry(0.065, 0.065, 0.05, 12));
   const capMat = track(new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.9, roughness: 0.3 }));
-  const battGeo = track(new THREE.BoxGeometry(0.1, 0.22, 0.1));
-  const battMat = track(new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x2dff6a, emissiveIntensity: 0.8 }));
   const noteGeo = track(new THREE.PlaneGeometry(0.32, 0.4));
   const noteMat = track(new THREE.MeshStandardMaterial({ map: track(noteTexture()), emissive: 0x3a3628, emissiveIntensity: 0.6, side: THREE.DoubleSide }));
 
@@ -219,24 +214,9 @@ export function buildLevel(level: Level): LevelView {
     cab.castShadow = cab.receiveShadow = true;
     root.add(cab);
     itemCabinets.push(cab);
-    if (item.kind === 'fuse') {
-      const f = new THREE.Mesh(fuseGeo, fuseMat);
-      const c1 = new THREE.Mesh(capGeo, capMat);
-      const c2 = new THREE.Mesh(capGeo, capMat);
-      c1.position.y = 0.14;
-      c2.position.y = -0.14;
-      const spin = new THREE.Group();
-      spin.add(f, c1, c2);
-      spin.rotation.z = Math.PI / 2;
-      spin.position.y = 0.95;
-      g.add(spin);
-      spinners.push(spin);
-    } else if (item.kind === 'battery') {
-      const b = new THREE.Mesh(battGeo, battMat);
-      b.position.y = 0.92;
-      g.add(b);
-      spinners.push(b);
-    } else {
+    // Update 0.9.8 — fuses, batteries and med kits are things to carry now, drawn on the table by
+    // engine/throwablesView.ts (like a brick on the floor). Only notes are drawn here.
+    if (item.kind === 'note') {
       const n = new THREE.Mesh(noteGeo, noteMat);
       n.rotation.x = -Math.PI / 2;
       n.rotation.z = 0.3;

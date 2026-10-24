@@ -806,10 +806,12 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
         if (e.repath <= 0 || !e.goal || dist(e.goal, e.lastKnown) > TILE * 0.5) goTo(level, e, e.lastKnown);
         const arrived = followPath(level, e, speed, dt);
         if (arrived && e.sinceSeen > tune.memorySeconds) {
-          setMode(e, 'search');
+          // Update 0.9.8 — lost you: straight back to its patrol. It used to search round there and check
+          // the nearest locker, which was always the one you'd just got away into.
+          setMode(e, 'patrol');
           events.push('lost');
-          pickWanderGoal(level, e, rng, e.lastKnown, tune.searchRadiusTiles);
-          startLockerCheck(level, e, input.lockers, e.lastKnown); // Update 0.9.6 — did you hide nearby?
+          e.idle = 1.5;
+          e.goal = null;
         }
       }
       break;

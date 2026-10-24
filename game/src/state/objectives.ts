@@ -14,7 +14,7 @@ export interface PanelState {
 }
 
 export interface Progress {
-  /** Fuses picked up (some may be in panels already). */
+  /** Fuses found (picked up at least once; some may be in panels already). */
   fuses: number;
   panels: PanelState[];
   powered: boolean;
@@ -30,8 +30,6 @@ export function createProgress(panelCount = PANEL_COUNT): Progress {
 }
 
 export const fusesFitted = (p: Progress) => p.panels.filter((x) => x.fuse).length;
-/** Fuses in your pocket. */
-export const fusesHeld = (p: Progress) => p.fuses - fusesFitted(p);
 export const panelsOn = (p: Progress) => p.panels.filter((x) => x.on).length;
 export const allPanelsOn = (p: Progress) => p.panels.length > 0 && panelsOn(p) === p.panels.length;
 
@@ -43,19 +41,19 @@ export function objectiveText(p: Progress): string {
   return `Restore the electrical panels (${panelsOn(p)}/${p.panels.length})`;
 }
 
-/** Second line under the objective: what you're carrying. */
-export function objectiveDetail(p: Progress): string {
+/** Second line under the objective: what you're carrying. Update 0.9.8 — `carried`: fuses in your slots. */
+export function objectiveDetail(p: Progress, carried: number): string {
   if (p.powered || allPanelsOn(p)) return '';
-  const held = fusesHeld(p);
-  return held > 0 ? `Fuses: ${held}` : `Find fuses (${fusesFitted(p)}/${FUSES_NEEDED} fitted)`;
+  return carried > 0 ? `Fuses: ${carried}` : `Find fuses (${fusesFitted(p)}/${FUSES_NEEDED} fitted)`;
 }
 
 export type FuseResult = 'fitted' | 'no-fuse' | 'already';
 
-export function fitFuse(p: Progress, i: number): FuseResult {
+/** Update 0.9.8 — the fuse comes from your hand: `holding` one or not. */
+export function fitFuse(p: Progress, i: number, holding: boolean): FuseResult {
   const panel = p.panels[i];
   if (panel.fuse) return 'already';
-  if (fusesHeld(p) <= 0) return 'no-fuse';
+  if (!holding) return 'no-fuse';
   panel.fuse = true;
   return 'fitted';
 }

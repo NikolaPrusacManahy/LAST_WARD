@@ -1,9 +1,13 @@
 // Update 0.5 — what the crosshair prompt says: "Press [icon] to collect" etc. The icon comes from the
 // interact binding at render time; this only decides the words. Pure (tested).
 import type { Target } from '../world/interact';
-import { Progress, allPanelsOn, fusesHeld, panelsOn } from './objectives';
+import { Progress, allPanelsOn, panelsOn } from './objectives';
+import type { CarryKind } from './throwables';
 
-export type PromptVerb = 'collect' | 'read' | 'interact' | 'repair' | 'fit a fuse' | 'switch on' | 'start' | 'hide' | 'pick up';
+export type PromptVerb =
+  | 'collect' | 'read' | 'interact' | 'repair' | 'fit a fuse' | 'switch on' | 'start' | 'hide' | 'pick up'
+  /** Update 0.9.8 — using what's in your hand. */
+  | 'throw it' | 'load it' | 'patch yourself up' | 'fit the fuse';
 
 export interface Prompt {
   /** What you're looking at. */
@@ -15,14 +19,50 @@ export interface Prompt {
   hold?: boolean;
 }
 
-const ITEM_TITLE = { fuse: 'Fuse', battery: 'Battery', note: 'Note' } as const;
+const ITEM_TITLE = { fuse: 'Fuse', battery: 'Battery', note: 'Note', medkit: 'Med kit' } as const;
 
-export function promptFor(t: Target | null, p: Progress, noteOpen: boolean, handsFull = false): Prompt | null {
-  if (!t || noteOpen) return null;
-  // Update 0.9.6 — a brick or bottle: one at a time.
-  if (t.type === 'throwable') {
-    const title = t.title ?? (t.kind === 'brick' ? 'Brick' : 'Glass bottle');
-    return handsFull ? { title, verb: null, info: 'Your hands are full.' } : { title, verb: 'pick up' };
+/** Update 0.9.8 — your hands and slots, for the prompt. */
+export interface Hand {
+  /** What's in your hand (null: empty hands) and what it's called ("Half a brick"). */
+  kind: CarryKind | null;
+  title?: string;
+  /** All three slots are taken. */
+  full: boolean;
+  /** Fuses in your slots (in your hand or put away). */
+  fuses: number;
+  injured: boolean;
+  /** The light's battery is at 100%. */
+  batteryFull: boolean;
+}
+
+export const EMPTY_HANDS: Hand = { kind: null, full: false, fuses: 0, injured: false, batteryFull: false };
+
+/** Update 0.9.8 — with something in your hand, left click uses it: that's what the prompt says. */
+function handPrompt(t: Target | null, p: Progress, hand: Hand): Prompt {
+  const title = hand.title ?? ITEM_TITLE[hand.kind as 'fuse'] ?? '';
+  switch (hand.kind) {
+    case 'fuse': {
+      const panel = t?.type === 'panel' ? p.panels[t.index] : null;
+      if (panel && !panel.fuse) return { title: 'Electrical panel', verb: 'fit the fuse' };
+      return { title, verb: null, info: 'Fit it in an electrical panel.' };
+    }
+    case 'battery':
+      return hand.batteryFull ? { title, verb: null, info: 'Your light is full.' } : { title, verb: 'load it' };
+    case 'medkit':
+      return hand.injured ? { title, verb: 'patch yourself up', hold: true } : { title, verb: null, info: 'You\'re not hurt.' };
+    default:
+      return { title, verb: 'throw it' };
+  }
+}
+
+export function promptFor(t: Target | null, p: Progress, noteOpen: boolean, hand: Hand = EMPTY_HANDS): Prompt | null {
+  if (noteOpen) return null;
+  if (hand.kind) return handPrompt(t, p, hand);
+  if (!t) return null;
+  // Update 0.9.6 — a brick or bottle. Update 0.9.8 — anything to carry, into a free slot.
+  if (t.type === 'loose') {
+    const title = t.title ?? ITEM_TITLE[t.kind as 'fuse'] ?? (t.kind === 'brick' ? 'Brick' : 'Glass bottle');
+    return hand.full ? { title, verb: null, info: 'Your slots are full.' } : { title, verb: 'pick up' };
   }
   if (t.type === 'item') {
     return { title: ITEM_TITLE[t.item.kind], verb: t.item.kind === 'note' ? 'read' : 'collect' };
@@ -37,7 +77,8 @@ export function promptFor(t: Target | null, p: Progress, noteOpen: boolean, hand
     const panel = p.panels[t.index];
     const title = 'Electrical panel';
     if (!panel || panel.on) return { title, verb: null, info: 'Live.' };
-    if (!panel.fuse) return fusesHeld(p) > 0 ? { title, verb: 'fit a fuse' } : { title, verb: null, info: 'Needs a fuse.' };
+    // Update 0.9.8 — the fuse goes in from your hand: take it out of its slot first.
+    if (!panel.fuse) return { title, verb: null, info: hand.fuses > 0 ? 'Needs a fuse. Take one in your hand (1–3).' : 'Needs a fuse.' };
     if (!panel.fixed) return { title, verb: 'repair', hold: true };
     return { title, verb: null, info: 'Repaired. Throw its switch.' };
   }

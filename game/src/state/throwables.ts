@@ -2,10 +2,15 @@
 // Space throws it. A little physics: it flies off where you look, gravity pulls it down, and the first
 // thing it hits (floor, wall) is where it lands. A bottle smashes (gone). A brick thuds down and breaks
 // in half; the half can be thrown once more, then it's gone too. Either way the noise brings The Patient running (world/enemyAI.ts `lure`).
+// Update 0.9.8 — and everything else you carry (fuses, batteries, med kits): lying on a table or the
+// floor, in one of your three slots (state/inventory.ts), dropped again. Only bricks and bottles fly.
 // Pure (tested).
-import { Level, TILE, ThrowableSpawn, Vec2, WALL_HEIGHT, cellCenter, isSolid } from '../world/level';
+import { Level, TILE, ThrowableSpawn, Vec2, WALL_HEIGHT, cellCenter, isSolid, itemPos } from '../world/level';
 
 export type ThrowableKind = 'brick' | 'bottle';
+/** Update 0.9.8 — anything that goes in your slots. */
+export type CarryKind = ThrowableKind | 'fuse' | 'battery' | 'medkit';
+export const isThrowable = (k: CarryKind): k is ThrowableKind => k === 'brick' || k === 'bottle';
 
 export interface Vec3 {
   x: number;
@@ -13,9 +18,11 @@ export interface Vec3 {
   z: number;
 }
 
+/** Something you can carry (the name is from 0.9.6, when only bricks and bottles could be). `pos.y` > 0:
+ *  on a table. 'held': in one of your slots (in your hand or put away). */
 export interface Throwable {
   id: number;
-  kind: ThrowableKind;
+  kind: CarryKind;
   state: 'ground' | 'held' | 'flying' | 'gone';
   pos: Vec3;
   vel: Vec3;
@@ -24,6 +31,8 @@ export interface Throwable {
   spin: number;
   /** Update 0.9.6 — times thrown (a brick is half a brick after one, gone after two). */
   throws: number;
+  /** Update 0.9.8 — picked up at least once (a fuse counts as found once, however often you drop it). */
+  found?: boolean;
 }
 
 export const THROW = {
@@ -43,11 +52,11 @@ export const THROW = {
   hold: { forward: 0.55, right: 0.2, down: 0.24 },
 };
 
-export const THROWABLE_TITLE: Record<ThrowableKind, string> = { brick: 'Brick', bottle: 'Glass bottle' };
+export const CARRY_TITLE: Record<CarryKind, string> = { brick: 'Brick', bottle: 'Glass bottle', fuse: 'Fuse', battery: 'Battery', medkit: 'Med kit' };
 
 /** Update 0.9.6 — what it's called on the floor / in your hand ("Half a brick" once it's broken). */
-export function throwableTitle(t: { kind: ThrowableKind; throws: number }): string {
-  return t.kind === 'brick' && t.throws > 0 ? 'Half a brick' : THROWABLE_TITLE[t.kind];
+export function throwableTitle(t: { kind: CarryKind; throws: number }): string {
+  return t.kind === 'brick' && t.throws > 0 ? 'Half a brick' : CARRY_TITLE[t.kind];
 }
 
 export function spawnThrowables(spawns: ThrowableSpawn[]): Throwable[] {
@@ -56,6 +65,21 @@ export function spawnThrowables(spawns: ThrowableSpawn[]): Throwable[] {
     const [dx, dz] = s.at ?? [0, 0];
     return { id, kind: s.kind, state: 'ground', pos: { x: c.x + dx, y: 0, z: c.z + dz }, vel: { x: 0, y: 0, z: 0 }, yaw: (id * 2.39996) % (Math.PI * 2), spin: 0, throws: 0 };
   });
+}
+
+/** Update 0.9.8 — how high a table top is (m): fuses, batteries and med kits lie on it. */
+export const TABLE_TOP = 0.8;
+
+/** Update 0.9.8 — the fuses, batteries and med kits on the item tables (notes stay notes), as things to
+ *  carry, numbered after `firstId`. */
+export function spawnTableItems(level: Level, firstId: number): Throwable[] {
+  return level.items
+    .filter((i) => i.kind !== 'note')
+    .map((i, k) => {
+      const p = itemPos(level, i.cell);
+      const kind = i.kind as CarryKind;
+      return { id: firstId + k, kind, state: 'ground', pos: { x: p.x, y: TABLE_TOP, z: p.z }, vel: { x: 0, y: 0, z: 0 }, yaw: Math.atan2(p.face.x, p.face.z) + Math.PI / 2, spin: 0, throws: 0 };
+    });
 }
 
 /** Throw it from `from` (your hand) along `look` (unit, with pitch). */
@@ -104,7 +128,7 @@ export function stepFlight(level: Level, t: Throwable, dt: number): { item: Thro
       const broke = t.kind === 'bottle' || throws >= THROW.brickThrows;
       return {
         item: { ...t, state: broke ? 'gone' : 'ground', pos: at, vel: { x: 0, y: 0, z: 0 }, spin: 0, yaw: t.yaw + Math.random() * 0.6, throws },
-        landing: { at, broke, noise: { pos: { x: at.x, z: at.z }, radius: THROW.noise[t.kind] } },
+        landing: { at, broke, noise: { pos: { x: at.x, z: at.z }, radius: THROW.noise[t.kind as ThrowableKind] } },
       };
     }
     p.x = q.x;

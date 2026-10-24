@@ -29,6 +29,8 @@ export const CREDITS: Credit[] = [
   { id: 'locker', what: 'Lockers', title: 'Dirty Locker (256x256 Retro)', author: 'xylvnking', licence: CC_BY, source: 'https://sketchfab.com/search?q=Dirty+Locker+256x256+Retro&type=models' },
   { id: 'brick', what: 'Brick', title: 'Brick Libra', author: 'Nikitos & 3130', licence: CC_BY, source: 'https://sketchfab.com/3d-models/brick-libra-ae48f306cd6446599197fb1aa0a31f88' },
   { id: 'bottle', what: 'Glass bottle', title: 'Beer Bottle', author: 'gelmi.com.br', licence: CC_BY, source: 'https://sketchfab.com/3d-models/beer-bottle-c3de7f8b092e4092aef14d4ffc9fac7f' },
+  // Update 0.9.8 — the link is a search until the model page link is filled in (like the locker).
+  { id: 'medkit', what: 'Med kit', title: 'Medkit_low', author: '3dmodelsst', licence: CC_BY, source: 'https://sketchfab.com/search?q=Medkit_low+3dmodelsst&type=models' },
   { id: 'mixamo', what: 'The Patient and the player: characters and animations', title: 'Mixamo', author: 'Adobe', licence: 'Mixamo terms', source: 'https://www.mixamo.com' },
   { id: 'kenney', what: 'Control icons', title: 'Input Prompts', author: 'Kenney', licence: 'CC0', source: 'https://kenney.nl' },
   { id: 'fonts', what: 'Fonts', title: 'Special Elite, IBM Plex Mono', author: 'Astigmatic, IBM', licence: 'Apache 2.0, SIL OFL 1.1', source: 'https://fonts.google.com' },

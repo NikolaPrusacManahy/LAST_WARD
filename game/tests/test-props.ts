@@ -9,10 +9,10 @@ import { moveWithCollision } from '../src/world/collision';
 import { reachable } from '../src/world/pathfinding';
 import { BLOCKER_RADIUS } from '../src/world/collision';
 import { PLAYER } from '../src/state/playerRules';
-import { FUSES_NEEDED, PANEL_COUNT, allPanelsOn, createProgress, finishRepair, fitFuse, fusesHeld, objectiveDetail, objectiveText, panelsOn, startGenerator, throwPanelSwitch, tryExit } from '../src/state/objectives';
+import { FUSES_NEEDED, PANEL_COUNT, allPanelsOn, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, panelsOn, startGenerator, throwPanelSwitch, tryExit } from '../src/state/objectives';
 import { SKILL, cancelCheck, createRepair, judge, needle, stepRepair } from '../src/state/skillCheck';
 import { ENEMY, visibility, createEnemy } from '../src/world/enemyAI';
-import { promptFor } from '../src/state/prompts';
+import { EMPTY_HANDS, promptFor } from '../src/state/prompts';
 import { createRng } from '../src/world/rng';
 import { CREDITS, PROP_CREDIT } from '../src/state/credits';
 
@@ -93,11 +93,12 @@ section('Panels, generator, exit (0.9)');
 {
   const p = createProgress();
   check('four panels to restore', p.panels.length === 4 && objectiveText(p) === 'Restore the electrical panels (0/4)');
-  check('no fuse in your pocket: can\'t fit one', fitFuse(p, 0) === 'no-fuse');
+  check('no fuse in your hand: can\'t fit one', fitFuse(p, 0, false) === 'no-fuse');
   p.fuses = 1;
-  check('carrying one', fusesHeld(p) === 1 && objectiveDetail(p) === 'Fuses: 1');
-  check('fit it in panel 1', fitFuse(p, 0) === 'fitted' && fusesHeld(p) === 0);
-  check('panel 2 has nothing to fit', fitFuse(p, 1) === 'no-fuse');
+  check('0.9.8: carrying one (in a slot)', objectiveDetail(p, 1) === 'Fuses: 1');
+  check('fit it in panel 1 from your hand', fitFuse(p, 0, true) === 'fitted' && objectiveDetail(p, 0) === 'Find fuses (1/4 fitted)');
+  check('panel 1 already has one', fitFuse(p, 0, true) === 'already');
+  check('panel 2: nothing in your hand to fit', fitFuse(p, 1, false) === 'no-fuse');
   check('switch does nothing before the repair', throwPanelSwitch(p, 0) === 'not-ready');
   check('repair finishes', finishRepair(p, 0) && p.panels[0].fixed);
   check('switch on', throwPanelSwitch(p, 0) === 'on' && panelsOn(p) === 1);
@@ -105,7 +106,7 @@ section('Panels, generator, exit (0.9)');
   check('generator stays dead with panels left', startGenerator(p) === 'panels');
   p.fuses = 4;
   for (const i of [1, 2, 3]) {
-    fitFuse(p, i);
+    fitFuse(p, i, true);
     finishRepair(p, i);
     throwPanelSwitch(p, i);
   }
@@ -114,7 +115,9 @@ section('Panels, generator, exit (0.9)');
   check('generator starts: power', startGenerator(p) === 'powered' && p.powered);
   check('exit opens', tryExit(p) === 'escaped');
   const q = { ...createProgress(), fuses: 1 };
-  check('prompt: Press [icon] to fit a fuse', promptFor({ type: 'panel', index: 2 }, q, false)?.verb === 'fit a fuse');
+  // Update 0.9.8 — the fuse goes in from your hand.
+  check('0.9.8: fuse in your hand at the panel: Press [icon] to fit the fuse', promptFor({ type: 'panel', index: 2 }, q, false, { ...EMPTY_HANDS, kind: 'fuse', fuses: 1 })?.verb === 'fit the fuse');
+  check('0.9.8: a fuse put away in a slot: it tells you to take it in your hand', promptFor({ type: 'panel', index: 2 }, q, false, { ...EMPTY_HANDS, fuses: 1 })?.info === 'Needs a fuse. Take one in your hand (1–3).');
   check('prompt: Needs a fuse (empty pockets)', promptFor({ type: 'panel', index: 2 }, createProgress(), false)?.info === 'Needs a fuse.');
   q.panels[2].fuse = true;
   check('prompt: Hold [icon] to repair', promptFor({ type: 'panel', index: 2 }, q, false)?.verb === 'repair' && promptFor({ type: 'panel', index: 2 }, q, false)?.hold === true);

@@ -26,5 +26,6 @@ import './test-throwables';
 import './test-version';
 import './test-stuck096';
 import './test-crawl';
+import './test-slots';
 
 process.exit(summary() > 0 ? 1 : 0);

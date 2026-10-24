@@ -35,8 +35,7 @@ check('arms hidden while running', armScaleFor('run') === 0);
   check('looking down pushes the body further back', bodyBackOffset(-1) > bodyBackOffset(0));
 }
 check('arms shown otherwise', armScaleFor('walk') === 1 && armScaleFor('idle') === 1 && armScaleFor('crouch') === 1);
-check('0.9.7: walk matches the ground, no sliding (3 m/s ÷ the clip\'s 1.6 m/s)', playerClipTimeScale('walk', 1.6) === 1 && Math.abs(playerClipTimeScale('walk', 3.0) - 3.0 / 1.6) < 1e-9);
-check('0.9.7: strafe and the injured walk too', Math.abs(playerClipTimeScale('strafeLeft', 3.0) - 3.0 / 1.6) < 1e-9 && Math.abs(playerClipTimeScale('injuredWalk', 3.0) - 3.0 / 1.6) < 1e-9);
+check('walk plays at half speed (0.9.8: back from 0.9.7\'s matched pace)', playerClipTimeScale('walk', 1.6) === 0.5 && Math.abs(playerClipTimeScale('walk', 3.0) - 0.85) < 1e-9);
 check('run plays at half speed', playerClipTimeScale('run', 3.2) === 0.5);
 
 section('Player get-up keeps its hip movement (0.9.7)');
@@ -98,7 +97,7 @@ section('Strafe (0.5.3)');
   const c = localVelocity({ x: 0, z: -3 }, 0);
   check('local velocity: moving to your right is +side', Math.abs(a.side - 3) < 1e-9 && Math.abs(b.side - 3) < 1e-9);
   check('local velocity: moving where you look is +ahead', Math.abs(c.ahead - 3) < 1e-9 && Math.abs(c.side) < 1e-9);
-  check('strafe plays at the walk pace (0.9.7: matched, like the walk)', ts('strafeLeft', 1.6) === ts('walk', 1.6) && ts('strafeRight', 3) === ts('walk', 3));
+  check('strafe plays at the walk pace (half speed)', ts('strafeLeft', 1.6) === 0.5 && ts('strafeRight', 1.6) === 0.5);
 }
 
 section('Diagonal body turn (0.5.3)');

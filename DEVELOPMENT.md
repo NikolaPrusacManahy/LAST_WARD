@@ -29,9 +29,9 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/level.ts` | Level type, ASCII legend + parser, `TILE`, cell ↔ world maths, `itemPos` (where an item's table stands). 0.9: `brickRooms`; 0.9.6: `throwables` spawns; 0.9.7: `corridors` → `level.corridor`, `isCorridor`. 0.7: floors stacked in one logic grid (gap rows between), stairs + portals, `crossPortal`, `stairRise`, `floorOffset` | yes |
 | `world/pathfinding.ts` | A* (8-way, no corner cutting), flood-fill `reachable`; both go through stair portals (0.7); `findPath(…, only)` walks only the cells in a mask (the corridors, 0.9.7) | yes |
 | `world/lineOfSight.ts` | Grid line-of-sight (`level.opaque`: stairwells are see-through, 0.7) | yes |
-| `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4). 0.9.6: `litByBeam` (your beam on it = spotted), lures from throws, locker checks (`check`), `onTask` (no teleport mid-task), `turnToward` by angle. 0.9.6.2: `enemySpeed` (the fuses only speed up the chase). 0.9.7: the ceiling crawl (`CRAWL`, `stepCrawl`, mode `crawl` with `e.crawl` up / on / down, `planCrawlRoute`, `nearestCorridorCell`, `dropFromCeiling`) | yes |
+| `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4). 0.9.6: `litByBeam` (your beam on it = spotted), lures from throws, locker checks (`check`), `onTask` (no teleport mid-task), `turnToward` by angle. 0.9.6.2: `enemySpeed` (the fuses only speed up the chase). 0.9.7: the ceiling crawl (`CRAWL`, `stepCrawl`, mode `crawl` with `e.crawl` up / on / down, `planCrawlRoute`, `nearestCorridorCell`, `dropFromCeiling`). 0.9.8: losing you in a chase → straight back to patrol (no search, no locker check) | yes |
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2), `nearestFree` (out of any overlap, 0.9.6) | yes |
-| `world/interact.ts` | What's in reach and in front of the player (0.9: also the four electrical panels; 0.9.1: their switches, and what you aim at wins over what's closer) | yes |
+| `world/interact.ts` | What's in reach and in front of the player (0.9: also the four electrical panels; 0.9.1: their switches, and what you aim at wins over what's closer; 0.9.8: `loose` = anything to carry, `item` = notes only) | yes |
 | `world/props.ts` | Real props: sizes, which way each faces, `placeProp` (cell + wall it backs onto), collision circles, `findProp` (0.8); `panelSpots` / `panelSwitches` (panel i and its switch, level order) and `brickLining` (brick on every wall of `brickRooms`) (0.9); `lockerSpots`, `propFront` (0.9.5), `ITEM_TABLE_SCALE` (0.9.6) | yes |
 | `world/soundPath.ts` | How The Patient's sound reaches you: walls through, the way round (length, bends), the corner it comes from (0.9.4) | yes |
 | `world/rng.ts` | Seeded RNG | yes |
@@ -41,7 +41,9 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/objectives.ts` | Fuses → four panels (fit, repair, switch on) → generator → exit (0.9), objective text + detail line | yes |
 | `state/skillCheck.ts` + `screens/SkillCheck.tsx` | Panel repair with Dead by Daylight skill checks: timing, judging, misses (0.9). The circle is drawn from the same clock it's judged on | yes / no |
 | `state/credits.ts` | Credits for every outside asset; which credit each prop comes under (0.8) | yes |
-| `state/throwables.ts` + `engine/throwablesView.ts` | Bricks and bottles: spawns, held position, throw arc, landing, noise (0.9.6) | yes / no |
+| `state/throwables.ts` + `engine/throwablesView.ts` | Bricks and bottles: spawns, held position, throw arc, landing, noise (0.9.6). 0.9.8: everything you carry (`CarryKind`: + fuse, battery, medkit; `spawnTableItems` puts them on the tables), drawn on a table / the floor / in your hand, no shadows | yes / no |
+| `state/inventory.ts` | 0.9.8: your three slots: `store` (the slot your hand is on if free, else the first free), `selectSlot` (same key again = put away), `inHand`, `remove`, `dropSpot`, `MEDKIT_SECONDS` | yes |
+| `screens/SlotBar.tsx` + `ItemIcon.tsx` | 0.9.8: the slot bar (bottom centre) and the drawn item icons; styles in `theme-13-slots.css` | no |
 | `state/hiding.ts` | Lockers: getting in / out, peeking (Space + W, 60° max), seen-getting-in = exposed, look limits (0.9.5) | yes |
 | `state/difficulty.ts` + `screens/DifficultyPanel.tsx` | Easy / Normal / Hard rules (lives, battery drain, night vision) and the picker after Begin (0.9.3) | yes / no |
 | `state/version.ts` | The version on the main menu (keep `package.json` the same; tested) | yes |
@@ -63,9 +65,9 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades, night vision green (0.9.3) | no |
 | `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, wall notes, signs, flashlight cookie) | no |
 | `engine/input.ts` | Keys by `code`, mouse buttons as `Mouse0..4`, mouse deltas under pointer lock; `action(a)` / `actionPressed(a)` read `Settings.bindings` | no |
-| `state/bindings.ts` | Actions, `DEFAULT_BINDINGS` (left click interact, right click flashlight), `rebind` (clash = swap), reserved keys, `hydrateBindings` | yes |
+| `state/bindings.ts` | Actions, `DEFAULT_BINDINGS` (left click interact, right click flashlight), `rebind` (clash = swap), reserved keys (0.9.8: + 1–3, the slot keys), `hydrateBindings`; Space = "Skill check / drop" (one action: they never clash) | yes |
 | `state/inputIcons.ts` | Code → Kenney icon name + label (`glyphFor`), the icon list `tools/prepare-input-icons.ts` ships | yes |
-| `state/prompts.ts` | Crosshair prompt words (`promptFor`: collect / read / fit a fuse / repair / switch on / start / hide / pick up / what's missing) + controls-card timer | yes |
+| `state/prompts.ts` | Crosshair prompt words (`promptFor`: collect / read / fit a fuse / repair / switch on / start / hide / pick up / what's missing) + controls-card timer; 0.9.8: with something in your hand (`Hand`) it says what left click does with it (throw it / load it / fit the fuse / hold to patch yourself up) | yes |
 | `audio/menuAmbience.ts` + `state/menuAudio.ts` | Ambience under the credit screen + main menu (own AudioContext, starts on the first gesture) | no / yes |
 | `state/caughtSequence.ts` | Lives (2; Hard gives 1, see `state/difficulty.ts`), caught timeline + cues, flight curve, thrown clip timing, dazed blink, injured tint, grunt delay (0.6) | yes |
 | `world/throwLanding.ts` | Where you land: up to 10 m, never through a wall or (0.9.6) into furniture. 0.9.7: `throwPlan`, forward the way it turns to (down the middle of a corridor; in a room the way nearest its view with ≥ 2 m of room), not behind it | yes |
@@ -103,7 +105,8 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | Footstep noise radius | `PLAYER.noise` | walk 6 m, sprint 15 m, crouch silent (it hears ×2: 12 / 30 m) |
 | Enemy speed | `ENEMY.speed`, `ragePerFuse` | patrol 1.5, search 2.1, investigate 2.6, chase 4.3 m/s (0.9.6.2: walks back from 3.0 / 3.0 / 3.2); +4% per fuse found, chase only (4.99 with all four, `enemySpeed`) |
 | Enemy sight | `ENEMY.viewDistLight / Dark` | 20.8 m with your flashlight on, 10.4 m off (×0.7 crouched, ×1.3 running), 130° cone; your beam on its body = spotted at once (30 m) |
-| Lose it | `ENEMY.memorySeconds`, `searchSeconds` | tracks you 1.2 s after losing sight, searches 7 s (and checks a locker within 9 m) |
+| Lose it | `ENEMY.memorySeconds`, `searchSeconds` | tracks you 1.2 s after losing sight, then (0.9.8) straight back to its patrol; after a noise where it finds nothing it searches 7 s (and checks a locker within 9 m) |
+| Med kit | `MEDKIT_SECONDS` (state/inventory.ts) | hold use 5 s: not injured, lives back to the difficulty's full count |
 | Scream head start | `ENEMY.windupSeconds` | screams in place 1.0 s after spotting you, then charges |
 | Corner teleport | `ENEMY.teleportAfter`, `teleportMinDist`, `homeRadiusTiles` | 35 s without spotting you → another corner, ≥ 14 m from you and out of sight (never mid-task); patrols within 12 tiles of its corner |
 | Ceiling crawl | `CRAWL`, `ENEMY.speed.crawl` | from a corridor patrol, never in the first 60 s, then 40–70 s apart (8% a second); 2.6 s up, 15–20 s at 8.6 m/s along a route planned up front, 1.6 s down |

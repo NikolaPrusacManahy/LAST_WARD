@@ -13,7 +13,7 @@ import { shuffleItems } from '../world/itemShuffle';
 import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackTimeScale, lookBackYaw, stepLookBack } from '../state/lookBack';
 import { createRng } from '../world/rng';
 import { findTarget, Target } from '../world/interact';
-import { CONTROLS_CARD_SECONDS, Prompt, promptFor, samePrompt, tickControlsCard } from '../state/prompts';
+import { CONTROLS_CARD_SECONDS, Hand, Prompt, promptFor, samePrompt, tickControlsCard } from '../state/prompts';
 import { LIGHT, atmosphereFor, blendAtmosphere } from '../state/lightLevels';
 import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, tickStatus, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
@@ -24,7 +24,9 @@ import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools'
 import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
 import { RepairState, SKILL, cancelCheck, createRepair, stepRepair } from '../state/skillCheck';
 import { lockerSpots, panelSpots, panelSwitches, propFront } from '../world/props';
-import { Throwable, heldPos, launch, spawnThrowables, stepFlight, throwableTitle } from '../state/throwables';
+import { Throwable, heldPos, isThrowable, launch, spawnTableItems, spawnThrowables, stepFlight, throwableTitle } from '../state/throwables';
+import { staminaShare } from '../state/hudLayout';
+import { Inventory, MEDKIT_SECONDS, SLOTS, createInventory, dropSpot, inHand, isFull, remove, selectSlot, store } from '../state/inventory';
 import { ThrowablesView, createThrowablesView } from './throwablesView';
 import { HideState, LOCKER, clampLook, doorOpen, hiddenFrom, insideness, peekLean, requestExit, startHide, stepHide } from '../state/hiding';
 import { createPropsView, PropsView } from './propsView';
@@ -112,7 +114,9 @@ export class Game {
   private hideWasCrouching = false;
   /** Update 0.9.6 — bricks and bottles, the one in your hand, and their drawing. */
   private throwables: Throwable[] = [];
-  private held: number | null = null;
+  /** Update 0.9.8 — your three slots, and how long you've held the med kit's use (s). */
+  private inv: Inventory = createInventory();
+  private useT = 0;
   private throwView!: ThrowablesView;
   /** Update 0.9.4 — the last worked-out way its sound reaches you. */
   private sound: SoundPath | null = null;
@@ -186,7 +190,7 @@ export class Game {
     this.world.add(this.props.root);
     this.throwView = createThrowablesView(); // Update 0.9.6
     this.world.add(this.throwView.root);
-    this.throwables = spawnThrowables(this.level.throwables);
+    this.throwables = [...spawnThrowables(this.level.throwables), ...spawnTableItems(this.level, 1000)]; // 0.9.8: and what's on the tables
     this.repair = createRepair(this.rng);
     this.progress = createProgress(panelSpots(this.level).length);
     this.lights = createLighting(this.view);
@@ -264,8 +268,9 @@ export class Game {
     this.throwView.dispose();
     this.throwView = createThrowablesView();
     this.world.add(this.throwView.root);
-    this.throwables = spawnThrowables(this.level.throwables);
-    this.held = null;
+    this.throwables = [...spawnThrowables(this.level.throwables), ...spawnTableItems(this.level, 1000)]; // 0.9.8: and what's on the tables
+    this.inv = createInventory();
+    this.useT = 0;
     this.repair = createRepair(this.rng);
     this.panelOpen = [];
     this.hide = null;
@@ -573,15 +578,25 @@ export class Game {
       }
       this.target = null;
     } else {
-      if (input.actionPressed('interact')) this.interact();
+      // Update 0.9.8 — keys 1–3: which slot is in your hand (the one you're holding again: put it away).
+      for (let k = 0; k < SLOTS; k++) {
+        if (input.wasPressed(`Digit${k + 1}`) || input.wasPressed(`Numpad${k + 1}`)) {
+          this.inv = selectSlot(this.inv, k);
+          this.useT = 0;
+        }
+      }
+      const hand = this.handItem();
+      // Update 0.9.8 — with something in your hand, left click uses it and Space drops it; with empty
+      // hands, left click picks up and interacts as before.
+      if (hand) this.useHand(hand, input.actionPressed('interact'), input.action('interact'));
+      else if (input.actionPressed('interact')) this.interact();
+      if (hand && hand.state === 'held' && input.actionPressed('skillCheck')) this.dropHand(false);
       const lying = this.throwables.filter((x) => x.state === 'ground').map((x) => ({ id: x.id, kind: x.kind, pos: { x: x.pos.x, z: x.pos.z }, title: throwableTitle(x) }));
       this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected, lying);
-      // Update 0.9.6 — Space throws what you're holding (unless Space is busy with a skill check).
-      const atRepair = this.target?.type === 'panel' && input.action('interact');
-      if (this.held !== null && input.actionPressed('skillCheck') && !this.repair.check && !atRepair) this.throwHeld();
     }
     this.stepThrowables(dt);
-    this.workPanel(this.realDt, !this.hide && input.action('interact'), input.actionPressed('skillCheck'));
+    // (0.9.8: you repair with empty hands.)
+    this.workPanel(this.realDt, !this.hide && !this.handItem() && input.action('interact'), input.actionPressed('skillCheck'));
 
     // Enemy.
     const before = this.enemy.pos;
@@ -670,12 +685,90 @@ export class Game {
     return { eye, forward, right };
   }
 
-  private throwHeld() {
-    const it = this.throwables.find((x) => x.id === this.held);
-    if (!it) return;
+  /** Update 0.9.8 — what's in your hand (from your slots), if anything. */
+  private handItem(): Throwable | null {
+    const id = inHand(this.inv);
+    return id === null ? null : this.throwables.find((x) => x.id === id) ?? null;
+  }
+
+  /** Update 0.9.8 — fuses in your slots (in your hand or put away). */
+  private fusesCarried(): number {
+    return this.inv.slots.filter((id) => id !== null && this.throwables.find((x) => x.id === id)?.kind === 'fuse').length;
+  }
+
+  /** Update 0.9.8 — your hand's item is used up / thrown / dropped: it leaves its slot. */
+  private letGo(it: Throwable) {
+    this.inv = remove(this.inv, it.id);
+    this.useT = 0;
+  }
+
+  /**
+   * Update 0.9.8 — left click with something in your hand uses it: a brick or bottle is thrown, a battery
+   * goes in your light, a fuse goes in the panel you're looking at, a med kit (held for 5 s) patches you up.
+   */
+  private useHand(it: Throwable, press: boolean, holding: boolean) {
+    if (it.kind === 'medkit') {
+      if (!this.injured) {
+        this.useT = 0;
+        if (press) this.toastMsg('You\'re not hurt.');
+        return;
+      }
+      this.useT = holding ? this.useT + this.realDt : 0;
+      if (this.useT >= MEDKIT_SECONDS) this.heal(it);
+      return;
+    }
+    if (!press) return;
+    if (isThrowable(it.kind)) this.throwHeld(it);
+    else if (it.kind === 'battery') {
+      if (this.status.battery >= PLAYER.batteryMax) {
+        this.toastMsg('Your light is full.');
+        return;
+      }
+      addBattery(this.status);
+      it.state = 'gone';
+      this.letGo(it);
+      this.audio.pickup();
+      this.toastMsg(`Battery in. +${PLAYER.batteryPickup}%`);
+    } else if (it.kind === 'fuse') {
+      const t = this.target;
+      if (t?.type !== 'panel' || fitFuse(this.progress, t.index, true) !== 'fitted') {
+        this.audio.denied();
+        this.toastMsg('Fit it in an electrical panel.');
+        return;
+      }
+      it.state = 'gone';
+      this.letGo(it);
+      const box = panelSpots(this.level)[t.index];
+      const at = this.toWorld(box);
+      this.audio.fuseInsert({ x: at.x, y: at.y + box.y, z: at.z });
+      this.toastMsg('Fuse fitted.');
+    }
+  }
+
+  /** Update 0.9.8 — the med kit: no longer injured, your second life back. */
+  private heal(it: Throwable) {
+    it.state = 'gone';
+    this.letGo(it);
+    this.lives = this.rules.lives;
+    this.injured = false;
+    this.audio.pickup();
+    this.toastMsg('You patch yourself up. The pain eases.', 4);
+  }
+
+  private throwHeld(it: Throwable) {
     const b = this.viewBasis();
     Object.assign(it, launch(it, heldPos(b.eye, b.forward, b.right), b.forward));
-    this.held = null;
+    this.letGo(it);
+  }
+
+  /** Update 0.9.8 — Space: what's in your hand goes down on the floor in front of you (caught: at your feet). */
+  private dropHand(atFeet: boolean) {
+    const it = this.handItem();
+    if (!it) return;
+    const at = atFeet ? { ...this.player.pos } : dropSpot(this.level, this.player.pos, this.player.forward, this.player.obstacles);
+    Object.assign(it, { state: 'ground', pos: { x: at.x, y: 0, z: at.z }, vel: { x: 0, y: 0, z: 0 }, yaw: this.rng() * Math.PI * 2 });
+    this.letGo(it);
+    if (!atFeet) this.audio.pickup();
   }
 
   /** Update 0.9.6 — things in flight: gravity, and the crash (or thud) that brings it running. */
@@ -694,17 +787,16 @@ export class Game {
     }
   }
 
-  /** Caught with something in your hand: it drops where you stood. */
+  /** Caught with something in your hand: it drops where you stood (the rest stays in your slots). */
   private dropHeld() {
-    const it = this.throwables.find((x) => x.id === this.held);
-    if (it) Object.assign(it, { state: 'ground', pos: { x: this.player.pos.x, y: 0, z: this.player.pos.z } });
-    this.held = null;
+    this.dropHand(true);
   }
 
   private drawThrowables() {
     const b = this.viewBasis();
-    const show = this.held !== null && !this.hide && (this.phase === 'playing' || this.phase === 'paused' || this.phase === 'reading');
-    const held = show ? { pos: heldPos(b.eye, b.forward, b.right), quat: this.camera.quaternion } : null;
+    const id = inHand(this.inv);
+    const show = id !== null && !this.hide && (this.phase === 'playing' || this.phase === 'paused' || this.phase === 'reading');
+    const held = show ? { id, pos: heldPos(b.eye, b.forward, b.right), quat: this.camera.quaternion } : null;
     this.throwView.update(this.throwables, (p) => {
       const w = this.toWorld(p);
       return { x: w.x, y: w.y + p.y, z: w.z };
@@ -838,35 +930,37 @@ export class Game {
     const t = this.target;
     if (!t) return;
     const p = this.progress;
-    if (t.type === 'throwable') {
-      // Update 0.9.6 — pick it up (one at a time).
-      if (this.held !== null) return;
+    if (t.type === 'loose') {
+      // Update 0.9.6 — pick it up. Update 0.9.8 — into one of your three slots (the one your hand is on if
+      // it's free, so you're holding it; else the first free one).
       const it = this.throwables.find((x) => x.id === t.id);
       if (!it || it.state !== 'ground') return;
+      const r = store(this.inv, it.id);
+      if (r.slot < 0) {
+        this.audio.denied();
+        this.toastMsg('Your slots are full. Drop something first.');
+        return;
+      }
+      this.inv = r.inv;
       it.state = 'held';
-      this.held = it.id;
       this.audio.pickup();
+      if (it.kind === 'fuse' && !it.found) {
+        p.fuses++;
+        this.toastMsg(`Fuse found (${p.fuses}/${p.panels.length})`);
+      } else if (r.slot !== this.inv.selected || this.inv.stowed) this.toastMsg(`${throwableTitle(it)} in slot ${r.slot + 1}`);
+      it.found = true;
       return;
     }
     if (t.type === 'item') {
+      // A note (0.9.8: the only thing left on the tables that isn't carried).
       p.collected.push(t.item.id);
       this.view.items.get(t.item.id)!.visible = false;
-      if (t.item.kind === 'fuse') {
-        p.fuses++;
-        this.audio.pickup();
-        this.toastMsg(`Fuse found (${p.fuses}/${p.panels.length})`);
-      } else if (t.item.kind === 'battery') {
-        addBattery(this.status);
-        this.audio.pickup();
-        this.toastMsg('Battery +45%');
-      } else {
-        this.audio.paper();
-        p.notesRead.push(t.item.noteIndex!);
-        // Update 0.6.4 — reading pauses the whole game (updateReading) until you put it down.
-        this.note = { text: this.level.notes[t.item.noteIndex!] };
-        this.phase = 'reading';
-        this.target = null;
-      }
+      this.audio.paper();
+      p.notesRead.push(t.item.noteIndex!);
+      // Update 0.6.4 — reading pauses the whole game (updateReading) until you put it down.
+      this.note = { text: this.level.notes[t.item.noteIndex!] };
+      this.phase = 'reading';
+      this.target = null;
     } else if (t.type === 'generator') {
       // Update 0.9 — all four panels live → the generator starts and the lights come back.
       const r = startGenerator(p);
@@ -887,18 +981,11 @@ export class Game {
       }
     } else if (t.type === 'panel') {
       // Update 0.9 — an electrical panel: fit a fuse (press), repair it (hold, workPanel), switch it on (press).
-      const i = t.index;
-      const panel = p.panels[i];
-      const box = panelSpots(this.level)[i];
-      const at = this.toWorld(box);
+      // Update 0.9.8 — the fuse goes in from your hand (useHand); with empty hands it just needs one.
+      const panel = p.panels[t.index];
       if (!panel.fuse) {
-        if (fitFuse(p, i) === 'fitted') {
-          this.audio.fuseInsert({ x: at.x, y: at.y + box.y, z: at.z });
-          this.toastMsg('Fuse fitted.');
-        } else {
-          this.audio.denied();
-          this.toastMsg('It needs a fuse.');
-        }
+        this.audio.denied();
+        this.toastMsg(this.fusesCarried() > 0 ? 'It needs a fuse. Take one in your hand (1–3).' : 'It needs a fuse.');
       }
     } else if (t.type === 'locker') {
       this.enterLocker(t.index); // Update 0.9.5
@@ -1163,9 +1250,22 @@ export class Game {
   }
   private lastRepairHud: HudState['repair'] = null;
 
+  /** Update 0.9.8 — your hand and slots, for the crosshair prompt (in a locker: nothing in hand). */
+  private handForPrompt(): Hand {
+    const it = this.hide ? null : this.handItem();
+    return {
+      kind: it?.kind ?? null,
+      title: it ? throwableTitle(it) : undefined,
+      full: isFull(this.inv),
+      fuses: this.fusesCarried(),
+      injured: this.injured,
+      batteryFull: this.status.battery >= PLAYER.batteryMax,
+    };
+  }
+
   /** Same object while the words don't change, so the HUD doesn't re-render for nothing. */
   private currentPrompt(): Prompt | null {
-    const next = this.phase === 'playing' ? promptFor(this.target, this.progress, !!this.note, this.held !== null) : null;
+    const next = this.phase === 'playing' ? promptFor(this.target, this.progress, !!this.note, this.handForPrompt()) : null;
     if (!samePrompt(next, this.lastPrompt)) this.lastPrompt = next;
     return this.lastPrompt;
   }
@@ -1179,11 +1279,18 @@ export class Game {
       flashlightOn: s.flashlightOn,
       nightVision: this.rules.nightVision,
       hiding: this.hide?.phase === 'inside',
-      holding: this.held !== null && !this.hide && this.phase === 'playing' ? (this.throwables.find((x) => x.id === this.held)?.kind ?? null) : null,
-      stamina: Math.round((s.stamina / 4.5) * 100) / 100,
+      // Update 0.9.8 — the slot bar.
+      slots: this.inv.slots.map((id) => {
+        const it = id === null ? undefined : this.throwables.find((x) => x.id === id);
+        return it ? { kind: it.kind, title: throwableTitle(it) } : null;
+      }),
+      slot: this.inv.selected,
+      stowed: this.inv.stowed,
+      use: this.useT > 0 ? Math.min(1, Math.round((this.useT / MEDKIT_SECONDS) * 100) / 100) : null,
+      stamina: staminaShare(s.stamina, PLAYER.staminaMax), // 0.9.8: was ÷ 4.5
       exhausted: s.exhausted,
       objective: objectiveText(this.progress),
-      objectiveDetail: objectiveDetail(this.progress),
+      objectiveDetail: objectiveDetail(this.progress, this.fusesCarried()),
       banner: this.bannerHud(),
       prompt: this.currentPrompt(),
       bindings: this.settings.bindings,
@@ -1255,7 +1362,7 @@ export class Game {
     else this.startDying();
   }
   debugState() {
-    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, level: this.levelIndex + 1, floor: this.curFloor, enemyFloor: floorAt(this.level, this.enemy.pos), rise: this.player.rise, enemy: { ...this.enemy, path: undefined }, progress: this.progress, repair: this.repair, hide: this.hide, throwables: this.throwables, held: this.held, status: this.status, pos: this.player.pos };
+    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, level: this.levelIndex + 1, floor: this.curFloor, enemyFloor: floorAt(this.level, this.enemy.pos), rise: this.player.rise, enemy: { ...this.enemy, path: undefined }, progress: this.progress, repair: this.repair, hide: this.hide, throwables: this.throwables, inv: this.inv, status: this.status, pos: this.player.pos };
   }
 
   /** Update 0.3 — F2: full light, no fog or screen FX, enemy marked through walls. */
