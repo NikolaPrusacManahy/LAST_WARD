@@ -57,6 +57,10 @@ PLAN = {
     'locker/peeking': ('oneshot', -20),  # Update 0.9.5 — easing the locker door open
     'throwable/brick_impact_ground': ('oneshot', -14),  # Update 0.9.6
     'throwable/glass_bottle_break': ('oneshot', -14),  # Update 0.9.6
+    # Update 0.9.6.1 — your breathing while you sprint (loop), and the wake-up at the start (replaces the grunt).
+    # Both kept at the loudness they were recorded at (the game plays the breathing at half of that).
+    'player_running_breathing': ('loop', -30),
+    'player_intro_wakingUp': ('oneshot', -28),
 }
 OUT_NAMES = {
     'footSteps_player': 'step_player',
@@ -77,6 +81,8 @@ OUT_NAMES = {
     'locker/peeking': 'locker_peek',
     'throwable/brick_impact_ground': 'brick_impact',
     'throwable/glass_bottle_break': 'bottle_break',
+    'player_running_breathing': 'run_breath',
+    'player_intro_wakingUp': 'wake_up',
 }
 
 

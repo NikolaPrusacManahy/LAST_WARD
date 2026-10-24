@@ -15,6 +15,8 @@ export const SPOT_SCREAM_GAIN = 0.6;
 export const PANEL_SFX_GAIN = 0.4;
 /** Update 0.9.3 — Easy: the night vision goggles' deploy sound, 80% quieter. */
 export const NIGHT_VISION_SFX_GAIN = 0.2;
+/** Update 0.9.6.1 — your breathing while you sprint, at half the recording's volume. */
+export const RUN_BREATH_GAIN = 0.5;
 
 export interface EnemyMix {
   /** Low-pass cutoff in Hz. */

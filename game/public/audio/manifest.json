@@ -92,5 +92,11 @@
   ],
   "bottle_break": [
     "bottle_break.mp3"
+  ],
+  "run_breath": [
+    "run_breath.mp3"
+  ],
+  "wake_up": [
+    "wake_up.mp3"
   ]
 }

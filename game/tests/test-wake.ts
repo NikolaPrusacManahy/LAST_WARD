@@ -1,6 +1,6 @@
 // Update 0.6.3 — waking up on the floor at the start, the note outside the spawn room, the victim's note.
 import { check, section } from './harness';
-import { WAKE, wakeClipTime, wakeCues, wakeEyelids, wakeLight, wakeTextOpacity, wakeTimes } from '../src/state/wakeSequence';
+import { WAKE, WAKE_SOUND, wakeClipTime, wakeCues, wakeEyelids, wakeLight, wakeTextOpacity, wakeTimes } from '../src/state/wakeSequence';
 import { guardLeave } from '../src/state/session';
 import { LEVEL_01 } from '../src/world/content/level01';
 import { FACE_DIR, cellCenter, isSolid, parseLevel } from '../src/world/level';
@@ -20,10 +20,11 @@ section('Wake-up intro (0.6.3)');
     fired.push(...wakeCues(prev, t));
     prev = t;
   }
-  check('get up (with the grunt) fires once, then the run starts', fired.join(',') === 'getUp,done', fired.join(','));
+  check('the run starts once, at the end', fired.join(',') === 'done', fired.join(','));
   check('the flashlight is dim face-down on the floor, full once you are up',
     wakeLight(wakeTimes.openAt) < 0.2 && wakeLight(wakeTimes.getUpAt) < 0.2 && wakeLight(wakeTimes.endAt) === 1);
-  check('the intro grunt is cut to 1 s', WAKE.gruntSeconds === 1);
+  check('0.9.6.1: the wake-up recording replaces the grunt; its gasp comes as the lids start to open', Math.abs(WAKE_SOUND.gaspAt - wakeTimes.lidsAt) < 0.1);
+  check('0.9.6.1: it lasts through getting up and is over before you can move', WAKE_SOUND.length > wakeTimes.getUpAt && WAKE_SOUND.length < wakeTimes.endAt);
   check('leaving mid wake-up asks first, like a running game', guardLeave('waking'));
 }
 

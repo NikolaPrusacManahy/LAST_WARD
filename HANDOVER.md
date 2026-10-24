@@ -1,6 +1,13 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.6
+## Current version: 0.9.6.1
+
+- **You breathe hard while you run** (`ASSETS/audio/player_running_breathing.mp3` → `run_breath`, a 1.8 s loop). It fades in as you start sprinting and out when you stop, run out of breath, hide, pause or get caught. It plays at half the recording's volume (`RUN_BREATH_GAIN` = 0.5 in `audio/spatial.ts`).
+- **New wake-up sound:** the intro scene plays `player_intro_wakingUp.mp3` (→ `wake_up`, 6.9 s) instead of the 1 s grunt as you got up. It starts on the click: its gasp (0.83 s in) comes as your eyelids crack open (0.9 s), then you stir and push yourself up, and it's over before you can move (8.3 s). Esc stops it; resuming picks it up where the scene is (`WAKE_SOUND` in `state/wakeSequence.ts`).
+- Both are converted at the loudness they were recorded at (`tools/prepare-audio.py`), so "half volume" is half of the file as it was made, and the wake-up sounds just like the file.
+- **Leftover files deleted:** `state/panelRepair.ts`, `world/content/level02.ts` and `tests/test-mansion.ts` (none of them was used), and the stray `story/Horror-Game` folder (a partial copy of 0.6.5, everything in it is in the 0.7 commit; it went to the Recycle Bin).
+
+## 0.9.6
 
 - **Things to throw** (`state/throwables.ts`, `engine/throwablesView.ts`): nine bricks and glass bottles lie against the walls of the halls. Look at one and left click to pick it up (one at a time); it floats in front of you. Space throws it where you look: it flies off with a little lift, gravity pulls it down, and the first thing it hits (floor, wall; the ceiling bounces it back down) is where it lands. A bottle smashes and is gone; a brick thuds down and can be picked up again. Models: Brick Libra (Nikitos & 3130) and Beer Bottle (gelmi.com.br), both CC BY 4.0; sounds from `ASSETS/audio/throwable/`.
 - **A brick lasts two throws.** The first landing breaks it in half: it lies there half its length ("Half a brick" when you look at it) and can be thrown once more; the second landing finishes it off and it's gone. Bottles still smash on the first throw.
@@ -260,23 +267,22 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + rule tests, 554 at 0.9.6) and `npm run verify` (adds the production build). Run `verify` before every commit.
+From `game/`: `npm run verify:quick` (typecheck + rule tests, 557 at 0.9.6.1) and `npm run verify` (adds the production build). Run `verify` before every commit.
 
 ## How to publish
 `npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready). The public build has the debug tools (F2, F3, `?debug`, `?level=N`, the tester level picker) switched off.
 
 ## Working on this project
 - **Quality, not quantity:** level 1 (Ward 13) only. Level 2 was removed in 0.7.2; the floors / stairs engine is kept and tested for later.
-- **Commits:** one line, nothing else, e.g. `0.9.6: throwable bricks and bottles, The Patient checks lockers, faster and sharper hunter`. Fixes asked for "in the same patch" go into that version's commit and notes, not a new number. Nikola commits in GitHub Desktop.
+- **Commits:** one line, nothing else (no co-author or tool lines), e.g. `0.9.6: throwable bricks and bottles, The Patient checks lockers, faster and sharper hunter`. Fixes asked for "in the same patch" go into that version's commit and notes, not a new number. Nikola commits in GitHub Desktop.
 - **Each update:** bump the version in `game/src/state/version.ts` **and** `game/package.json` (a test checks they match), add a section at the top of this file, keep `DEVELOPMENT.md` and `README.md` current, add tests for the new rules.
 - **No `CLAUDE.md`** in this project (removed from the repo and its history on purpose). Conventions live here.
 - **Assets:** raw files in `ASSETS/` (not shipped), converted by the scripts in `game/tools/` into `game/public/`. Every outside asset needs a line in `game/src/state/credits.ts`.
-- **Leftover files to delete** (from earlier versions, no longer used): `game/src/state/panelRepair.ts`, `game/src/world/content/level02.ts`, `game/tests/test-mansion.ts`, and a stray `story/Horror-Game` folder if it's still there.
 
 ## Verified vs unverified
-- ✅ Typecheck, 554 rule tests and the production build pass (0.9.6).
+- ✅ Typecheck, 557 rule tests and the production build pass (0.9.6.1).
 - ✅ Headless browser checks (software rendering, ~1–2 fps) of each feature as it was added: panels and skill checks, banner, difficulty picker and night vision, lockers and peeking, throwing, locker checks, the furnished generator room.
-- ⚠️ **Not verified by playing:** real-GPU frame rate, how it sounds (volumes, the hearing model), mouse feel, timing of skill checks, chases after throws. Tuned on paper; adjust `ENEMY` / `PLAYER` / `THROW` / `SKILL` after playing.
+- ⚠️ **Not verified by playing:** real-GPU frame rate, how it sounds (volumes, the hearing model; 0.9.6.1: the running breath's level and loop seam, the wake-up sound against the scene), mouse feel, timing of skill checks, chases after throws. Tuned on paper; adjust `ENEMY` / `PLAYER` / `THROW` / `SKILL` after playing.
 
 ## Known limits / ideas for next
 - Panel repair animation: the first-person hands working on the panel (a Mixamo clip for the player rig, played while you hold repair, plus camera framing on the panel).

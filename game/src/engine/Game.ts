@@ -7,7 +7,7 @@ import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, summonToGenerator, 
 import { CAUGHT, LIVES, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
 import { CaughtScene, createCaughtScene } from './caughtScene';
 import { WakeScene, createWakeScene } from './wakeScene';
-import { WAKE, wakeEyelids, wakeLight, wakeTextOpacity } from '../state/wakeSequence';
+import { wakeEyelids, wakeLight, wakeTextOpacity } from '../state/wakeSequence';
 import { shuffleItems } from '../world/itemShuffle';
 import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackTimeScale, lookBackYaw, stepLookBack } from '../state/lookBack';
 import { createRng } from '../world/rng';
@@ -230,6 +230,7 @@ export class Game {
   /** Update 0.6.3 — you come to on the floor first (engine/wakeScene.ts); the run starts once you're up. */
   private startWake() {
     this.phase = 'waking';
+    this.audio.wakeUp(); // Update 0.9.6.1 — the wake-up recording plays over the whole scene
     this.wake = createWakeScene({
       camera: this.camera,
       body: () => this.body,
@@ -332,8 +333,7 @@ export class Game {
     const scene = this.wake;
     if (!scene) return;
     for (const cue of scene.update(dt)) {
-      if (cue === 'getUp') this.audio.grunt(WAKE.gruntSeconds);
-      else if (cue === 'done') {
+      if (cue === 'done') {
         const view = scene.lastView();
         this.wake = null;
         this.fx.set({ lids: 0 });
@@ -391,9 +391,11 @@ export class Game {
     const locked = document.pointerLockElement === this.renderer.domElement;
     if (locked && this.phase === 'paused') {
       this.phase = this.resumePhase;
+      if (this.phase === 'waking' && this.wake) this.audio.wakeUp(this.wake.t); // Update 0.9.6.1 — from where the scene is
     } else if (!locked && (this.phase === 'playing' || this.phase === 'reading' || this.phase === 'caught' || this.phase === 'waking')) {
       this.resumePhase = this.phase;
       this.phase = 'paused';
+      this.audio.stopWakeUp(); // Update 0.9.6.1 — the wake-up recording waits for the resume too
       this.repair = cancelCheck(this.repair); // Update 0.9 — no skill check running through a pause
       this.setRepairing(false);
       this.input.clear();
@@ -479,6 +481,8 @@ export class Game {
       this.player.updateView(dt, 'idle', this.status, this.t);
       this.drawEnemy(0);
     }
+    // Update 0.9.6.1 — your breathing while you sprint (off whenever you aren't: paused, caught, in a locker…).
+    this.audio.setRunBreath(this.gait === 'sprint');
 
     if (!scripted) this.body?.update({
       pos: this.player.pos,

@@ -17,7 +17,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
             3. stepEnemy                    → world/enemyAI (pure) → events: spotted / lost / heard / caught /
                                               teleported / lockerOpen / lockerClose / foundYou
             4. EnemyView.update             → animation only
-            5. AudioEngine                  → footsteps, enemy breath/steps, heartbeat, stingers
+            5. AudioEngine                  → footsteps, your breath while sprinting, enemy breath/steps, heartbeat, stingers
             6. Lighting.update + PostFx     → lamps flicker, fear-driven screen FX
             7. hudStore.set (10×/s)         → React HUD re-renders via useSyncExternalStore
 ```
@@ -70,7 +70,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/caughtSequence.ts` | Lives (2; Hard gives 1, see `state/difficulty.ts`), caught timeline + cues, flight curve, thrown clip timing, dazed blink, injured tint, grunt delay (0.6) | yes |
 | `world/throwLanding.ts` | Where you land: behind the enemy, up to 10 m, never through a wall or (0.9.6) into furniture | yes |
 | `engine/caughtScene.ts` | Films the caught sequence: camera in its hands, then your body's eyes (`PlayerBody.cinematic` / `eyes`) | no |
-| `state/wakeSequence.ts` | Start-of-run wake-up timeline: intro text fade, eyelids, 1 s wait, get-up, 1 s grunt, dim torch (0.6.3) | yes |
+| `state/wakeSequence.ts` | Start-of-run wake-up timeline: intro text fade, eyelids, 1 s wait, get-up, dim torch (0.6.3); `WAKE_SOUND`, the wake-up recording that plays over it all (0.9.6.1) | yes |
 | `engine/wakeScene.ts` | Films the wake-up from your body's eyes (get-up clip held, then played) | no |
 | `state/lookBack.ts` | Look back on the run: 180° camera swing, slow-mo burst + cooldown, body hide (0.5.4) | yes |
 | `world/itemShuffle.ts` | Shuffles fuses / batteries / notes across the item cabinets each run (0.5.4) | yes |
@@ -80,7 +80,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/hudStore.ts` | External store between the engine and React | no |
 | `state/menuScare.ts` | Main-menu loop: lit (stare) → stutter out → dark (gone) → face strobe → dark (gone) → stutter in; pose swaps only in the dark | yes |
 | `engine/menuScene.ts` + `screens/MenuScene.tsx` | Main-menu 3D backdrop: Patient model (`EnemyView.pose`, `stare` clip), tube light, face-shot camera + strobe; disposed when leaving the menu | no |
-| `audio/spatial.ts` | `enemyHearing` (0.9.4: loudness / muffling through walls or round corners, from `world/soundPath.ts`), `falloff`, and every volume constant (steps, scream, panel, goggles) | yes |
+| `audio/spatial.ts` | `enemyHearing` (0.9.4: loudness / muffling through walls or round corners, from `world/soundPath.ts`), `falloff`, and every volume constant (steps, scream, panel, goggles, running breath) | yes |
 | `audio/uiSounds.ts` + `hooks/useUiSounds.ts` | Menu hover/click sounds (own AudioContext, document-level listener on `.lw-menu-btn`) | no (throttle `hoverAllowed` is tested) |
 | `audio/audio.ts` | Sound engine: loads `public/audio/manifest.json` samples, plays them (3D via PannerNode for enemy/generator), synth fallback per sound; synth tension, stinger, clanks | no |
 

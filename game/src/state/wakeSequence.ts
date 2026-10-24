@@ -1,6 +1,7 @@
 // Update 0.6.3 — the start of a run: you come to on the floor. The intro text fades on black, your
-// eyelids open onto the floor, you lie there a second, then get up (the get-up clip, a short grunt)
-// and the run begins. Pure timeline (tested); engine/wakeScene.ts films it from your body's eyes.
+// eyelids open onto the floor, you lie there a second, then get up (the get-up clip) and the run
+// begins. Pure timeline (tested); engine/wakeScene.ts films it from your body's eyes.
+// Update 0.9.6.1 — the wake-up recording plays over it all (it replaces the short grunt at the get-up).
 import { openingLids } from './caughtSequence';
 
 export const WAKE = {
@@ -12,8 +13,6 @@ export const WAKE = {
   wait: 1.0,
   /** The get-up clip until standing. */
   getUp: 5.0,
-  /** The grunt as you push yourself up is cut to this long. */
-  gruntSeconds: 1.0,
 };
 
 export const wakeTimes = {
@@ -23,11 +22,17 @@ export const wakeTimes = {
   endAt: WAKE.textFade + WAKE.lidsOpen + WAKE.wait + WAKE.getUp,
 };
 
-export type WakeCue = 'getUp' | 'done';
+/**
+ * Update 0.9.6.1 — the wake-up recording (`wake_up`). It starts with the scene: its gasp, `gaspAt` s in,
+ * comes as the lids crack open, then you stir and push yourself up, and it's over (`length` s) before
+ * you can move. A pause stops it; the resume starts it again at the scene's time.
+ */
+export const WAKE_SOUND = { gaspAt: 0.83, length: 6.9 };
+
+export type WakeCue = 'done';
 
 export function wakeCues(prev: number, now: number): WakeCue[] {
   const out: WakeCue[] = [];
-  if (prev < wakeTimes.getUpAt && now >= wakeTimes.getUpAt) out.push('getUp');
   if (prev < wakeTimes.endAt && now >= wakeTimes.endAt) out.push('done');
   return out;
 }

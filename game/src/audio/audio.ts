@@ -1,7 +1,7 @@
 // Sound engine. Recorded samples from public/audio (see manifest.json) with a synthesised
 // fallback per sound. Enemy and generator sounds are 3D (PannerNode, HRTF); enemy sounds are
 // also filtered by distance and walls (audio/spatial.ts).
-import { EnemyMix, FLASHLIGHT_CLICK_GAIN, NIGHT_VISION_SFX_GAIN, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, SPOT_SCREAM_GAIN, enemyStepGain } from './spatial';
+import { EnemyMix, FLASHLIGHT_CLICK_GAIN, NIGHT_VISION_SFX_GAIN, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, RUN_BREATH_GAIN, SPOT_SCREAM_GAIN, enemyStepGain } from './spatial';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -72,7 +72,7 @@ export class AudioEngine {
   }
 
   /** Plays a random variant of a sample. Returns false if it isn't loaded (caller falls back to synth). */
-  private playSample(name: string, o: { gain?: number; rate?: number; at?: V3; ref?: number; rolloff?: number; loop?: boolean; to?: AudioNode; when?: number; cutoff?: number } = {}): AudioBufferSourceNode | null {
+  private playSample(name: string, o: { gain?: number; rate?: number; at?: V3; ref?: number; rolloff?: number; loop?: boolean; to?: AudioNode; when?: number; cutoff?: number; offset?: number } = {}): AudioBufferSourceNode | null {
     const bufs = this.samples.get(name);
     if (!bufs?.length) return null;
     const src = this.ctx.createBufferSource();
@@ -94,7 +94,7 @@ export class AudioEngine {
     } else src.connect(g);
     if (o.at) g.connect(this.panner(o.at, o.ref ?? 2, o.rolloff ?? 1.3)).connect(o.to ?? this.sfx);
     else g.connect(o.to ?? this.sfx);
-    src.start(o.when ?? this.now, o.loop ? src.loopStart : 0);
+    src.start(o.when ?? this.now, o.loop ? src.loopStart : o.offset ?? 0);
     if (o.loop) this.loops.push(src);
     return src;
   }
@@ -134,6 +134,22 @@ export class AudioEngine {
     const gain = (kind === 'sprint' ? 1 : kind === 'walk' ? 0.65 : 0.22) * PLAYER_STEP_GAIN;
     const rate = (kind === 'sprint' ? 1.08 : 1) * this.jitter(0.06);
     if (!this.playSample('step_player', { gain, rate })) this.synthFootstep(kind);
+  }
+
+  private runBreath: { gain: GainNode; on: boolean } | null = null;
+  /** Update 0.9.6.1 — your breathing while you sprint: one loop, faded in as you run and out as you stop. */
+  setRunBreath(on: boolean) {
+    if (!this.runBreath) {
+      if (!on || !this.has('run_breath')) return;
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0;
+      gain.connect(this.sfx);
+      this.playSample('run_breath', { loop: true, to: gain });
+      this.runBreath = { gain, on: false };
+    }
+    if (on === this.runBreath.on) return;
+    this.runBreath.on = on;
+    this.runBreath.gain.gain.setTargetAtTime(on ? RUN_BREATH_GAIN : 0, this.now, on ? 0.1 : 0.25);
   }
 
   /** 3D footstep at its position, darker with distance and muffled behind walls. */
@@ -213,6 +229,36 @@ export class AudioEngine {
     g.gain.setValueAtTime(1, end - 0.15);
     g.gain.linearRampToValueAtTime(0, end);
     this.playSample('grunt', { gain: 0.8, rate: this.jitter(0.05), to: g })?.stop(end + 0.02);
+  }
+
+  private wakeClip: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  private wakeAsk = 0;
+  /**
+   * Update 0.9.6.1 — the wake-up recording (replaces the 1 s grunt as you got up), from `at` s into it, so
+   * a resume picks up where the scene is. Waits for the sounds to load, skipping what would have played.
+   */
+  wakeUp(at = 0) {
+    this.stopWakeUp();
+    const ask = ++this.wakeAsk;
+    const askedAt = this.now;
+    void this.ready.then(() => {
+      const offset = at + this.now - askedAt;
+      const length = this.samples.get('wake_up')?.[0]?.duration ?? 0;
+      if (ask !== this.wakeAsk || offset >= length) return;
+      const gain = this.ctx.createGain();
+      gain.connect(this.sfx);
+      const src = this.playSample('wake_up', { to: gain, offset });
+      if (src) this.wakeClip = { src, gain };
+    });
+  }
+  /** Paused mid wake-up: a quick fade (`wakeUp(t)` starts it again from there). */
+  stopWakeUp() {
+    this.wakeAsk++;
+    if (!this.wakeClip) return;
+    const w = this.wakeClip;
+    this.wakeClip = null;
+    w.gain.gain.setTargetAtTime(0, this.now, 0.03);
+    w.src.stop(this.now + 0.2);
   }
 
   resume() {
