@@ -21,7 +21,7 @@ export function promptFor(t: Target | null, p: Progress, noteOpen: boolean, hand
   if (!t || noteOpen) return null;
   // Update 0.9.6 — a brick or bottle: one at a time.
   if (t.type === 'throwable') {
-    const title = t.kind === 'brick' ? 'Brick' : 'Glass bottle';
+    const title = t.title ?? (t.kind === 'brick' ? 'Brick' : 'Glass bottle');
     return handsFull ? { title, verb: null, info: 'Your hands are full.' } : { title, verb: 'pick up' };
   }
   if (t.type === 'item') {

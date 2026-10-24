@@ -23,7 +23,7 @@ import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools'
 import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
 import { RepairState, SKILL, cancelCheck, createRepair, stepRepair } from '../state/skillCheck';
 import { lockerSpots, panelSpots, panelSwitches, propFront } from '../world/props';
-import { Throwable, heldPos, launch, spawnThrowables, stepFlight } from '../state/throwables';
+import { Throwable, heldPos, launch, spawnThrowables, stepFlight, throwableTitle } from '../state/throwables';
 import { ThrowablesView, createThrowablesView } from './throwablesView';
 import { HideState, LOCKER, clampLook, doorOpen, hiddenFrom, insideness, peekLean, requestExit, startHide, stepHide } from '../state/hiding';
 import { createPropsView, PropsView } from './propsView';
@@ -560,7 +560,7 @@ export class Game {
       this.target = null;
     } else {
       if (input.actionPressed('interact')) this.interact();
-      const lying = this.throwables.filter((x) => x.state === 'ground').map((x) => ({ id: x.id, kind: x.kind, pos: { x: x.pos.x, z: x.pos.z } }));
+      const lying = this.throwables.filter((x) => x.state === 'ground').map((x) => ({ id: x.id, kind: x.kind, pos: { x: x.pos.x, z: x.pos.z }, title: throwableTitle(x) }));
       this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected, lying);
       // Update 0.9.6 — Space throws what you're holding (unless Space is busy with a skill check).
       const atRepair = this.target?.type === 'panel' && input.action('interact');
@@ -668,8 +668,8 @@ export class Game {
       this.throwables[i] = r.item;
       if (r.landing) {
         const w = this.toWorld(r.landing.at);
-        if (r.landing.broke) this.audio.bottleBreak({ x: w.x, y: w.y + 0.1, z: w.z });
-        else this.audio.brickImpact({ x: w.x, y: w.y + 0.1, z: w.z });
+        if (it.kind === 'bottle') this.audio.bottleBreak({ x: w.x, y: w.y + 0.1, z: w.z });
+        else this.audio.brickImpact({ x: w.x, y: w.y + 0.1, z: w.z }); // (a brick thuds both times)
         this.noise = { pos: r.landing.noise.pos, radius: r.landing.noise.radius, lure: true };
       }
     }

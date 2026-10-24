@@ -51,6 +51,8 @@ export function createThrowablesView(): ThrowablesView {
         }
         o.visible = it.state !== 'gone' && !(it.state === 'held' && !held);
         if (!o.visible) continue;
+        // Update 0.9.6 — thrown once, a brick is broken in half (half its length, along its local z).
+        o.scale.set(1, 1, it.kind === 'brick' && it.throws > 0 ? 0.5 : 1);
         if (it.state === 'held' && held) {
           o.position.set(held.pos.x, held.pos.y + Math.sin(t * 1.7) * 0.008, held.pos.z);
           o.quaternion.copy(held.quat).multiply(tilt);

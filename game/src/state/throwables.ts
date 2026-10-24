@@ -1,7 +1,7 @@
 // Update 0.9.6 — bricks and bottles. They lie about the halls; pick one up and it floats in front of you;
 // Space throws it. A little physics: it flies off where you look, gravity pulls it down, and the first
-// thing it hits (floor, wall) is where it lands. A bottle smashes (gone); a brick thuds down and can be
-// picked up again. Either way the noise brings The Patient running (world/enemyAI.ts `lure`).
+// thing it hits (floor, wall) is where it lands. A bottle smashes (gone). A brick thuds down and breaks
+// in half; the half can be thrown once more, then it's gone too. Either way the noise brings The Patient running (world/enemyAI.ts `lure`).
 // Pure (tested).
 import { Level, TILE, ThrowableSpawn, Vec2, WALL_HEIGHT, cellCenter, isSolid } from '../world/level';
 
@@ -22,6 +22,8 @@ export interface Throwable {
   /** Which way it lies / spins (rad). */
   yaw: number;
   spin: number;
+  /** Update 0.9.6 — times thrown (a brick is half a brick after one, gone after two). */
+  throws: number;
 }
 
 export const THROW = {
@@ -32,19 +34,27 @@ export const THROW = {
   /** Collision sampling step (m) and how far it's held off a wall when it drops. */
   step: 0.05,
   wallGap: 0.18,
-  /** How loud the landing is (noise radius, m; The Patient hears ×2 since 0.9.6). */
-  noise: { brick: 12, bottle: 16 } as Record<ThrowableKind, number>,
+  /** How loud the landing is (noise radius, m; The Patient hears ×2 since 0.9.6, so it comes from twice
+   *  this far in the open, 1.2× this far through walls). Brick 20 m (12 in the first draft). */
+  noise: { brick: 20, bottle: 16 } as Record<ThrowableKind, number>,
+  /** Update 0.9.6 — a brick breaks in half on its first landing and is gone after its second. */
+  brickThrows: 2,
   /** Where it floats while you hold it: forward, right, down from your eyes (m). */
   hold: { forward: 0.55, right: 0.2, down: 0.24 },
 };
 
 export const THROWABLE_TITLE: Record<ThrowableKind, string> = { brick: 'Brick', bottle: 'Glass bottle' };
 
+/** Update 0.9.6 — what it's called on the floor / in your hand ("Half a brick" once it's broken). */
+export function throwableTitle(t: { kind: ThrowableKind; throws: number }): string {
+  return t.kind === 'brick' && t.throws > 0 ? 'Half a brick' : THROWABLE_TITLE[t.kind];
+}
+
 export function spawnThrowables(spawns: ThrowableSpawn[]): Throwable[] {
   return spawns.map((s, id) => {
     const c = cellCenter(s.cell);
     const [dx, dz] = s.at ?? [0, 0];
-    return { id, kind: s.kind, state: 'ground', pos: { x: c.x + dx, y: 0, z: c.z + dz }, vel: { x: 0, y: 0, z: 0 }, yaw: (id * 2.39996) % (Math.PI * 2), spin: 0 };
+    return { id, kind: s.kind, state: 'ground', pos: { x: c.x + dx, y: 0, z: c.z + dz }, vel: { x: 0, y: 0, z: 0 }, yaw: (id * 2.39996) % (Math.PI * 2), spin: 0, throws: 0 };
   });
 }
 
@@ -90,9 +100,10 @@ export function stepFlight(level: Level, t: Throwable, dt: number): { item: Thro
         rest = { x: p.x - (v.x / d) * THROW.wallGap, z: p.z - (v.z / d) * THROW.wallGap };
       }
       const at = { x: rest.x, y: 0, z: rest.z };
-      const broke = t.kind === 'bottle';
+      const throws = t.throws + 1;
+      const broke = t.kind === 'bottle' || throws >= THROW.brickThrows;
       return {
-        item: { ...t, state: broke ? 'gone' : 'ground', pos: at, vel: { x: 0, y: 0, z: 0 }, spin: 0, yaw: t.yaw + Math.random() * 0.6 },
+        item: { ...t, state: broke ? 'gone' : 'ground', pos: at, vel: { x: 0, y: 0, z: 0 }, spin: 0, yaw: t.yaw + Math.random() * 0.6, throws },
         landing: { at, broke, noise: { pos: { x: at.x, z: at.z }, radius: THROW.noise[t.kind] } },
       };
     }
