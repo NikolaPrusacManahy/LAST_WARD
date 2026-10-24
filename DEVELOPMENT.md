@@ -50,7 +50,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `net/store.ts` | 0.9.9: the database interface co-op talks to, shaped like the Realtime Database (paths, JSON, null deletes, `claim`, `watch`, remove-on-disconnect, server clock) | types |
 | `net/memoryStore.ts` | 0.9.9: `MemoryHub`, the stand-in database: in memory for the tests, in localStorage for `?coop=local` (tabs of one browser, dev build only) | no (tested) |
 | `net/firebaseStore.ts` + `firebaseConfig.ts` | 0.9.9: Firebase Realtime Database + anonymous sign-in (per tab); `net/backend.ts` picks it or the stand-in and loads Firebase only when Co-op is opened | no |
-| `net/room.ts` | 0.9.9: `CoopClient`, one player's side of a room: create, join, ready, difficulty, leave, the host's `tick`, `startInfo`; React reads it with `subscribe` / `getSnapshot` | no (tested on the stand-in) |
+| `net/room.ts` | 0.9.9: `CoopClient`, one player's side of a room: create, join, ready, difficulty, leave, the host's `tick`, `startInfo`; React reads it with `subscribe` / `getSnapshot`. Connects up to `CONNECT_TRIES` times, and is only connected while in a room (or making / joining one) | no (tested on the stand-in) |
 | `screens/CoopPanel.tsx` | 0.9.9: Co-op from the main menu: name, Create room / Join with code, the lobby, the countdown; styles in `theme-14-coop.css` | no |
 | `state/version.ts` | The version on the main menu (keep `package.json` the same; tested) | yes |
 | `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time; `mixVolumes` master × SFX / BGM (0.9.2) | yes (+ localStorage I/O) |

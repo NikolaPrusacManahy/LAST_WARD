@@ -6,7 +6,7 @@ import {
   hostStep, isValidCode, lobbyHint, makeRoomCode, normalizeCode, parseRoom, spawnSpot,
 } from '../src/state/coop';
 import { MemoryHub } from '../src/net/memoryStore';
-import { COOP_ERRORS, CoopClient } from '../src/net/room';
+import { COOP_ERRORS, CONNECT_TRIES, CoopClient } from '../src/net/room';
 import { wantsLocalCoop } from '../src/net/backend';
 import { createRng } from '../src/world/rng';
 import { parseLevel, cellCenter } from '../src/world/level';
@@ -195,4 +195,34 @@ section('Co-op: leaving (0.9.9)');
   await bo.join(code2, 'Bo');
   ann.close();
   check('the host closes the tab: same thing', bo.getSnapshot().error === COOP_ERRORS.closed && (await hub.connect('y').get(`rooms/${code2}`)) === null);
+}
+
+section('Co-op: a shaky connection (0.9.9)');
+{
+  const hub = new MemoryHub();
+  // A connection that fails the first `drops` tries, and counts how often it's opened and closed.
+  const flaky = (id: string, drops: number) => {
+    const n = { tries: 0, open: 0 };
+    const connect = async () => {
+      n.tries++;
+      if (n.tries <= drops) throw new Error('ERR_CONNECTION_CLOSED');
+      const s = hub.connect(id);
+      n.open++;
+      return { ...s, close: () => (n.open--, s.close()) };
+    };
+    return { n, client: new CoopClient(connect, createRng(300 + drops), false, 0) };
+  };
+  const host = flaky('h', 2);
+  check(`the connection drops twice: tried again by itself, the room is made (${CONNECT_TRIES} tries)`, (await host.client.create('Host', 'normal')) && host.n.tries === 3);
+  const code = host.client.getSnapshot().room!.code;
+  const gone = flaky('g', CONNECT_TRIES);
+  check('it drops every time: "could not reach the server" after the last try', !(await gone.client.join(code, 'Gone')) && gone.client.getSnapshot().error === COOP_ERRORS.offline && gone.n.tries === CONNECT_TRIES);
+  const guest = flaky('u', 0);
+  check('a wrong code: told so, and not left connected', !(await guest.client.join('ZZZZZ', 'Guest')) && guest.n.open === 0);
+  check('in a room: connected', (await guest.client.join(code, 'Guest')) && guest.n.open === 1);
+  await guest.client.leave();
+  check('left the room: off the server', guest.n.open === 0);
+  check('joining again connects again', (await guest.client.join(code, 'Guest')) && guest.n.open === 1);
+  await host.client.leave();
+  check('the host closed the room: the guest is off the server too', guest.client.getSnapshot().error === COOP_ERRORS.closed && guest.n.open === 0 && host.n.open === 0);
 }

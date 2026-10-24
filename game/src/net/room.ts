@@ -40,6 +40,9 @@ export const COOP_ERRORS = {
 
 const roomPath = (code: string) => `rooms/${code}`;
 
+/** Update 0.9.9 — a first connection can drop (seen once on a guest's first Join): try this many times. */
+export const CONNECT_TRIES = 3;
+
 export class CoopClient {
   private store: Store | null = null;
   private snap: CoopSnapshot = { busy: false, error: null, room: null, me: '', local: false };
@@ -53,6 +56,8 @@ export class CoopClient {
     private rng: Rng,
     /** Tests drive tick() themselves. */
     private autoTick = true,
+    /** Wait before the 2nd connection try (twice that before the 3rd). */
+    private retryMs = 800,
   ) {}
 
   subscribe = (fn: () => void) => {
@@ -73,11 +78,28 @@ export class CoopClient {
   }
 
   private async ready(): Promise<Store> {
-    if (!this.store) {
-      this.store = await this.connect();
-      this.put({ me: this.store.uid, local: this.store.local });
+    if (this.store) return this.store;
+    let store: Store | null = null;
+    for (let i = 0; !store; i++) {
+      try {
+        store = await this.connect();
+      } catch (e) {
+        if (i + 1 >= CONNECT_TRIES) throw e;
+        await new Promise((r) => setTimeout(r, this.retryMs * (i + 1)));
+      }
     }
-    return this.store;
+    this.store = store;
+    this.put({ me: store.uid, local: store.local });
+    return store;
+  }
+
+  /**
+   * Off the server whenever you're not in a room: there's nothing to watch, and Firebase's free plan
+   * counts every open connection (100 at once). The next Create / Join connects again.
+   */
+  private disconnect() {
+    this.store?.close();
+    this.store = null;
   }
 
   /** Make a room and wait in it as the host. False (and an error) if it didn't work. */
@@ -145,6 +167,7 @@ export class CoopClient {
   }
 
   private fail(error: string): false {
+    this.disconnect();
     this.put({ busy: false, error });
     return false;
   }
@@ -231,6 +254,7 @@ export class CoopClient {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.leaving = false;
+    this.disconnect();
     this.put({ room: null, busy: false, error });
   }
 
@@ -244,7 +268,7 @@ export class CoopClient {
     this.unwatch?.();
     this.unwatch = null;
     if (this.timer) clearInterval(this.timer);
-    this.store?.close();
-    this.store = null;
+    this.timer = null;
+    this.disconnect();
   }
 }

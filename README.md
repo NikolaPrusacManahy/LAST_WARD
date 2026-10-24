@@ -148,9 +148,9 @@ Adding `?debug` to the address skips the credit screen and gives the browser con
 
 ## Publishing
 
-The game is a static site, set up for Netlify in `game/netlify.toml`. Netlify runs `npm run build` and publishes `game/dist/`. The live site only changes after a fresh build.
+The game is live at https://last-ward.netlify.app/. It's a static site, set up for Netlify in `game/netlify.toml` (in Netlify's build settings the base directory is `game`). Netlify runs `npm run build` and publishes `game/dist/`. The live site only changes after a fresh build.
 
-Co-op needs the site's address in Firebase: Authentication → Settings → Authorized domains (e.g. `your-site.netlify.app`). Without it, signing in fails there. If the database rules in `game/firebase/database.rules.json` change, paste them again under Realtime Database → Rules and publish.
+Co-op signs in through Firebase, so keep the site's address (`last-ward.netlify.app`) in Firebase under Authentication → Settings → Authorized domains, and add any new address there too. If the database rules in `game/firebase/database.rules.json` change, paste them again under Realtime Database → Rules and publish.
 
 ## Built with
 
