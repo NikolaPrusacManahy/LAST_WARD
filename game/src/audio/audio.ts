@@ -1,11 +1,20 @@
 // Sound engine. Recorded samples from public/audio (see manifest.json) with a synthesised
 // fallback per sound. Enemy and generator sounds are 3D (PannerNode, HRTF); enemy sounds are
 // also filtered by distance and walls (audio/spatial.ts).
-import { CRAWL_STEP_GAIN, EnemyMix, FLASHLIGHT_CLICK_GAIN, NIGHT_VISION_SFX_GAIN, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, RUN_BREATH_GAIN, SPOT_SCREAM_GAIN, enemyStepGain } from './spatial';
+import { CRAWL_STEP_GAIN, DOWN_BREATH_GAIN, EnemyMix, FLASHLIGHT_CLICK_GAIN, NIGHT_VISION_SFX_GAIN, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, RUN_BREATH_GAIN, SPOT_SCREAM_GAIN, enemyStepGain } from './spatial';
 
 type V3 = { x: number; y: number; z: number };
 
 const SAMPLE_BASE = '/audio';
+
+/** Update 0.9.9 — loudness of what's in an analyser right now, in dBFS (-100 for silence). */
+function rmsDb(an: AnalyserNode, buf: Float32Array<ArrayBuffer>): number {
+  an.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  const rms = Math.sqrt(sum / buf.length);
+  return rms > 1e-5 ? 20 * Math.log10(rms) : -100;
+}
 
 export class AudioEngine {
   ctx: AudioContext;
@@ -13,6 +22,8 @@ export class AudioEngine {
   private master: GainNode;
   private sfx: GainNode;
   private bgm: GainNode;
+  /** Update 0.9.9 — teammates' voices (proximity chat), on their own slider. */
+  private voiceBus: GainNode;
   private noiseBuf: AudioBuffer;
   private ambience: GainNode;
   private tension: GainNode;
@@ -25,7 +36,7 @@ export class AudioEngine {
   private loops: AudioBufferSourceNode[] = [];
   private clankTimer = 12;
 
-  constructor(volume: { master: number; sfx: number; bgm: number }) {
+  constructor(volume: { master: number; sfx: number; bgm: number; voice?: number }) {
     this.ctx = new AudioContext();
     const comp = this.ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
@@ -39,6 +50,9 @@ export class AudioEngine {
     this.bgm = this.ctx.createGain();
     this.bgm.gain.value = volume.bgm;
     this.bgm.connect(this.master);
+    this.voiceBus = this.ctx.createGain();
+    this.voiceBus.gain.value = volume.voice ?? 1;
+    this.voiceBus.connect(this.master);
 
     this.noiseBuf = this.ctx.createBuffer(1, this.ctx.sampleRate * 2, this.ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
@@ -150,6 +164,48 @@ export class AudioEngine {
     if (on === this.runBreath.on) return;
     this.runBreath.on = on;
     this.runBreath.gain.gain.setTargetAtTime(on ? RUN_BREATH_GAIN : 0, this.now, on ? 0.1 : 0.25);
+  }
+
+  private downBreath: { gain: GainNode; on: boolean } | null = null;
+  /** Update 0.9.9 — co-op, down: your heavy breathing, a loop faded in while you're on the floor. */
+  setDownBreath(on: boolean) {
+    if (!this.downBreath) {
+      if (!on || !this.has('down_breath')) return;
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0;
+      gain.connect(this.sfx);
+      this.playSample('down_breath', { loop: true, to: gain });
+      this.downBreath = { gain, on: false };
+    }
+    if (on === this.downBreath.on) return;
+    this.downBreath.on = on;
+    this.downBreath.gain.gain.setTargetAtTime(on ? DOWN_BREATH_GAIN : 0, this.now, on ? 0.3 : 0.4);
+  }
+
+  private teamBreaths = new Map<string, { gain: GainNode; lp: BiquadFilterNode; pn: PannerNode }>();
+  /** Update 0.9.9 — a teammate down on the floor: their breathing, where they lie (null: stop it), so you
+   *  can find them by ear too. */
+  teamDownBreath(id: string, p: V3 | null, mix: EnemyMix = { cutoff: 16000, gain: 1, occluded: false }) {
+    let b = this.teamBreaths.get(id);
+    if (!p) {
+      if (b) b.gain.gain.setTargetAtTime(0, this.now, 0.3);
+      return;
+    }
+    if (!b) {
+      if (!this.has('down_breath')) return;
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      const pn = this.panner(p, 1.5, 1.3);
+      lp.connect(gain).connect(pn).connect(this.sfx);
+      this.playSample('down_breath', { loop: true, to: lp });
+      b = { gain, lp, pn };
+      this.teamBreaths.set(id, b);
+    }
+    this.place(b.pn, p);
+    b.lp.frequency.setTargetAtTime(mix.cutoff, this.now, 0.1);
+    b.gain.gain.setTargetAtTime(DOWN_BREATH_GAIN * 1.4 * mix.gain, this.now, 0.2);
   }
 
   /** 3D footstep at its position, darker with distance and muffled behind walls.
@@ -267,11 +323,93 @@ export class AudioEngine {
     return this.ctx.resume();
   }
 
-  setVolume(v: { master: number; sfx: number; bgm: number }) {
+  setVolume(v: { master: number; sfx: number; bgm: number; voice?: number }) {
     const at = this.ctx.currentTime;
     this.master.gain.setTargetAtTime(v.master, at, 0.05);
     this.sfx.gain.setTargetAtTime(v.sfx, at, 0.05);
     this.bgm.gain.setTargetAtTime(v.bgm, at, 0.05);
+    if (v.voice !== undefined) this.voiceBus.gain.setTargetAtTime(v.voice, at, 0.05);
+  }
+
+  // Update 0.9.9 — co-op: your teammates, placed where they are and muffled by the walls between you
+  // (`mix`, from audio/spatial.ts enemyHearing, the same as The Patient's sounds).
+  teamStep(p: V3, kind: 'walk' | 'sprint' | 'crouch', mix: EnemyMix) {
+    const gain = (kind === 'sprint' ? 1 : kind === 'walk' ? 0.65 : 0.22) * PLAYER_STEP_GAIN * mix.gain;
+    if (gain <= 0.001) return;
+    this.playSample('step_player', { at: p, ref: 2, rolloff: 1.3, gain, cutoff: mix.cutoff, rate: (kind === 'sprint' ? 1.08 : 1) * this.jitter(0.06) });
+  }
+  teamGrunt(p: V3, mix: EnemyMix) {
+    this.playSample('grunt', { at: p, ref: 2, rolloff: 1.2, gain: 0.8 * mix.gain, cutoff: mix.cutoff, rate: this.jitter(0.05) });
+  }
+  teamClick(p: V3) {
+    this.playSample('flashlight_click', { at: p, ref: 1.5, rolloff: 1.6, gain: FLASHLIGHT_CLICK_GAIN * 0.8 });
+  }
+  teamPickup(p: V3) {
+    this.playSample('pickup', { at: p, ref: 1.5, rolloff: 1.6, gain: 0.5 });
+  }
+  teamThrown(p: V3) {
+    this.playSample('thrown', { at: p, ref: 3, rolloff: 1.1, gain: 0.9 });
+  }
+  teamImpact(p: V3) {
+    this.playSample('floor_impact', { at: p, ref: 3, rolloff: 1.1, gain: 0.9 });
+  }
+
+  /**
+   * Update 0.9.9 — a teammate's voice (proximity chat): through a wall filter and a gain into a 3D panner
+   * on their head; `set` moves it each frame. `level()` is how loud they are right now (dBFS), for the
+   * "talking" mark over their head.
+   */
+  addVoice(stream: MediaStream) {
+    // Chrome only hands a WebRTC stream to Web Audio while it's also playing in a (muted) element.
+    const el = new Audio();
+    el.srcObject = stream;
+    el.muted = true;
+    void el.play().catch(() => {});
+    const src = this.ctx.createMediaStreamSource(stream);
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 16000;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
+    const pn = this.panner({ x: 0, y: 0, z: 0 }, 2, 1.1);
+    pn.maxDistance = 40;
+    const flat = this.ctx.createGain();
+    flat.gain.value = 0;
+    const meter = this.ctx.createAnalyser();
+    meter.fftSize = 512;
+    src.connect(meter);
+    src.connect(lp).connect(gain).connect(pn).connect(this.voiceBus);
+    lp.connect(flat).connect(this.voiceBus);
+    const buf = new Float32Array(meter.fftSize);
+    return {
+      /** `spatial` false: straight in your ears (an out player you're both watching from). */
+      set: (p: V3, g: number, cutoff: number, spatial = true) => {
+        this.place(pn, p);
+        const t = this.now;
+        gain.gain.setTargetAtTime(spatial ? g : 0, t, 0.05);
+        flat.gain.setTargetAtTime(spatial ? 0 : g * 0.6, t, 0.05);
+        lp.frequency.setTargetAtTime(cutoff, t, 0.05);
+      },
+      level: () => rmsDb(meter, buf),
+      dispose: () => {
+        src.disconnect();
+        lp.disconnect();
+        gain.disconnect();
+        pn.disconnect();
+        flat.disconnect();
+        el.srcObject = null;
+      },
+    };
+  }
+
+  /** Update 0.9.9 — how loud you are on your microphone (dBFS), for "Enemy can hear you talk". Not played. */
+  micMeter(stream: MediaStream): () => number {
+    const src = this.ctx.createMediaStreamSource(stream);
+    const meter = this.ctx.createAnalyser();
+    meter.fftSize = 1024;
+    src.connect(meter);
+    const buf = new Float32Array(meter.fftSize);
+    return () => rmsDb(meter, buf);
   }
 
   private get now() {

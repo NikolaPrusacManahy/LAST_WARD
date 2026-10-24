@@ -33,6 +33,10 @@ export async function connectFirebase(): Promise<Store> {
       });
       return r.committed;
     },
+    transact: async (path, fn) => {
+      const r = await runTransaction(at(path), (cur) => fn(cur), { applyLocally: false });
+      return r.committed;
+    },
     watch: (path, cb) => {
       // A watch the rules refuse (the room was deleted under us) reads as "gone".
       const off = onValue(at(path), (s) => cb(s.val()), () => cb(null));

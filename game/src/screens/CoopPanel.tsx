@@ -2,6 +2,7 @@
 // with code; then the lobby: who's in, ready, the host's difficulty, a 3-second countdown into the run.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CoopClient, CoopStart } from '../net/room';
+import { currentMic, getMic } from '../net/voice';
 import { CODE_LENGTH, COOP_DIFFICULTIES, COOP_DIFFICULTY, CoopDifficulty, MAX_PLAYERS, NAME_MAX, Room, countdownLeft, lobbyHint, normalizeCode } from '../state/coop';
 
 interface Props {
@@ -105,6 +106,20 @@ function Lobby({ client, room, me, local, busy }: { client: CoopClient; room: Ro
   const mine = room.players.find((p) => p.id === me);
   const [, redraw] = useState(0);
   const [copied, setCopied] = useState(false);
+  // Update 0.9.9 — your microphone for proximity chat: asked for when you press Ready.
+  const [mic, setMic] = useState<'ask' | 'on' | 'off'>(() => (currentMic() ? 'on' : 'ask'));
+  const [asking, setAsking] = useState(false);
+  // With proximity chat on, you're only ready once you've answered the microphone question: the countdown
+  // used to start (and the run with it) while the prompt was still up, and you played without your mic.
+  const ready = async () => {
+    if (room.voice && !mine?.ready && mic !== 'on') {
+      setAsking(true);
+      const m = await getMic();
+      setAsking(false);
+      setMic(m ? 'on' : 'off');
+    }
+    void client.setReady(!mine?.ready);
+  };
 
   // Redraw the countdown ten times a second while it runs.
   useEffect(() => {
@@ -167,10 +182,29 @@ function Lobby({ client, room, me, local, busy }: { client: CoopClient; room: Ro
           ))}
         </div>
 
+        <div className="lw-lobby-opts">
+          <span className="lw-coop-label">Voice{host ? '' : ' · the host picks'}</span>
+          <label className="lw-opt">
+            <input type="checkbox" checked={room.voice} disabled={!host || room.status !== 'lobby'} onChange={(e) => void client.setOptions({ voice: e.target.checked })} />
+            <span className="lw-opt-name">Proximity chat</span>
+            <span className="lw-opt-blurb">Talk to whoever is near you. Walls muffle it; far away, nothing.</span>
+          </label>
+          <label className={`lw-opt ${room.voice ? '' : 'lw-opt-off'}`}>
+            <input type="checkbox" checked={room.hear} disabled={!host || !room.voice || room.status !== 'lobby'} onChange={(e) => void client.setOptions({ hear: e.target.checked })} />
+            <span className="lw-opt-name">Enemy can hear you talk</span>
+            <span className="lw-opt-blurb">Whisper and you're safe. Talk out loud near it and it comes for you.</span>
+          </label>
+          {room.voice && (
+            <p className={`lw-lobby-mic lw-lobby-mic-${mic}`}>
+              {mic === 'on' ? 'Your microphone is on. In the game, V mutes it.' : mic === 'off' ? "No microphone: you'll hear the others, they won't hear you." : "You'll be asked for your microphone when you press Ready."}
+            </p>
+          )}
+        </div>
+
         <p className="lw-lobby-hint">{lobbyHint(room)}</p>
         <nav className="lw-menu-nav">
-          <button className="lw-menu-btn" disabled={busy || room.status === 'playing'} onClick={() => void client.setReady(!mine?.ready)}>
-            {mine?.ready ? 'Not ready' : 'Ready'}
+          <button className="lw-menu-btn" disabled={busy || asking || room.status === 'playing'} onClick={() => void ready()}>
+            {asking ? 'Allow the microphone…' : mine?.ready ? 'Not ready' : 'Ready'}
           </button>
           <button className="lw-menu-btn" disabled={busy} onClick={() => void client.leave()}>{host ? 'Close room' : 'Leave room'}</button>
         </nav>

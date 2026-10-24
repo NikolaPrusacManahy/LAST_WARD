@@ -4,12 +4,15 @@ import type { Gait } from '../state/playerRules';
 /** Update 0.5.3 — strafeLeft / strafeRight. Update 0.6 — thrown / getUp (caught) + injured set. */
 export type PlayerClip =
   | 'idle' | 'walk' | 'run' | 'crouch' | 'strafeLeft' | 'strafeRight'
-  | 'thrown' | 'getUp' | 'injuredIdle' | 'injuredWalk' | 'injuredRun';
+  | 'thrown' | 'getUp' | 'injuredIdle' | 'injuredWalk' | 'injuredRun'
+  /** Update 0.9.9 — hit on your last life and sent flying; down: crawling, and dying there. */
+  | 'hitFly' | 'crawl' | 'proneDeath';
 
 /** Ground speed each clip was authored at (stance foot), m/s. */
 export const PLAYER_CLIP_SPEED: Record<PlayerClip, number> = {
   idle: 0, walk: 1.6, run: 3.2, crouch: 1.25, strafeLeft: 1.6, strafeRight: 1.6,
   thrown: 0, getUp: 0, injuredIdle: 0, injuredWalk: 1.6, injuredRun: 3.2,
+  hitFly: 0, crawl: 0, proneDeath: 0,
 };
 
 /** Update 0.6 — after losing a life the idle / walk / run clips are the injured ones. */

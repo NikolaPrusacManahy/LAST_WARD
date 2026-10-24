@@ -4,7 +4,7 @@
 //
 // Room JSON, under rooms/{code}:
 //   host: uid · created: ms · status: 'lobby' | 'starting' | 'playing' · startAt: ms (0 = no countdown)
-//   difficulty: 'normal' | 'hard' · seed: number
+//   difficulty: 'normal' | 'hard' · seed: number · voice, hear: booleans (proximity chat, it hears you talk)
 //   slots: { s0: uid, s1: uid, s2: uid }      (s-keys: numbered keys come back as arrays from Firebase)
 //   players: { [uid]: { name, ready, slot } }
 import type { Rng } from '../world/rng';
@@ -45,6 +45,9 @@ export interface Room {
   startAt: number;
   difficulty: CoopDifficulty;
   seed: number;
+  /** Update 0.9.9 — the host's lobby options: proximity chat, and The Patient hearing you talk (needs chat). */
+  voice: boolean;
+  hear: boolean;
   /** In slot order (the host is slot 0). */
   players: RoomPlayer[];
 }
@@ -97,6 +100,8 @@ export function parseRoom(code: string, raw: unknown): Room | null {
     startAt: typeof raw.startAt === 'number' ? raw.startAt : 0,
     difficulty: raw.difficulty === 'hard' ? 'hard' : 'normal',
     seed: typeof raw.seed === 'number' ? raw.seed : 1,
+    voice: raw.voice === true,
+    hear: raw.voice === true && raw.hear === true,
     players,
   };
 }

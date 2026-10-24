@@ -4,6 +4,7 @@
 import type { Rng } from '../world/rng';
 import type { Store, Unsubscribe } from './store';
 import { CoopDifficulty, Room, RoomPlayer, cleanName, freeSlots, hostStep, isValidCode, makeRoomCode, normalizeCode, parseRoom, slotKey } from '../state/coop';
+import { currentMic } from './voice';
 
 export interface CoopSnapshot {
   /** Creating / joining / leaving: buttons wait. */
@@ -25,6 +26,27 @@ export interface CoopStart {
   slot: number;
   host: boolean;
   players: RoomPlayer[];
+  /** Update 0.9.9 — the live connection for the run itself. */
+  link: CoopLink;
+}
+
+/** Update 0.9.9 — what the run uses of the room: the connection, who you are, the host's options. */
+export interface CoopLink {
+  store: Store;
+  code: string;
+  me: string;
+  host: boolean;
+  /** Proximity chat on, and The Patient hears you talk. */
+  voice: boolean;
+  hear: boolean;
+  /** Your microphone, if you let the game have it (asked when you pressed Ready). */
+  mic: MediaStream | null;
+  /** Who's in the room now (nobody once it's closed). */
+  players(): RoomPlayer[];
+  /** Who started the run. */
+  startedWith: RoomPlayer[];
+  /** The host left: the room is gone. */
+  closed(): boolean;
 }
 
 export const COOP_ERRORS = {
@@ -118,6 +140,8 @@ export class CoopClient {
           startAt: 0,
           difficulty,
           seed: 1 + Math.floor(this.rng() * 0x7fffffff),
+          voice: true,
+          hear: false,
           slots: { [slotKey(0)]: store.uid },
           players: { [store.uid]: { name, ready: false, slot: 0 } },
         };
@@ -215,12 +239,32 @@ export class CoopClient {
     await this.store.update(roomPath(room.code), { difficulty });
   }
 
+  /** Update 0.9.9 — host only, in the lobby: proximity chat on / off, and whether it hears you talk. */
+  async setOptions(o: { voice?: boolean; hear?: boolean }) {
+    const room = this.snap.room;
+    if (!room || !this.store || !this.isHost() || room.status !== 'lobby') return;
+    const voice = o.voice ?? room.voice;
+    await this.store.update(roomPath(room.code), { voice, hear: voice && (o.hear ?? room.hear) });
+  }
+
   /** What this player's run starts with, once the room is playing. */
   startInfo(): CoopStart | null {
     const room = this.snap.room;
     const me = room?.players.find((p) => p.id === this.snap.me);
-    if (!room || !me || room.status !== 'playing') return null;
-    return { code: room.code, difficulty: room.difficulty, seed: room.seed, slot: me.slot, host: room.host === this.snap.me, players: room.players };
+    if (!room || !me || room.status !== 'playing' || !this.store) return null;
+    const link: CoopLink = {
+      store: this.store,
+      code: room.code,
+      me: this.snap.me,
+      host: room.host === this.snap.me,
+      voice: room.voice,
+      hear: room.hear,
+      mic: room.voice ? currentMic() : null,
+      players: () => this.snap.room?.players ?? [],
+      startedWith: room.players,
+      closed: () => !this.snap.room && this.snap.error === COOP_ERRORS.closed,
+    };
+    return { code: room.code, difficulty: room.difficulty, seed: room.seed, slot: me.slot, host: link.host, players: room.players, link };
   }
 
   /** Leave the room (the host's leaving closes it for everyone). */

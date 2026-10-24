@@ -1,6 +1,6 @@
 // Hosts the three.js Game and the HUD. One instance per run (keyed by runId in App).
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
-import { Game } from '../engine/Game';
+import { Game, CoopEnd } from '../engine/Game';
 import { createHudStore } from '../engine/hudStore';
 import type { Settings } from '../state/settings';
 import type { CoopStart } from '../net/room';
@@ -14,7 +14,7 @@ export interface GameHandle {
 interface Props {
   settings: Settings;
   paused: boolean;
-  onEnd(result: 'dead' | 'escaped', seconds: number): void;
+  onEnd(result: 'dead' | 'escaped', seconds: number, coop?: CoopEnd): void;
   onPause(): void;
   /** Update 0.7.1 — level to start on (tester picker; ignored by the public build). */
   startLevel: number;
@@ -35,7 +35,7 @@ export const GameView = forwardRef<GameHandle, Props>(function GameView({ settin
     void document.fonts.ready.then(() => {
       if (disposed || !host.current) return;
       game.current = new Game(host.current, settings, hud, {
-        onEnd: (r, s) => cbs.current.onEnd(r, s),
+        onEnd: (r, s, c) => cbs.current.onEnd(r, s, c),
         onPause: () => cbs.current.onPause(),
       }, startLevel, coop);
     });

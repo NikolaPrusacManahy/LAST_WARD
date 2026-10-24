@@ -17,6 +17,9 @@ export interface Store {
   remove(path: string): Promise<void>;
   /** Write value only if path is empty (or already holds this same plain value). True if it's ours. */
   claim(path: string, value: unknown): Promise<boolean>;
+  /** Update 0.9.9 (co-op run) — read-modify-write in one go: `fn` gets what's there and returns what to
+   *  write, or undefined to leave it. True if it wrote. (Firebase may call `fn` more than once.) */
+  transact(path: string, fn: (cur: unknown) => unknown): Promise<boolean>;
   /** Called now with what's there, then after every change. */
   watch(path: string, cb: (value: unknown) => void): Unsubscribe;
   /** If this player drops off (tab closed, connection lost), delete path. */

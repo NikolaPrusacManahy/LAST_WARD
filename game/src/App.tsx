@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MainMenu } from './screens/MainMenu';
 import { GameView, GameHandle } from './screens/GameView';
+import type { CoopEnd } from './engine/Game';
 import { PauseMenu } from './screens/PauseMenu';
 import { EndScreen } from './screens/EndScreen';
 import { SettingsPanel } from './screens/SettingsPanel';
@@ -24,7 +25,7 @@ import { LEVELS } from './world/content/levels';
 const PICK_KEY = 'lw-tester-level';
 
 type Screen = 'menu' | 'game';
-type Overlay = null | 'pause' | 'settings' | 'credits' | 'difficulty' | 'coop' | { end: 'dead' | 'escaped'; time: number };
+type Overlay = null | 'pause' | 'settings' | 'credits' | 'difficulty' | 'coop' | { end: 'dead' | 'escaped'; time: number; coop?: CoopEnd };
 
 export default function App() {
   const [save, setSave] = useState<SaveData>(loadSave);
@@ -113,10 +114,10 @@ export default function App() {
     setScreen('menu');
   };
 
-  const onEnd = useCallback((end: 'dead' | 'escaped', time: number) => {
+  const onEnd = useCallback((end: 'dead' | 'escaped', time: number, coopEnd?: CoopEnd) => {
     // Co-op runs stay out of the solo record (escapes, deaths, best time).
     if (!coopRunRef.current) setSave((d) => (end === 'escaped' ? recordEscape(d, time) : { ...d, deaths: d.deaths + 1 }));
-    setOverlay({ end, time });
+    setOverlay({ end, time, coop: coopEnd });
   }, []);
 
   const onPause = useCallback(() => setOverlay('pause'), []);
@@ -150,6 +151,7 @@ export default function App() {
       )}
       {overlay === 'pause' && (
         <PauseMenu
+          coop={!!coopRun}
           onResume={resume}
           onSettings={() => openSettings('pause')}
           onQuit={toMenu}
@@ -178,6 +180,7 @@ export default function App() {
           result={overlay.end}
           time={overlay.time}
           save={save}
+          coop={overlay.coop}
           onRetry={coopRun ? undefined : start}
           onMenu={toMenu}
         />

@@ -29,10 +29,8 @@ export const ENEMY = {
   beamRange: 30,
   /** Update 0.9.6 — after running to a thrown thing: you within this far (m) and it comes for you. */
   lureRadius: 5,
-  /** Update 0.9.6 — locker checks while searching: lockers this close (m) to where it lost you, at most
-   *  once per `lockerRecheck` s each; door open for `lockerCheckSeconds`. */
-  lockerCheckRadius: 9,
-  lockerRecheck: 25,
+  /** Update 0.9.6 — how long a locker door stands open while it looks in. Update 0.9.9 — it no longer
+   *  checks lockers by itself (it always found you in the nearest one): `check` is never started now. */
   lockerCheckSeconds: 1,
   /** Each fuse collected makes it this much faster (it knows what you're doing).
    *  Update 0.9.6.2 — 7% → 4%, and only while it chases you (`enemySpeed`). */
@@ -129,7 +127,7 @@ export interface EnemyState {
   rush: boolean;
   /** Update 0.9.6 — running to something you threw: if you're near when it gets there, it chases you. */
   lure: boolean;
-  /** Update 0.9.6 — checking a locker: walking to it, then the door open. */
+  /** Update 0.9.6 — checking a locker: walking to it, then the door open. (0.9.9: never started any more.) */
   check: { locker: number; phase: 'going' | 'open'; t: number } | null;
   /** When it last checked each locker (its own clock, s). */
   checked: number[];
@@ -392,23 +390,6 @@ function setMode(e: EnemyState, mode: EnemyMode) {
 }
 
 /** Update 0.9.6 — start checking the nearest locker to `near` it hasn't looked in lately, if any. */
-function startLockerCheck(level: Level, e: EnemyState, lockers: LockerSpot[] | undefined, near: Vec2) {
-  if (!lockers?.length) return;
-  let best = -1;
-  let bestD = ENEMY.lockerCheckRadius;
-  lockers.forEach((l, i) => {
-    const d = dist(l.center, near);
-    const last = e.checked[i];
-    if (d <= bestD && (last === undefined || e.clock - last >= ENEMY.lockerRecheck)) {
-      best = i;
-      bestD = d;
-    }
-  });
-  if (best < 0) return;
-  e.check = { locker: best, phase: 'going', t: 0 };
-  goTo(level, e, lockers[best].stand);
-}
-
 /** Update 0.5.2 — pull a point in from the walls so its body fits there (a noise right by a wall). */
 function roomFor(level: Level, p: Vec2): Vec2 {
   const r = ENEMY.bodyRadius;
@@ -533,6 +514,9 @@ export interface StepInput {
   /** Update 0.9.6 — the lockers, and the one you're hiding in (if any). */
   lockers?: LockerSpot[];
   playerLocker?: number | null;
+  /** Update 0.9.9 — co-op Hard: up on the ceiling this many times as often, and that much sooner again
+   *  after coming down (1 or unset = as solo). */
+  crawlBoost?: number;
 }
 
 const FOUR = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
@@ -705,7 +689,7 @@ function startRoute(level: Level, e: EnemyState, rng: Rng) {
 function land(level: Level, e: EnemyState, input: StepInput, events: EnemyEvent[], rng: Rng) {
   const c = e.crawl!;
   e.crawl = null;
-  e.crawlCooldown = CRAWL.cooldownMin + rng() * (CRAWL.cooldownMax - CRAWL.cooldownMin);
+  e.crawlCooldown = (CRAWL.cooldownMin + rng() * (CRAWL.cooldownMax - CRAWL.cooldownMin)) / (input.crawlBoost ?? 1);
   e.path = [];
   e.goal = null;
   e.windup = 0;
@@ -788,7 +772,9 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
     if (noise.lure) e.lure = true;
   }
 
-  if (e.mode === 'chase' && e.sinceSeen <= tune.memorySeconds) e.lastKnown = { ...player.pos };
+  // It keeps on your trail for a moment after losing sight of you, but not into a locker it didn't see
+  // you get into (Update 0.9.9: it went straight to the door of the one you'd just hidden in).
+  if (e.mode === 'chase' && e.sinceSeen <= tune.memorySeconds && !player.hidden) e.lastKnown = { ...player.pos };
 
   // Update 0.6.4 — rushing to the generator (0.9.1: or to a panel that blew): chase speed.
   const speed = enemySpeed(e); // Update 0.9.6.2 — the fuses only speed up the chase
@@ -849,7 +835,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
         const here = e.goal ?? e.pos;
         setMode(e, 'search');
         pickWanderGoal(level, e, rng, here, tune.searchRadiusTiles);
-        startLockerCheck(level, e, input.lockers, here); // Update 0.9.6
+        // (Update 0.9.9 — it no longer opens the nearest locker here: that was always the one you hid in.)
       }
       break;
     }
@@ -891,7 +877,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
     }
     case 'patrol': {
       // Update 0.9.7 — now and then, patrolling a corridor, it screams and goes up on the ceiling.
-      if (e.crawlCooldown <= 0 && isCorridor(level, worldToCell(e.pos)) && rng() < CRAWL.chancePerSecond * dt) {
+      if (e.crawlCooldown <= 0 && isCorridor(level, worldToCell(e.pos)) && rng() < CRAWL.chancePerSecond * (input.crawlBoost ?? 1) * dt) {
         startCrawl(e, rng);
         events.push('crawlUp');
         break;

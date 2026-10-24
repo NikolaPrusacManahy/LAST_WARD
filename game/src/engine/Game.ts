@@ -5,8 +5,10 @@ import { LEVELS } from '../world/content/levels';
 import { Level, Vec2, WALL_HEIGHT, cellCenter, crossPortal, dist, floorAt, floorOffset, floorStride, itemPos, parseLevel, stairRise, worldToCell } from '../world/level';
 import { ENEMY, EnemyState, Noise, dropFromCeiling, spawnAtCorner, stepEnemy, summonToGenerator, teleportAway, visibility } from '../world/enemyAI';
 import { CRAWL_LIFT, crawlPose } from './enemyAnim';
-import { CAUGHT, LIVES, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
+import { CAUGHT, ENEMY_THROW_SPEED, LIVES, caughtTimes, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
 import { CaughtScene, createCaughtScene } from './caughtScene';
+import { HitScene, createHitScene } from './hitScene';
+import { HIT, hitBlack, hitLids, hitTimes } from '../state/hitSequence';
 import { WakeScene, createWakeScene } from './wakeScene';
 import { wakeEyelids, wakeLight, wakeTextOpacity } from '../state/wakeSequence';
 import { shuffleItems } from '../world/itemShuffle';
@@ -21,23 +23,27 @@ import { mixVolumes } from '../state/settings';
 import { DIFFICULTY, DifficultyRules } from '../state/difficulty';
 import { spawnSpot } from '../state/coop';
 import type { CoopStart } from '../net/room';
+import { CoopRuntime } from './coopRuntime';
+import type { ItemNet, PanelNet, PowerNet } from '../net/runSync';
+import { DOWN, LifeState, LiveState, Member, catchOutcome, nextWatch, runOver, teamEscaped, watchable } from '../state/coopRun';
+import { wakeTimes } from '../state/wakeSequence';
 import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
 import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
-import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
+import { Progress, allPanelsOn, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
 import { RepairState, SKILL, cancelCheck, createRepair, stepRepair } from '../state/skillCheck';
 import { lockerSpots, panelSpots, panelSwitches, propFront } from '../world/props';
 import { Throwable, heldPos, isThrowable, launch, spawnTableItems, spawnThrowables, stepFlight, throwableTitle } from '../state/throwables';
 import { staminaShare } from '../state/hudLayout';
 import { Inventory, MEDKIT_SECONDS, SLOTS, createInventory, dropSpot, inHand, isFull, remove, selectSlot, store } from '../state/inventory';
 import { ThrowablesView, createThrowablesView } from './throwablesView';
-import { HideState, LOCKER, clampLook, doorOpen, hiddenFrom, insideness, peekLean, requestExit, startHide, stepHide } from '../state/hiding';
+import { HideState, LOCKER, clampLook, doorOpen, hiddenFrom, insideness, peekLean, requestExit, seesYouGetIn, startHide, stepHide } from '../state/hiding';
 import { createPropsView, PropsView } from './propsView';
 import type { Settings } from '../state/settings';
 import { AudioEngine } from '../audio/audio';
 import { EnemyMix, enemyHearing } from '../audio/spatial';
 import { SoundPath, soundPath } from '../world/soundPath';
 import { lineOfSight } from '../world/lineOfSight';
-import { freeBehind, nearestFree } from '../world/collision';
+import { freeBehind, moveWithCollision, nearestFree } from '../world/collision';
 import { BODY_RADIUS } from './playerAnim';
 import { buildLevel, LevelView } from './buildLevel';
 import { createEnemyView, EnemyView } from './enemyView';
@@ -52,8 +58,16 @@ import { createDebugView, DebugView } from './debugView';
 
 type Phase = RunPhase;
 
+/** Update 0.9.9 — how a co-op run ended: everyone's fate, and why if it was cut short. */
+export interface CoopEnd {
+  team: Member[];
+  /** How it ended for you. */
+  mine: LifeState;
+  note?: string;
+}
+
 export interface GameCallbacks {
-  onEnd(result: 'dead' | 'escaped', seconds: number): void;
+  onEnd(result: 'dead' | 'escaped', seconds: number, coop?: CoopEnd): void;
   onPause(): void;
 }
 
@@ -153,6 +167,32 @@ export class Game {
   private speed = 0;
   private debugView: DebugView;
   private fps = 60;
+  // Update 0.9.9 — co-op: the run beside this game (teammates, the shared Patient), where you are in it
+  // (down, out…), getting a teammate up, who you watch once you're out.
+  private rt: CoopRuntime | null = null;
+  private life: LifeState = 'up';
+  private bleed = 0;
+  /** Down: where you are (you can crawl) and whether you're moving. */
+  private downAt: { pos: Vec2; yaw: number; moving: boolean } | null = null;
+  private crawlAccum = 0;
+  /** Update 0.9.9 — hit on your last life: the blow, the flight, the slam (`down`: co-op Normal, you live). */
+  private hit: HitScene | null = null;
+  private hitDown = false;
+  /** Out: where you fell (your body stays there for the others), and the slump when your minute ran out. */
+  private outAt: Vec2 | null = null;
+  private bledOut: number | null = null;
+  private watching: string | null = null;
+  private reviving: { id: string; name: string; t: number } | null = null;
+  /** Just got this teammate up: don't start again on them while their "done" reaches them. */
+  private revivedJust: { id: string; until: number } | null = null;
+  /** Shared world from the others: who holds / threw each item, who's repairing each panel, its bangs. */
+  private itemBy = new Map<number, string>();
+  private thrownByMe = new Set<number>();
+  private panelBy: (string | null)[] = [];
+  private panelBangs: number[] = [];
+  private repairClaim = -1;
+  private repairSendIn = 0;
+  private coopEnded = false;
 
   constructor(
     private container: HTMLElement,
@@ -186,7 +226,8 @@ export class Game {
     // Update 0.5.4 — fuses, batteries and notes land on different tables every run.
     // Update 0.7 — level 1, or the tester's pick in the dev build (main menu picker / ?level=N).
     this.levelIndex = chooseStartLevel(import.meta.env.DEV, startLevel, LEVELS.length);
-    this.level = shuffleItems(parseLevel(LEVELS[this.levelIndex]), this.rng);
+    // Update 0.9.9 — co-op: the room's seed, so everyone's tables hold the same things.
+    this.level = shuffleItems(parseLevel(LEVELS[this.levelIndex]), coop ? createRng(coop.seed) : this.rng);
     this.scene.add(this.world);
     this.view = buildLevel(this.level);
     this.world.add(this.view.root);
@@ -216,6 +257,7 @@ export class Game {
     this.input = new Input(this.renderer.domElement, this.debug);
     this.input.bindings = settings.bindings;
     this.audio = new AudioEngine(mixVolumes(settings));
+    if (coop) this.startCoop(coop);
 
     document.addEventListener('pointerlockchange', this.onLockChange);
     window.addEventListener('beforeunload', this.onBeforeUnload);
@@ -240,6 +282,7 @@ export class Game {
     this.audio.startEnemyBreath(this.enemy3D());
     this.startWake();
     void this.lockPointer();
+    this.rt?.begin(); // Update 0.9.9 — the host's Patient starts moving once the host is in
   }
 
   /** Update 0.6.3 — you come to on the floor first (engine/wakeScene.ts); the run starts once you're up. */
@@ -362,8 +405,8 @@ export class Game {
         this.input.clear();
         this.phase = 'playing';
         this.lastObjective = ''; // Update 0.9 — the first objective is announced in the banner
-        // Update 0.5 — controls card, Enter closes it (Update 0.7: first level only).
-        if (this.levelIndex === 0) this.controlsLeft = CONTROLS_CARD_SECONDS;
+        // Update 0.5 — controls card, Enter closes it (Update 0.7: first level only; 0.9.9: not after a revive).
+        if (this.levelIndex === 0 && this.playTime === 0) this.controlsLeft = CONTROLS_CARD_SECONDS;
         return;
       }
     }
@@ -376,7 +419,7 @@ export class Game {
   /** Resume after pause (also needs a click). */
   async resume(): Promise<boolean> {
     if (this.debug) {
-      this.phase = 'playing';
+      if (!this.rt) this.phase = 'playing'; // (co-op never left its phase)
       return true;
     }
     return this.lockPointer();
@@ -409,6 +452,17 @@ export class Game {
 
   private onLockChange = () => {
     const locked = document.pointerLockElement === this.renderer.domElement;
+    // Update 0.9.9 — co-op: Esc opens the menu but nothing stops (the ward goes on for everyone); with no
+    // mouse you just stand there.
+    if (this.rt) {
+      if (!locked && this.phase !== 'over' && this.phase !== 'intro') {
+        this.repair = cancelCheck(this.repair);
+        this.setRepairing(false);
+        this.input.clear();
+        this.cb.onPause();
+      }
+      return;
+    }
     if (locked && this.phase === 'paused') {
       this.phase = this.resumePhase;
       if (this.phase === 'waking' && this.wake) this.audio.wakeUp(this.wake.t); // Update 0.9.6.1 — from where the scene is
@@ -480,16 +534,18 @@ export class Game {
     }
 
     // Update 0.5.4 — Q while running: camera swings round, time slows for a moment.
-    let wdt = dt * worldTimeScale(this.phase); // Update 0.6.4 — 0 while a note is open
+    let wdt = dt * worldTimeScale(this.phase, !!this.rt); // Update 0.6.4 — 0 while a note is open
     if (this.phase === 'playing') {
       this.lookBack = stepLookBack(this.lookBack, dt, this.input.action('lookBack'), this.gait === 'sprint');
-      wdt = dt * lookBackTimeScale(this.lookBack);
+      // Update 0.9.9 — no slow motion in co-op (it's everyone's clock): just the look over your shoulder.
+      wdt = dt * (this.rt ? 1 : lookBackTimeScale(this.lookBack));
     } else if (this.lookBack.amount > 0 || this.lookBack.active) {
       this.lookBack = createLookBack();
     }
     this.player.lookBackYaw = lookBackYaw(this.lookBack);
-    const scripted = this.phase === 'caught' || this.phase === 'waking';
-    if (!scripted) this.body?.setVisible(!hideBodyWhileLookingBack(this.lookBack) && !this.hide); // 0.9.5: not in a locker
+    // (0.9.9: the hit flies your body too: `dying` is filmed like the throw, not the normal first-person body.)
+    const scripted = this.phase === 'caught' || this.phase === 'waking' || this.phase === 'down' || this.phase === 'dying';
+    if (!scripted) this.body?.setVisible(!hideBodyWhileLookingBack(this.lookBack) && !this.hide && this.phase !== 'spectating'); // 0.9.5: not in a locker
     this.worldT += wdt;
     this.realDt = dt;
 
@@ -499,14 +555,18 @@ export class Game {
     else if (this.phase === 'caught') this.updateCaught(dt);
     else if (this.phase === 'dying') this.updateDying(dt);
     else if (this.phase === 'escaping') this.updateEscaping(dt);
+    else if (this.phase === 'down') this.updateDown(dt);
+    else if (this.phase === 'spectating') this.updateSpectating(dt);
     else {
       this.player.updateView(dt, 'idle', this.status, this.t);
-      this.drawEnemy(0);
+      if (!this.rt) this.drawEnemy(0);
     }
+    if (this.rt && !this.disposed) this.coopFrame(dt);
     // Update 0.9.6.1 — your breathing while you sprint (off whenever you aren't: paused, caught, in a locker…).
     this.audio.setRunBreath(this.gait === 'sprint');
+    this.audio.setDownBreath(this.phase === 'down' && this.bledOut === null); // Update 0.9.9
 
-    if (!scripted) this.body?.update({
+    if (!scripted && this.phase !== 'spectating') this.body?.update({
       pos: this.player.pos,
       yaw: this.player.yaw,
       pitch: this.player.pitch,
@@ -554,6 +614,7 @@ export class Game {
     this.playTime += dt;
     const { input, player, status } = this;
     player.look(input, this.settings);
+    player.teammates = this.rt ? this.rt.blockers() : []; // Update 0.9.9
     // Update 0.9.6 — if anything ever leaves you inside furniture, step out of it (you'd be stuck: no
     // move is allowed out of an overlap).
     if (!this.hide) player.pos = nearestFree(this.level, player.pos, PLAYER.radius, player.obstacles);
@@ -597,10 +658,17 @@ export class Game {
         }
       }
       const hand = this.handItem();
-      // Update 0.9.8 — with something in your hand, left click uses it and Space drops it; with empty
-      // hands, left click picks up and interacts as before.
-      if (hand) this.useHand(hand, input.actionPressed('interact'), input.action('interact'));
-      else if (input.actionPressed('interact')) this.interact();
+      // Update 0.9.9 — co-op: a teammate down in front of you: hold left click to get them up (that
+      // comes before anything in your hand).
+      const down = this.rt ? this.reviveTarget() : null;
+      if (down && input.action('interact')) this.stepRevive(down);
+      else {
+        this.stopRevive();
+        // Update 0.9.8 — with something in your hand, left click uses it and Space drops it; with empty
+        // hands, left click picks up and interacts as before.
+        if (hand) this.useHand(hand, input.actionPressed('interact'), input.action('interact'));
+        else if (input.actionPressed('interact')) this.interact();
+      }
       if (hand && hand.state === 'held' && input.actionPressed('skillCheck')) this.dropHand(false);
       const lying = this.throwables.filter((x) => x.state === 'ground').map((x) => ({ id: x.id, kind: x.kind, pos: { x: x.pos.x, z: x.pos.z }, title: throwableTitle(x) }));
       this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected, lying);
@@ -609,14 +677,41 @@ export class Game {
     // (0.9.8: you repair with empty hands.)
     this.workPanel(this.realDt, !this.hide && !this.handItem() && input.action('interact'), input.actionPressed('skillCheck'));
 
-    // Enemy.
+    // Enemy. Update 0.9.9 — in co-op it's the run's (coopFrame does it for everyone); here only what it
+    // means to you.
+    if (!this.rt && this.soloEnemy(dt, step.gait)) return;
+    const chasing = this.enemy.mode === 'chase';
+
+    const targetFear = fearLevel(dist(this.enemy.pos, player.pos), chasing);
+    this.fear += (targetFear - this.fear) * (1 - Math.exp(-dt * 3));
+    // Camera + flashlight follow in real time, so the look-back swing isn't slowed by its own slow motion.
+    player.injured = this.injured; // Update 0.9.1 — heavier bob and a limp
+    // Update 0.9.5 — shut in a locker it's nearly black: only a trace of the glow around your eyes.
+    player.updateView(this.realDt, step.gait, status, this.t, 0, this.hide ? 0.1 + Math.max(0.9 * (1 - insideness(this.hide)), 0.5 * (peekLean(this.hide.peek).forward / LOCKER.leanForward)) : 1); // (0.9.5.1: head out, some of the glow back)
+    this.easeCameraBack(this.realDt);
+    // Update 0.6 — injured: a grunt every 5–7 s.
+    if (this.injured) {
+      this.gruntIn -= dt;
+      if (this.gruntIn <= 0) {
+        this.audio.grunt();
+        this.gruntIn = nextGruntDelay(this.rng);
+      }
+    }
+    this.audio.setListener(this.camAbs(), this.camForward());
+    this.audio.tickFear(dt, this.fear, chasing);
+    this.audio.tickAmbient(dt, this.camAbs());
+  }
+
+  /** Solo: The Patient's step against you, drawn and heard. True if it caught you (the frame stops). */
+  private soloEnemy(dt: number, gait: Gait): boolean {
+    const { player } = this;
     const before = this.enemy.pos;
     const events = this.enemyFrozen ? [] : stepEnemy(
       this.level,
       this.enemy,
       {
         dt,
-        player: { pos: this.hide ? this.lockerDoorPos() : player.pos, flashlightOn: this.lightShows(), crouching: player.crouching, running: step.gait === 'sprint', hidden: hiddenFrom(this.hide), facing: player.forward, beam: this.lightShows() },
+        player: { pos: this.hide ? this.lockerDoorPos() : player.pos, flashlightOn: this.lightShows(), crouching: player.crouching, running: gait === 'sprint', hidden: hiddenFrom(this.hide), facing: player.forward, beam: this.lightShows() },
         noise: this.noise,
         fuses: this.progress.fuses,
         // Update 0.9.6 — lockers it can check, and the one you're in.
@@ -627,6 +722,27 @@ export class Game {
     );
     this.noise = null;
     const moved = Math.min(1, dist(before, this.enemy.pos)); // (a stair portal jumps its logic position)
+    this.enemyEffects(events, dt, moved);
+    if (events.includes('foundYou') && this.hide) {
+      this.leaveLockerNow(true);
+      if (this.lives > 1) this.startCaught();
+      else this.startDying();
+      return true;
+    }
+    if (events.includes('caught')) {
+      // Update 0.9.5 — it saw you get in: it drags you out. You're put outside the locker first so the
+      // grab and throw never start inside a prop.
+      if (this.hide) this.leaveLockerNow(true);
+      // Update 0.6 — first catch: thrown, injured. Last life: the old jumpscare.
+      if (this.lives > 1) this.startCaught();
+      else this.startDying();
+      return true;
+    }
+    return false;
+  }
+
+  /** The Patient drawn where it is, its steps, screams and locker doors (solo and co-op). */
+  private enemyEffects(events: string[], dt: number, moved: number) {
     this.drawEnemy(moved);
     this.enemyStepAccum += moved;
     const chasing = this.enemy.mode === 'chase';
@@ -649,41 +765,7 @@ export class Game {
     }
     // Update 0.9.6 — checking a locker: the door swings open for a second, then shut.
     this.animateEnemyLocker(events);
-    if (events.includes('foundYou') && this.hide) {
-      this.leaveLockerNow(true);
-      if (this.lives > 1) this.startCaught();
-      else this.startDying();
-      return;
-    }
-    if (events.includes('caught')) {
-      // Update 0.9.5 — it saw you get in: it drags you out. You're put outside the locker first so the
-      // grab and throw never start inside a prop.
-      if (this.hide) this.leaveLockerNow(true);
-      // Update 0.6 — first catch: thrown, injured. Last life: the old jumpscare.
-      if (this.lives > 1) this.startCaught();
-      else this.startDying();
-      return;
-    }
-
-    const targetFear = fearLevel(dist(this.enemy.pos, player.pos), chasing);
-    this.fear += (targetFear - this.fear) * (1 - Math.exp(-dt * 3));
-    // Camera + flashlight follow in real time, so the look-back swing isn't slowed by its own slow motion.
-    player.injured = this.injured; // Update 0.9.1 — heavier bob and a limp
-    // Update 0.9.5 — shut in a locker it's nearly black: only a trace of the glow around your eyes.
-    player.updateView(this.realDt, step.gait, status, this.t, 0, this.hide ? 0.1 + Math.max(0.9 * (1 - insideness(this.hide)), 0.5 * (peekLean(this.hide.peek).forward / LOCKER.leanForward)) : 1); // (0.9.5.1: head out, some of the glow back)
-    this.easeCameraBack(this.realDt);
-    // Update 0.6 — injured: a grunt every 5–7 s.
-    if (this.injured) {
-      this.gruntIn -= dt;
-      if (this.gruntIn <= 0) {
-        this.audio.grunt();
-        this.gruntIn = nextGruntDelay(this.rng);
-      }
-    }
-    this.audio.setListener(this.camAbs(), this.camForward());
     this.audio.updateEnemy(heardAt, chasing, mix);
-    this.audio.tickFear(dt, this.fear, chasing);
-    this.audio.tickAmbient(dt, this.camAbs());
   }
 
   /** Update 0.9.6 — your eyes and which way you look (logic coords), for holding and throwing. */
@@ -738,6 +820,7 @@ export class Game {
       addBattery(this.status);
       it.state = 'gone';
       this.letGo(it);
+      this.sendItem(it);
       this.audio.pickup();
       this.toastMsg(`Battery in. +${PLAYER.batteryPickup}%`);
     } else if (it.kind === 'fuse') {
@@ -749,6 +832,8 @@ export class Game {
       }
       it.state = 'gone';
       this.letGo(it);
+      this.sendItem(it);
+      this.rt?.sync.fitFuse(t.index);
       const box = panelSpots(this.level)[t.index];
       const at = this.toWorld(box);
       this.audio.fuseInsert({ x: at.x, y: at.y + box.y, z: at.z });
@@ -760,6 +845,7 @@ export class Game {
   private heal(it: Throwable) {
     it.state = 'gone';
     this.letGo(it);
+    this.sendItem(it);
     this.lives = this.rules.lives;
     this.injured = false;
     this.audio.pickup();
@@ -770,6 +856,10 @@ export class Game {
     const b = this.viewBasis();
     Object.assign(it, launch(it, heldPos(b.eye, b.forward, b.right), b.forward));
     this.letGo(it);
+    if (this.rt) {
+      this.thrownByMe.add(it.id);
+      this.sendItem(it);
+    }
   }
 
   /** Update 0.9.8 — Space: what's in your hand goes down on the floor in front of you (caught: at your feet). */
@@ -779,6 +869,7 @@ export class Game {
     const at = atFeet ? { ...this.player.pos } : dropSpot(this.level, this.player.pos, this.player.forward, this.player.obstacles);
     Object.assign(it, { state: 'ground', pos: { x: at.x, y: 0, z: at.z }, vel: { x: 0, y: 0, z: 0 }, yaw: this.rng() * Math.PI * 2 });
     this.letGo(it);
+    this.sendItem(it);
     if (!atFeet) this.audio.pickup();
   }
 
@@ -790,6 +881,11 @@ export class Game {
       const r = stepFlight(this.level, it, dt);
       this.throwables[i] = r.item;
       if (r.landing) {
+        // Update 0.9.9 — co-op: one a teammate threw lands where their throw says (their update brings the
+        // sound); yours tells everyone where it ended up.
+        if (this.rt && !this.thrownByMe.has(it.id)) continue;
+        this.thrownByMe.delete(it.id);
+        this.sendItem(this.throwables[i]);
         const w = this.toWorld(r.landing.at);
         if (it.kind === 'bottle') this.audio.bottleBreak({ x: w.x, y: w.y + 0.1, z: w.z });
         else this.audio.brickImpact({ x: w.x, y: w.y + 0.1, z: w.z }); // (a brick thuds both times)
@@ -821,7 +917,7 @@ export class Game {
     const f = propFront(l);
     const { input, player } = this;
     // Getting in while it can see you gives you away.
-    const seen = h.phase === 'entering' && visibility(this.level, this.enemy, { pos: player.pos, flashlightOn: false, crouching: false }) > 0;
+    const seen = h.phase === 'entering' && seesYouGetIn(visibility(this.level, this.enemy, { pos: player.pos, flashlightOn: false, crouching: false }) > 0, dist(this.enemy.pos, player.pos));
     const r = stepHide(h, { dt, peekHeld: input.action('skillCheck') && input.action('forward'), seen });
     this.hide = r.state;
     if (r.events.includes('peekStart')) this.audio.lockerPeek(this.lockerSound());
@@ -858,7 +954,24 @@ export class Game {
 
   /** Update 0.9.5 — step into locker i: the light goes off, the door shuts behind you. */
   private enterLocker(i: number) {
-    const seen = visibility(this.level, this.enemy, { pos: this.player.pos, flashlightOn: this.lightShows(), crouching: this.player.crouching }) > 0;
+    // Update 0.9.9 — co-op: one of you per locker.
+    const rt = this.rt;
+    if (rt) {
+      const who = rt.lockers.get(i);
+      if (who && who !== rt.me) {
+        this.audio.denied();
+        this.toastMsg('Someone is hiding in there.');
+        return;
+      }
+      rt.lockers.set(i, rt.me);
+      void rt.sync.claimLocker(i).then((ok) => {
+        if (!ok && this.hide?.locker === i) {
+          this.leaveLockerNow(false);
+          this.toastMsg('Someone got in there first.');
+        }
+      });
+    }
+    const seen = seesYouGetIn(visibility(this.level, this.enemy, { pos: this.player.pos, flashlightOn: this.lightShows(), crouching: this.player.crouching }) > 0, dist(this.enemy.pos, this.player.pos));
     this.hide = startHide(i, seen, this.status.flashlightOn);
     this.hideFromYaw = this.player.yaw;
     this.status.flashlightOn = false;
@@ -873,6 +986,10 @@ export class Game {
   private leaveLockerNow(grabbed: boolean) {
     const h = this.hide;
     if (!h) return;
+    if (this.rt) {
+      this.rt.lockers.delete(h.locker);
+      this.rt.sync.leaveLocker(h.locker);
+    }
     const l = lockerSpots(this.level)[h.locker];
     const f = propFront(l);
     this.player.pos = { x: l.x + f.x * LOCKER.exitOut, z: l.z + f.z * LOCKER.exitOut };
@@ -955,11 +1072,16 @@ export class Game {
       this.inv = r.inv;
       it.state = 'held';
       this.audio.pickup();
-      if (it.kind === 'fuse' && !it.found) {
-        p.fuses++;
-        this.toastMsg(`Fuse found (${p.fuses}/${p.panels.length})`);
-      } else if (r.slot !== this.inv.selected || this.inv.stowed) this.toastMsg(`${throwableTitle(it)} in slot ${r.slot + 1}`);
+      const fresh = it.kind === 'fuse' && !it.found;
       it.found = true;
+      if (this.rt) {
+        // Update 0.9.9 — co-op: it's yours unless someone beat you to it (then it leaves your slot).
+        this.itemBy.set(it.id, this.rt.me);
+        void this.rt.sync.takeItem(it.id, it.throws);
+        this.countFuses();
+      } else if (fresh) p.fuses++;
+      if (fresh) this.toastMsg(`Fuse found (${p.fuses}/${p.panels.length})`);
+      else if (r.slot !== this.inv.selected || this.inv.stowed) this.toastMsg(`${throwableTitle(it)} in slot ${r.slot + 1}`);
       return;
     }
     if (t.type === 'item') {
@@ -974,19 +1096,15 @@ export class Game {
       this.target = null;
     } else if (t.type === 'generator') {
       // Update 0.9 — all four panels live → the generator starts and the lights come back.
-      const r = startGenerator(p);
-      if (r === 'powered') {
-        const g = this.view.generatorPos;
-        this.audio.generatorStart({ x: g.x, y: g.y, z: g.z });
-        this.lights.setPowered(this.t);
-        this.applyAtmosphere(); // with the lights back you can see further down the halls
-        this.toastMsg('The lights come on. Something screams in the dark.', 5);
-        // Update 0.6.4 — it vanishes to a random corner, screams, and sprints for the generator:
-        // your window to get out of the room. Update 0.9.7 — on the ceiling, it drops down first.
-        if (!dropFromCeiling(this.enemy)) summonToGenerator(this.level, this.enemy, this.player.pos, this.rng);
-        this.audio.powerScream();
-        this.stingerTimer = window.setTimeout(() => this.audio.stinger(), 1200);
-      } else if (r === 'panels') {
+      // Update 0.9.9 — co-op: for everyone (the host's Patient makes its run for it).
+      if (this.rt && !p.powered && allPanelsOn(p)) {
+        this.rt.sync.power(this.player.pos.x, this.player.pos.z);
+        this.netPower({ by: this.rt.me, x: this.player.pos.x, z: this.player.pos.z });
+        return;
+      }
+      const r = this.rt ? (p.powered ? 'already' : 'panels') : startGenerator(p);
+      if (r === 'powered') this.poweredUp(this.player.pos);
+      else if (r === 'panels') {
         this.audio.denied();
         this.toastMsg('Dead. The panels need power first.');
       }
@@ -1006,6 +1124,7 @@ export class Game {
       const sw = panelSwitches(this.level)[i];
       const s = this.toWorld(sw);
       if (throwPanelSwitch(p, i) === 'on') {
+        this.rt?.sync.switchPanel(i);
         this.audio.breakerSwitch({ x: s.x, y: s.y + sw.y, z: s.z });
         this.props.setSwitch(i, true);
         this.noise = { pos: { x: sw.x, z: sw.z }, radius: SKILL.switchNoise };
@@ -1016,7 +1135,7 @@ export class Game {
     } else if (t.type === 'exit') {
       if (tryExit(p) === 'escaped') {
         this.audio.doorOpen();
-        this.audio.fadeOut(2.2);
+        if (!this.rt) this.audio.fadeOut(2.2); // (0.9.9: co-op goes on watching)
         this.phase = 'escaping';
         this.phaseTime = 0;
         this.toast = null;
@@ -1038,6 +1157,21 @@ export class Game {
     const i = t?.type === 'panel' ? t.index : -1;
     const panel = i >= 0 ? p.panels[i] : null;
     const working = !!panel && panel.fuse && !panel.fixed;
+    // Update 0.9.9 — co-op: one of you at a time on a panel; the one on it sends how far they've got.
+    const rt = this.rt;
+    if (rt && working) {
+      const other = this.panelBy[i];
+      if (other && other !== rt.me) held = false;
+      else if (held && this.repairClaim !== i) {
+        this.releaseRepair();
+        this.repairClaim = i;
+        this.panelBy[i] = rt.me;
+        void rt.sync.claimPanel(i).then((ok) => {
+          if (!ok && this.repairClaim === i) this.repairClaim = -1;
+        });
+      }
+    }
+    if (rt && this.repairClaim >= 0 && (this.repairClaim !== i || !held)) this.releaseRepair();
     if (working && panel) {
       if (i !== this.sparkPanel) this.repair = cancelCheck(this.repair);
       this.sparkPanel = i;
@@ -1051,6 +1185,13 @@ export class Game {
       const busy = held && now >= r.state.deadUntil;
       if (busy) this.panelOpen[i] = Math.min(1, (this.panelOpen[i] ?? 0) + dt * 2.5);
       this.setRepairing(busy, where);
+      if (rt && this.repairClaim === i) {
+        this.repairSendIn -= dt;
+        if (this.repairSendIn <= 0) {
+          this.repairSendIn = 0.3;
+          rt.sync.repairProgress(i, panel.repair);
+        }
+      }
       for (const e of r.events) {
         if (e === 'warn') this.audio.skillWarning();
         else if (e === 'good') this.audio.skillGood();
@@ -1062,7 +1203,13 @@ export class Game {
           this.fear = Math.min(1, this.fear + 0.35);
           // Update 0.9.1 — heard anywhere, and it runs there.
           this.noise = { pos: { x: box.x, z: box.z }, radius: SKILL.bangNoise, run: true };
+          rt?.sync.bang(i);
         } else if (e === 'done' && finishRepair(p, i)) {
+          if (rt) {
+            rt.sync.fixPanel(i);
+            this.repairClaim = -1;
+            this.panelBy[i] = null;
+          }
           this.setRepairing(false);
           this.audio.panelClunk(where);
           this.toastMsg('Repaired. Switch it on.', 4);
@@ -1077,8 +1224,9 @@ export class Game {
     const dead = performance.now() / 1000 < this.repair.deadUntil;
     const flicker = dead && Math.random() < 0.4 ? 1 + Math.random() * 4 : 0;
     this.props.setSpark(this.sparkPanel, flicker + this.sparkFlash * 14);
-    // Doors of repaired panels swing shut again.
+    // Doors of repaired panels swing shut again. (0.9.9: one a teammate is working on stands open.)
     p.panels.forEach((x, k) => {
+      if (rt && this.panelBy[k] && this.panelBy[k] !== rt.me && !x.fixed) this.panelOpen[k] = Math.min(1, (this.panelOpen[k] ?? 0) + dt * 2.5);
       if (x.fixed && (this.panelOpen[k] ?? 0) > 0) this.panelOpen[k] = Math.max(0, this.panelOpen[k] - dt * 1.5);
       this.props.setPanelOpen(k, this.panelOpen[k] ?? 0);
     });
@@ -1093,6 +1241,8 @@ export class Game {
   /** Update 0.6 — first catch: grab, lift, throw, get up injured (engine/caughtScene.ts). */
   private startCaught() {
     this.dropHeld(); // Update 0.9.6
+    this.releaseRepair();
+    if (this.rt) this.life = 'caught';
     this.phase = 'caught';
     this.lives--;
     this.toast = null;
@@ -1127,8 +1277,8 @@ export class Game {
         this.audio.grunt();
         this.gruntIn = nextGruntDelay(this.rng);
       } else if (cue === 'teleport') {
-        // Gone before you're back on your feet.
-        teleportAway(this.level, this.enemy, scene.endPos);
+        // Gone before you're back on your feet. (0.9.9: in co-op the host sends it away.)
+        if (!this.rt) teleportAway(this.level, this.enemy, scene.endPos);
         scene.enemyMoved({ ...this.enemy.pos });
       } else if (cue === 'done') {
         this.endCaught(scene);
@@ -1151,6 +1301,7 @@ export class Game {
     this.player.pitch = 0;
     this.caught = null;
     this.injured = true;
+    if (this.rt) this.life = 'up'; // Update 0.9.9 — back on your feet (and hunted again)
     this.camReturn = { pos: view.pos, quat: view.quat, t: 0 };
     this.noise = null;
     this.input.clear();
@@ -1171,41 +1322,67 @@ export class Game {
     if (k >= 1) this.camReturn = null;
   }
 
-  private startDying() {
+  /**
+   * Update 0.9.9 — caught on your last life: it hits you and you're sent flying (engine/hitScene.ts). It
+   * replaced the jumpscare. `down` (co-op Normal): you live, on the floor; else it's over for you.
+   */
+  private startDying(down = false) {
     this.dropHeld(); // Update 0.9.6
+    this.releaseRepair();
+    if (this.rt) this.life = 'caught';
     this.phase = 'dying';
     this.toast = null;
     this.note = null;
     this.phaseTime = 0;
+    this.camReturn = null;
+    this.hitDown = down;
+    this.hit = createHitScene({
+      level: this.level,
+      camera: this.camera,
+      enemyView: this.enemyView,
+      body: () => this.body,
+      blockers: this.player.obstacles,
+      playerPos: { ...this.player.pos },
+      eyeHeight: this.camera.position.y,
+      enemyPos: { ...this.enemy.pos },
+      down,
+    });
+    // Solo: it's yours alone, so it really stands there (in co-op only its picture does).
+    if (!this.rt) this.enemy.pos = { ...this.hit.enemyAt };
     this.audio.scream();
-    if (document.pointerLockElement) document.exitPointerLock();
+    // (0.9.9: co-op keeps the mouse: you go on watching.)
+    if (!this.rt && !down && document.pointerLockElement) document.exitPointerLock();
   }
 
   private updateDying(dt: number) {
-    const p = this.player;
-    // It stands right in front of you; the view snaps up to its face.
-    const f = p.forward;
-    const ePos = { x: p.pos.x + f.x * 1.35, z: p.pos.z + f.z * 1.35 };
-    this.enemy.pos = ePos;
-    this.enemy.dir = { x: -f.x, z: -f.z };
-    this.enemyView.root.position.set(ePos.x, p.rise, ePos.z);
-    this.enemyView.root.rotation.y = Math.atan2(-f.x, -f.z);
-    this.enemyView.lunge(Math.min(1, this.phaseTime / 0.25), this.worldT);
-    // Keep its face in the middle of the screen whatever the attack animation does.
-    const hp = this.enemyView.head.getWorldPosition(this.tmpV);
-    const horiz = Math.max(0.2, Math.hypot(hp.x - this.camera.position.x, hp.z - this.camera.position.z));
-    const wantPitch = Math.max(-0.7, Math.min(0.9, Math.atan2(hp.y - this.camera.position.y, horiz)));
-    p.pitch += (wantPitch - p.pitch) * (1 - Math.exp(-dt * 14));
-    const k = this.phaseTime;
-    this.fear = 1;
-    p.updateView(dt, 'idle', this.status, this.t, Math.max(0, 1 - k / 1.6), 0.6);
-    // The face first, then the red, then black.
-    this.fx.set({ red: Math.min(0.5, Math.max(0, k - 0.75) * 1.6) * (Math.random() < 0.2 ? 0.4 : 1), black: Math.max(0, (k - 1.1) / 0.5) });
-    if (k > 1.7 && this.phase === 'dying') {
-      this.phase = 'over';
-      this.audio.fadeOut(0.5);
-      this.cb.onEnd('dead', this.playTime);
+    const scene = this.hit;
+    if (!scene) return;
+    this.fear = scene.t < hitTimes.landAt ? 1 : Math.max(0, this.fear - dt * 0.5);
+    for (const cue of scene.update(dt, this.worldT)) {
+      if (cue === 'hit') {
+        this.audio.caught();
+        this.audio.thrownScream();
+        this.impactT = this.t;
+        this.injured = true;
+      } else if (cue === 'land') this.audio.floorImpact();
+      else if (cue === 'done') {
+        this.hit = null;
+        this.player.pos = nearestFree(this.level, crossPortal(this.level, scene.pos).pos, PLAYER.radius, this.player.obstacles);
+        this.syncFloor();
+        if (this.hitDown) return this.enterDown(this.player.pos, scene.bodyYaw);
+        // Co-op: you're out; you watch the others until the run is over.
+        if (this.rt) return this.goOut('out');
+        this.phase = 'over';
+        this.audio.fadeOut(0.5);
+        this.cb.onEnd('dead', this.playTime);
+        return;
+      }
     }
+    this.player.updateLight(dt, this.status, 0, scene.t < hitTimes.hitAt ? 1 : 0.3);
+    // The blow: a flash of red; then your eyes close (and, dead, it goes black).
+    const red = scene.t >= hitTimes.hitAt ? Math.max(0, 0.55 - (scene.t - hitTimes.hitAt) * 0.4) : 0;
+    this.fx.set({ red, lids: hitLids(scene.t, this.hitDown), black: hitBlack(scene.t, this.hitDown) });
+    this.audio.setListener(this.camAbs(), this.camForward());
   }
 
   private updateEscaping(dt: number) {
@@ -1216,6 +1393,8 @@ export class Game {
     this.fear *= 0.95;
     this.fx.set({ white: Math.min(1, Math.max(0, (k - 0.6) / 1.4)) });
     if (k > 2.2 && this.phase === 'escaping') {
+      // Update 0.9.9 — co-op: you're out; you watch the others until the run is over.
+      if (this.rt) return this.goOut('escaped');
       // Update 0.7 — out of this level: wake up in the next one. Out of the last: you escaped.
       if (this.levelIndex + 1 < LEVELS.length) {
         this.loadLevel(this.levelIndex + 1);
@@ -1276,7 +1455,15 @@ export class Game {
 
   /** Same object while the words don't change, so the HUD doesn't re-render for nothing. */
   private currentPrompt(): Prompt | null {
-    const next = this.phase === 'playing' ? promptFor(this.target, this.progress, !!this.note, this.handForPrompt()) : null;
+    let next = this.phase === 'playing' ? promptFor(this.target, this.progress, !!this.note, this.handForPrompt()) : null;
+    // Update 0.9.9 — co-op: a teammate down in front of you; a panel someone else is working on.
+    const rt = this.rt;
+    if (rt && this.phase === 'playing' && !this.hide) {
+      const down = this.reviveTarget();
+      const by = this.target?.type === 'panel' ? this.panelBy[this.target.index] : null;
+      if (down) next = { title: `${down.name} is down`, verb: 'get them up', hold: true };
+      else if (by && by !== rt.me && next) next = { title: next.title, verb: null, info: `${rt.mateNow(by)?.name ?? 'Someone'} is working on it.` };
+    }
     if (!samePrompt(next, this.lastPrompt)) this.lastPrompt = next;
     return this.lastPrompt;
   }
@@ -1297,7 +1484,9 @@ export class Game {
       }),
       slot: this.inv.selected,
       stowed: this.inv.stowed,
-      use: this.useT > 0 ? Math.min(1, Math.round((this.useT / MEDKIT_SECONDS) * 100) / 100) : null,
+      use: this.reviving ? Math.min(1, Math.round((this.reviving.t / DOWN.reviveSeconds) * 100) / 100) : this.useT > 0 ? Math.min(1, Math.round((this.useT / MEDKIT_SECONDS) * 100) / 100) : null,
+      useLabel: this.reviving ? `Getting ${this.reviving.name} up` : 'Patching yourself up',
+      ...this.coopHud(),
       stamina: staminaShare(s.stamina, PLAYER.staminaMax), // 0.9.8: was ÷ 4.5
       exhausted: s.exhausted,
       objective: objectiveText(this.progress),
@@ -1336,6 +1525,449 @@ export class Game {
     });
   }
 
+  // ——— Update 0.9.9: co-op ———
+
+  private startCoop(c: CoopStart) {
+    this.panelBy = this.progress.panels.map(() => null);
+    this.panelBangs = this.progress.panels.map(() => 0);
+    this.rt = new CoopRuntime(
+      c.link,
+      this.level,
+      this.scene,
+      this.audio,
+      {
+        item: (id, it) => this.netItem(id, it),
+        panel: (i, p) => this.netPanel(i, p),
+        power: (p) => this.netPower(p),
+        caught: () => this.coopCaught(),
+        toWorld: this.toWorld,
+      },
+      c.difficulty === 'hard',
+    );
+    this.rt.heldBy = (id) => [...this.itemBy].filter(([, by]) => by === id).map(([k]) => ({ id: k, th: this.throwables.find((x) => x.id === k)?.throws ?? 0 }));
+    this.rt.panelsBy = (id) => this.panelBy.flatMap((by, i) => (by === id ? [i] : []));
+  }
+
+  /** What you send the others about yourself. */
+  private myLive(): LiveState {
+    const p = this.player;
+    const down = this.phase === 'down' && this.downAt;
+    // Caught: where the camera is (in its hands, then flying), so they see you thrown.
+    const pos =
+      this.phase === 'caught' ? { x: this.camera.position.x, z: this.camera.position.z }
+      : this.phase === 'dying' && this.hit ? this.hit.pos
+      : down ? this.downAt!.pos
+      : this.outAt ?? p.pos;
+    const busy = this.phase === 'intro' || this.phase === 'waking' || this.phase === 'escaping';
+    return {
+      pos: { ...pos },
+      rise: p.rise,
+      yaw: down ? this.downAt!.yaw : this.phase === 'dying' && this.hit ? this.hit.bodyYaw : p.yaw,
+      pitch: p.pitch,
+      gait: this.phase === 'playing' ? this.gait : this.phase === 'down' && this.downAt?.moving ? 'crouch' : 'idle',
+      crouching: p.crouching,
+      light: this.lightShows() && (this.phase === 'playing' || this.phase === 'reading'),
+      // Getting up / walking out: it leaves you alone for those few seconds.
+      hidden: hiddenFrom(this.hide) || busy,
+      sense: this.hide ? this.lockerDoorPos() : { ...p.pos },
+      locker: this.hide?.locker ?? -1,
+      hold: this.hide ? null : this.handItem()?.kind ?? null,
+      injured: this.injured,
+      life: this.life,
+      bleed: this.bleed,
+      hit: this.phase === 'dying',
+      noise: null,
+      t: 0,
+    };
+  }
+
+  /** One of the shared items changed (you picked it up, dropped, threw or used it). */
+  private sendItem(it: Throwable) {
+    const rt = this.rt;
+    if (!rt) return;
+    const n: ItemNet = { s: it.state, x: Math.round(it.pos.x * 100) / 100, y: Math.round(it.pos.y * 100) / 100, z: Math.round(it.pos.z * 100) / 100, w: Math.round(it.yaw * 100) / 100, th: it.throws, f: 1 };
+    if (it.state === 'held' || it.state === 'flying') n.by = rt.me;
+    if (it.state === 'flying') Object.assign(n, { vx: it.vel.x, vy: it.vel.y, vz: it.vel.z });
+    if (it.state !== 'held') this.itemBy.delete(it.id);
+    rt.sync.putItem(it.id, n);
+  }
+
+  private netItem(id: number, n: ItemNet | null) {
+    const it = this.throwables.find((x) => x.id === id);
+    const rt = this.rt;
+    if (!it || !n || !rt) return;
+    const mine = this.inv.slots.includes(id);
+    if (n.f) it.found = true;
+    if (typeof n.th === 'number') it.throws = n.th;
+    if (n.s === 'held') {
+      this.itemBy.set(id, n.by ?? '');
+      if (n.by !== rt.me) {
+        if (mine) {
+          // You both went for it and they won.
+          this.inv = remove(this.inv, id);
+          this.useT = 0;
+          this.toastMsg('Someone else got to it first.');
+        }
+        it.state = 'held';
+      }
+    } else if (!mine) {
+      this.itemBy.delete(id);
+      const was = it.state;
+      if (n.s === 'flying') {
+        if (n.by !== rt.me) Object.assign(it, { state: 'flying', pos: { x: n.x, y: n.y, z: n.z }, vel: { x: n.vx ?? 0, y: n.vy ?? 0, z: n.vz ?? 0 }, yaw: n.w, spin: it.kind === 'brick' ? 9 : 12 });
+      } else if (!this.thrownByMe.has(id)) {
+        Object.assign(it, { state: n.s, pos: { x: n.x, y: n.y, z: n.z }, vel: { x: 0, y: 0, z: 0 }, spin: 0, yaw: n.w });
+        // A teammate's throw came down: the crash / thud where it landed.
+        if (was === 'flying') {
+          const w = this.toWorld(it.pos);
+          if (it.kind === 'bottle') this.audio.bottleBreak({ x: w.x, y: w.y + 0.1, z: w.z });
+          else this.audio.brickImpact({ x: w.x, y: w.y + 0.1, z: w.z });
+        }
+      }
+    }
+    this.countFuses();
+  }
+
+  /** Co-op: fuses found by any of you (for the objective and its rage). */
+  private countFuses() {
+    if (this.rt) this.progress.fuses = this.throwables.filter((x) => x.kind === 'fuse' && x.found).length;
+  }
+
+  private netPanel(i: number, n: PanelNet | null) {
+    const panel = this.progress.panels[i];
+    const rt = this.rt;
+    if (!panel || !n || !rt) return;
+    const box = panelSpots(this.level)[i];
+    const w = this.toWorld(box);
+    const where = { x: w.x, y: w.y + box.y, z: w.z };
+    if (n.fu && !panel.fuse) {
+      panel.fuse = true;
+      this.audio.fuseInsert(where);
+    }
+    if (this.repairClaim !== i) this.panelBy[i] = n.by ?? null;
+    if (this.repairClaim !== i && typeof n.r === 'number' && !panel.fixed) panel.repair = n.r;
+    if (n.fx && !panel.fixed) {
+      panel.fixed = true;
+      panel.repair = 1;
+      this.audio.panelClunk(where);
+    }
+    if (n.on && !panel.on) {
+      panel.on = true;
+      this.props.setSwitch(i, true);
+      const sw = panelSwitches(this.level)[i];
+      const at = this.toWorld(sw);
+      this.audio.breakerSwitch({ x: at.x, y: at.y + sw.y, z: at.z });
+    }
+    const bg = n.bg ?? 0;
+    if (bg > (this.panelBangs[i] ?? 0)) {
+      this.panelBangs[i] = bg;
+      if (this.repairClaim !== i) {
+        // A teammate's skill check went wrong over there.
+        this.audio.panelExplode(where);
+        this.sparkPanel = i;
+        this.sparkFlash = 1;
+      }
+    }
+  }
+
+  /** Off the panel you were repairing (let go, walked away, caught): the others can take over. */
+  private releaseRepair() {
+    const i = this.repairClaim;
+    if (i < 0) return;
+    this.repairClaim = -1;
+    this.panelBy[i] = null;
+    this.rt?.sync.releasePanel(i, this.progress.panels[i]?.repair ?? 0);
+  }
+
+  /** The generator came on (you, or a teammate: `p`). */
+  private netPower(p: PowerNet) {
+    if (this.progress.powered) return;
+    this.progress.powered = true;
+    this.poweredUp(p);
+  }
+
+  /** Update 0.9 — the lights come back; it screams and sprints for the generator (the host's, in co-op). */
+  private poweredUp(at: Vec2) {
+    const g = this.view.generatorPos;
+    this.audio.generatorStart({ x: g.x, y: g.y, z: g.z });
+    this.lights.setPowered(this.t);
+    this.applyAtmosphere(); // with the lights back you can see further down the halls
+    this.toastMsg('The lights come on. Something screams in the dark.', 5);
+    // Update 0.6.4 — it vanishes to a random corner, screams, and sprints for the generator:
+    // your window to get out of the room. Update 0.9.7 — on the ceiling, it drops down first.
+    if (!this.rt || this.rt.host) {
+      if (!dropFromCeiling(this.enemy)) summonToGenerator(this.level, this.enemy, { x: at.x, z: at.z }, this.rng);
+    }
+    this.audio.powerScream();
+    this.stingerTimer = window.setTimeout(() => this.audio.stinger(), 1200);
+  }
+
+  /** The host's Patient has you: thrown, down (last life, Normal), or dead (Hard). */
+  private coopCaught() {
+    if (this.phase !== 'playing' && this.phase !== 'reading') return;
+    this.note = null;
+    if (this.hide) this.leaveLockerNow(true);
+    this.stopRevive();
+    const how = catchOutcome(this.lives, this.coop?.difficulty ?? null);
+    if (how === 'thrown') this.startCaught();
+    else this.startDying(how === 'down');
+  }
+
+  /** Hit on your last life (co-op Normal): you're on the floor where you landed, alive. */
+  private enterDown(at: Vec2, yaw: number) {
+    this.caught = null;
+    this.phase = 'down';
+    this.life = 'down';
+    this.bleed = DOWN.bleedSeconds;
+    this.bledOut = null;
+    this.downAt = { pos: { ...at }, yaw, moving: false };
+    this.player.pos = { ...at };
+    this.player.yaw = yaw;
+    this.player.pitch = -0.25;
+    this.injured = true;
+    this.input.clear();
+    this.toastMsg("You can't get up. Crawl to a friend: they can get you back on your feet.", 5);
+  }
+
+  /** Down: on your front, looking round and crawling (not while someone is getting you up), the clock running. */
+  private updateDown(dt: number) {
+    const d = this.downAt;
+    const rt = this.rt;
+    if (!d || !rt) return;
+    const { input, player } = this;
+    const r = this.bledOut === null ? rt.revives.get(rt.me) : undefined;
+    if (r?.d) return this.revived();
+    player.look(input, this.settings);
+    player.pitch = Math.max(-0.9, Math.min(0.6, player.pitch));
+    const f = player.forward;
+    d.moving = false;
+    if (!r && this.bledOut === null) {
+      const right = { x: Math.cos(player.yaw), z: -Math.sin(player.yaw) };
+      const mx = (input.action('right') ? 1 : 0) - (input.action('left') ? 1 : 0);
+      const mz = (input.action('forward') ? 1 : 0) - (input.action('back') ? 1 : 0);
+      const wx = f.x * mz + right.x * mx;
+      const wz = f.z * mz + right.z * mx;
+      const len = Math.hypot(wx, wz);
+      if (len > 0) {
+        const k = (DOWN.crawlSpeed * dt) / len;
+        d.pos = nearestFree(this.level, d.pos, PLAYER.radius, player.obstacles);
+        const before = d.pos;
+        d.pos = moveWithCollision(this.level, d.pos, wx * k, wz * k, PLAYER.radius, player.obstacles);
+        d.moving = true;
+        // Dragging yourself along the floor.
+        this.crawlAccum += dist(before, d.pos);
+        if (this.crawlAccum > 0.7) {
+          this.crawlAccum = 0;
+          this.audio.footstep('crouch');
+        }
+      }
+    }
+    d.yaw = player.yaw;
+    player.pos = { ...d.pos };
+    this.syncFloor();
+    player.rise = stairRise(this.level, player.pos);
+    const sway = Math.sin(this.t * 2.2) * (d.moving ? 0.03 : 0.008);
+    this.camera.position.set(d.pos.x + f.x * 0.25, player.rise + DOWN.crawlEye + sway, d.pos.z + f.z * 0.25);
+    this.camera.rotation.set(player.pitch, player.yaw, sway * 2, 'YXZ');
+    this.camera.updateMatrixWorld();
+    this.body?.setVisible(false);
+    player.updateLight(dt, this.status, 0, 0.12);
+    // Your eyes keep closing; the clock stops while someone is getting you up.
+    if (this.bledOut === null) {
+      this.fx.set({ lids: 0.3 + 0.15 * Math.sin(this.t * 1.3) });
+      if (!r) this.bleed = Math.max(0, this.bleed - dt);
+      if (this.bleed <= 0) {
+        // Your minute is up: you slump (the others see you die there), the light goes.
+        this.bledOut = 0;
+        this.life = 'out';
+        this.outAt = { ...d.pos };
+      }
+      return;
+    }
+    this.bledOut += dt;
+    this.fx.set({ lids: Math.min(1, 0.45 + this.bledOut / 1.2), black: Math.min(1, this.bledOut / 1.8) });
+    if (this.bledOut >= 2) this.goOut('out');
+  }
+
+  /** A teammate got you up: back on your feet (the get-up), one life, still injured. */
+  private revived() {
+    const d = this.downAt!;
+    this.rt?.sync.clearRevive();
+    this.life = 'up';
+    this.lives = 1;
+    this.injured = true;
+    this.downAt = null;
+    this.phase = 'waking';
+    this.audio.grunt();
+    this.gruntIn = nextGruntDelay(this.rng);
+    this.wake = createWakeScene({ camera: this.camera, body: () => this.body, pos: { ...d.pos }, yaw: d.yaw, eyeHeight: PLAYER.eyeHeight, startAt: wakeTimes.getUpAt });
+    this.toastMsg('Back on your feet.');
+  }
+
+  /** A teammate down in front of you, close enough to get up. */
+  private reviveTarget(): { id: string; name: string } | null {
+    const p = this.player;
+    let best: { id: string; name: string; d: number } | null = null;
+    for (const m of this.rt?.downMates() ?? []) {
+      if (this.revivedJust?.id === m.id && this.t < this.revivedJust.until) continue;
+      const d = dist(p.pos, m.pos);
+      if (d > DOWN.reach) continue;
+      const f = p.forward;
+      const facing = d < 0.8 || ((m.pos.x - p.pos.x) * f.x + (m.pos.z - p.pos.z) * f.z) / d > 0.3;
+      if (facing && (!best || d < best.d)) best = { id: m.id, name: m.name, d };
+    }
+    return best;
+  }
+
+  /** Holding left click on a downed teammate: 5 s and they're up. */
+  private stepRevive(t: { id: string; name: string }) {
+    const rt = this.rt;
+    if (!rt) return;
+    if (this.revivedJust?.id === t.id && this.t < this.revivedJust.until) return;
+    if (this.reviving?.id !== t.id) {
+      this.stopRevive();
+      this.reviving = { id: t.id, name: t.name, t: 0 };
+      rt.sync.revive(t.id, false);
+    }
+    const r = this.reviving!;
+    r.t += this.realDt;
+    if (r.t >= DOWN.reviveSeconds) {
+      rt.sync.revive(t.id, true);
+      this.toastMsg(`You got ${t.name} back on their feet.`);
+      this.reviving = null;
+      this.revivedJust = { id: t.id, until: this.t + 3 };
+    }
+  }
+
+  private stopRevive() {
+    if (!this.reviving) return;
+    this.rt?.sync.stopRevive(this.reviving.id);
+    this.reviving = null;
+  }
+
+  /** Out of the run (taken, or out the exit): from now on you watch a teammate until it's over. */
+  private goOut(life: 'out' | 'escaped') {
+    const rt = this.rt;
+    if (!rt) return;
+    // Taken: what you carried is left where you fell, for the others.
+    if (life === 'out') {
+      for (const id of this.inv.slots) {
+        const it = id === null ? null : this.throwables.find((x) => x.id === id);
+        if (!it) continue;
+        Object.assign(it, { state: 'ground', pos: { x: this.player.pos.x, y: 0, z: this.player.pos.z }, vel: { x: 0, y: 0, z: 0 } });
+        this.sendItem(it);
+      }
+      this.inv = createInventory();
+    }
+    if (this.hide) this.leaveLockerNow(false);
+    this.releaseRepair();
+    this.stopRevive();
+    this.outAt = this.outAt ?? { ...this.player.pos };
+    this.bledOut = null;
+    this.life = life;
+    this.phase = 'spectating';
+    this.caught = null;
+    this.wake = null;
+    this.downAt = null;
+    this.injured = false;
+    this.status.flashlightOn = false;
+    this.toast = null;
+    this.note = null;
+    this.fx.set({ red: 0, black: 0, white: 0, lids: 0 });
+    this.watching = nextWatch(watchable(rt.team(this.life), rt.me), null);
+    this.toastMsg(life === 'escaped' ? "You're out. Now they have to make it." : 'It took you. Watch the others.', 4);
+  }
+
+  /** Watching through a teammate's eyes. Left click: the next one. */
+  private updateSpectating(dt: number) {
+    const rt = this.rt;
+    if (!rt) return;
+    const ids = watchable(rt.team(this.life), rt.me);
+    if (!this.watching || !ids.includes(this.watching)) this.watching = nextWatch(ids, this.watching);
+    if (this.input.actionPressed('interact')) this.watching = nextWatch(ids, this.watching);
+    const m = this.watching ? rt.mateNow(this.watching) : null;
+    if (m) {
+      this.player.pos = { ...m.pos };
+      this.player.rise = m.rise;
+      this.syncFloor();
+      const eye = m.life === 'down' ? 0.35 : m.crouching ? PLAYER.crouchEyeHeight : PLAYER.eyeHeight;
+      this.camera.position.set(m.pos.x, m.rise + eye, m.pos.z);
+      this.camera.rotation.set(m.life === 'down' ? -0.6 : m.pitch, m.yaw, 0, 'YXZ');
+      this.camera.updateMatrixWorld();
+    }
+    this.fear += (0 - this.fear) * Math.min(1, dt * 2);
+    this.player.updateLight(dt, this.status, 0, 0.5);
+    this.audio.setListener(this.camAbs(), this.camForward());
+  }
+
+  /** It's showing your catch: your own screen draws it until it vanishes. */
+  private sceneOwnsEnemy() {
+    return (this.phase === 'caught' && !!this.caught && this.caught.t < caughtTimes.teleportAt) || this.phase === 'dying';
+  }
+
+  /** Every frame of a co-op run, whatever you're doing: the run goes on. */
+  private coopFrame(dt: number) {
+    const rt = this.rt!;
+    // Your noise this frame goes to the host's Patient (it isn't heard while you're getting up or out).
+    if (this.noise) {
+      if (this.phase === 'playing' || this.phase === 'reading') rt.noise(this.noise);
+      this.noise = null;
+    }
+    if (this.input.actionPressed('mute') && rt.hasVoice) {
+      rt.setMuted(!rt.muted);
+      this.toastMsg(rt.muted ? 'Microphone muted.' : 'Microphone on.', 2);
+    }
+    rt.watched = this.phase === 'spectating' ? this.watching : null;
+    const before = { ...this.enemy.pos };
+    const events = rt.frame(this.realDt, this.enemy, this.myLive(), this.player.pos, { fuses: this.progress.fuses, lockers: this.enemyLockers(), rng: this.rng });
+    const moved = Math.min(1, dist(before, this.enemy.pos));
+    if (!this.sceneOwnsEnemy()) {
+      const hold = rt.hold;
+      if (hold && hold.who !== rt.me) {
+        // It has one of the others: its blow (their last life), or the grab and then the throw.
+        const v = rt.mateNow(hold.who)?.pos ?? hold.at;
+        const yaw = Math.atan2(v.x - this.enemy.pos.x, v.z - this.enemy.pos.z);
+        const grab = hold.t < caughtTimes.throwAt;
+        if (hold.hit) this.enemyView.pose(this.enemy.pos, yaw, 'attack', this.worldT, HIT.clipSpeed, HIT.clipFrom);
+        else this.enemyView.pose(this.enemy.pos, yaw, grab ? 'grab' : 'throw', this.worldT, grab ? 1 : ENEMY_THROW_SPEED);
+      } else this.enemyEffects(events, dt, moved);
+    }
+    for (const e of events) {
+      if (!e.startsWith('caught:') || e === `caught:${rt.me}`) continue;
+      const who = rt.mateNow(e.slice(7));
+      if (who) this.toastMsg(`It has ${who.name}!`, 3);
+    }
+    if (this.phase !== 'playing') this.audio.setListener(this.camAbs(), this.camForward());
+    // The end: everyone out (taken or escaped), or the host gone.
+    if (!this.coopEnded && this.phase !== 'intro') {
+      if (this.coop?.link.closed()) this.endCoop('The host left. The run is over.');
+      else if (runOver(rt.team(this.life))) this.endCoop();
+    }
+  }
+
+  private endCoop(note?: string) {
+    const rt = this.rt!;
+    this.coopEnded = true;
+    const team = rt.team(this.life);
+    this.phase = 'over';
+    this.audio.fadeOut(0.8);
+    if (document.pointerLockElement) document.exitPointerLock();
+    this.cb.onEnd(this.life === 'escaped' || (!note && teamEscaped(team)) ? 'escaped' : 'dead', this.playTime, { team, mine: this.life, note });
+  }
+
+  /** Update 0.9.9 — the co-op parts of the HUD. */
+  private coopHud(): Pick<HudState, 'team' | 'down' | 'watching' | 'mic'> {
+    const rt = this.rt;
+    if (!rt) return { team: null, down: null, watching: null, mic: null };
+    const r = rt.revives.get(rt.me);
+    return {
+      team: rt.teamHud(),
+      down: this.phase === 'down' ? { left: Math.ceil(this.bleed), helper: r && !r.d ? rt.mateNow(r.by)?.name ?? 'Someone' : null } : null,
+      watching: this.phase === 'spectating' ? { name: this.watching ? rt.mateNow(this.watching)?.name ?? null : null, host: rt.host } : null,
+      mic: !rt.hasVoice ? null : !rt.hasMic ? 'none' : rt.muted ? 'muted' : rt.myTalking ? 'talking' : 'live',
+    };
+  }
+
   /** Debug helpers for automated checks (only exposed with ?debug). `floor` (Update 0.7): 0 = ground. */
   debugTeleport(col: number, row: number, yaw?: number, floor = 0) {
     this.player.pos = cellCenter({ col, row: row + floor * floorStride(this.level) });
@@ -1367,6 +1999,7 @@ export class Game {
   }
   /** Update 0.6 — ?debug: get caught right now (it appears 1 m in front of you). */
   debugCatch() {
+    if (this.rt) return this.coopCaught(); // Update 0.9.9 — as if the host's Patient had you
     const f = this.player.forward;
     this.enemy.pos = { x: this.player.pos.x + f.x, z: this.player.pos.z + f.z };
     if (this.lives > 1) this.startCaught();
@@ -1426,6 +2059,8 @@ export class Game {
 
   dispose() {
     this.disposed = true;
+    this.rt?.dispose();
+    this.rt = null;
     cancelAnimationFrame(this.raf);
     clearTimeout(this.stingerTimer);
     document.removeEventListener('pointerlockchange', this.onLockChange);

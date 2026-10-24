@@ -11,12 +11,12 @@ Current version: 0.9.9. The full patch history is in `HANDOVER.md`.
 - **The Patient** hunts you by sight and sound. It sees further when your flashlight is on or you run, and less well when you crouch. Shine your flashlight on it from in front or the side and it knows where you are at once; from behind, it never notices you. Walking makes some noise and running makes a lot; crouching is silent. When it spots you it screams, then charges. While it chases you, adrenaline lets you sprint for longer, and you can still outrun it however many fuses you've found (each one makes its chase a little faster).
 - **It moves around.** It starts in one corner of the map and patrols that area. If it goes 35 seconds without spotting you, it disappears and turns up at another corner.
 - **It climbs onto the ceiling.** Now and then it screams in a corridor, jumps, and crawls upside down along the corridor ceilings, very fast, for 15 to 20 seconds. Up there it can't enter a room or catch you. If it sees you or hears your footsteps, it drops and chases you. If you make any other noise, it crawls to the doorway nearest it, drops and runs in. Hide in a room and keep quiet.
-- **You have two lives.** The first time it catches you, it picks you up and throws you across the room. You black out, get up injured (red at the edges of the screen, grunting now and then) and it vanishes somewhere else. The second time is the end.
+- **You have two lives.** The first time it catches you, it picks you up and throws you across the room. You black out, get up injured (red at the edges of the screen, grunting now and then) and it vanishes somewhere else. The second time it hits you and you're sent flying: that's the end.
 - **Fuses, batteries, med kits and notes** are shuffled across the tables every run. Notes are left by people who were here before you, and reading one pauses the game.
 - **You carry things in three slots.** Everything you pick up (fuses, batteries, the med kit, bricks and bottles) goes into a free slot, shown at the bottom of the screen. Keys 1, 2 and 3 choose what's in your hand; an empty slot means empty hands, and pressing the key of the item you're holding puts it away. With something in your hand, left click uses it: a battery goes in your flashlight (which starts switched off), a fuse goes in the panel you're looking at, a brick or bottle is thrown, and the med kit, held for 5 seconds, heals you if you're injured. Space drops what's in your hand; pick it up again with left click. With empty hands, left click picks things up and uses panels, notes and lockers.
 - **Electrical panels** are spread across the ward, one in each quarter. Fit a fuse (with the fuse in your hand), hold to repair the panel, then throw its switch. While you repair, skill checks come up: a circle with a needle sweeping round it. Press Space while the needle is in the marked zone (the white slice at its start is a perfect hit). Miss and the panel blows, loud enough for The Patient to hear.
 - **Bricks and bottles** lie in the halls. Pick one up and left click to throw it: The Patient runs to the noise, so you can send it away from you. A bottle smashes on the first throw; a brick breaks in half and lasts one more. If you're close to where it lands, it will come for you instead.
-- **Lockers** are spread around the ward. Step into one and you're hidden, as long as The Patient didn't see you get in. If it did, it will drag you out. If it loses you in a chase it goes back to its patrol; if it finds nothing where it heard a noise, it checks the lockers nearby. Hold Space and W to ease the door open and peek.
+- **Lockers** are spread around the ward. Step into one and you're hidden, unless The Patient watched you get in from close by (within a few metres): then it drags you out. It never searches lockers on its own, and it doesn't know which one you went into, so get a lead or break its line of sight first. Hold Space and W to ease the door open and peek.
 - **Restarting the generator** needs all four panels live. It turns the lights back on, but The Patient hears it. It screams, then sprints to the generator room, so don't stay there.
 
 ## Difficulty
@@ -31,7 +31,9 @@ Picked each time you press Begin:
 
 Up to three players, over the internet (Firebase). Press **Co-op** on the main menu and type your name. One player presses **Create room** and gets a five-letter code to send to the others, who press **Join with code**. In the lobby the host picks Normal or Hard; when everyone is ready, a 3-second countdown starts and you all wake up side by side in the same room.
 
-Co-op is being built in steps. For now the lobby, the countdown and the shared start work, but each player still plays their own copy of the ward: you don't see each other yet, and each of you has your own Patient. Next: seeing each other move, then one shared ward and one Patient hunting all of you, then reviving each other.
+You share one ward: the same items on the same tables, the panels and the generator fixed for everyone, and one Patient hunting all of you. You see and hear each other (footsteps, grunts, flashlights), and you can't walk through each other. Caught on your last life, it hits you and you're sent flying; in co-op Normal you survive it, down on the floor: you have a minute, you can crawl, you breathe hard, and the others see a marker over you through the walls; a friend holds left click on you for 5 seconds to get you up. On Hard there's no getting up, and it climbs the ceilings twice as often. Once you're out (taken, or out the exit) you watch the others. The run ends when everyone is out; if anyone got out, you won.
+
+The host can turn on **proximity chat** in the lobby (you hear whoever is near you, muffled through walls; V mutes you) and **Enemy can hear you talk** (talk out loud near it and it comes for you). Esc doesn't pause a co-op run. The host's tab has to stay open and visible: The Patient runs there.
 
 ## Controls
 
@@ -47,7 +49,9 @@ Co-op is being built in steps. For now the lobby, the countdown and the shared s
 | Skill check / drop what's in your hand | Space |
 | Peek out of a locker | Hold Space + W |
 | Look back (hold while running) | Q |
-| Pause | Esc |
+| Mute your microphone (co-op proximity chat) | V |
+| Get a downed teammate up (co-op) | Hold left click |
+| Pause (co-op: menu only, nothing stops) | Esc |
 
 Everything except Look, the item slots (1 2 3) and Pause can be rebound in Settings. Full screen (F11) and headphones are recommended.
 

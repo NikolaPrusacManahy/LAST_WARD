@@ -11,6 +11,10 @@ export interface Backing {
   save(tree: Tree): void;
   /** Someone else (another tab) changed the tree. */
   onChange(cb: () => void): Unsubscribe;
+  /** Update 0.9.9 — run a read-change-write so no other tab writes in between (else each write is just
+   *  run). Two tabs each rewriting the whole tree lost each other's writes: positions recovered at the next
+   *  update, but a voice handshake or a picked-up fuse could vanish. */
+  exclusive?<T>(fn: () => T): Promise<T>;
 }
 
 export function memoryBacking(): Backing {
@@ -43,6 +47,8 @@ export function storageBacking(key = 'lw-coop-rooms'): Backing {
       window.addEventListener('storage', on);
       return () => window.removeEventListener('storage', on);
     },
+    // One tab at a time (the Web Locks API, shared by every tab of this site).
+    exclusive: <T>(fn: () => T) => (typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request(key, () => fn()) : Promise.resolve(fn())),
   };
 }
 
@@ -100,7 +106,21 @@ export class MemoryHub {
     backing.onChange(() => this.notify());
   }
 
-  private write(fn: (tree: Tree) => void) {
+  /** Change the tree. With an `exclusive` backing it happens once no other tab is writing (await it). */
+  private write(fn: (tree: Tree) => void): Promise<void> {
+    const run = () => {
+      const tree = this.backing.load();
+      fn(tree);
+      this.backing.save(tree);
+      this.notify();
+    };
+    if (this.backing.exclusive) return this.backing.exclusive(run);
+    run();
+    return Promise.resolve();
+  }
+
+  /** Right now, no waiting (closing the tab: there's no time to wait for the other tabs). */
+  private writeNow(fn: (tree: Tree) => void) {
     const tree = this.backing.load();
     fn(tree);
     this.backing.save(tree);
@@ -138,22 +158,30 @@ export class MemoryHub {
       uid,
       local,
       get: (path) => Promise.resolve(copy(getAt(this.backing.load(), split(path)))),
-      set: (path, value) => (this.write((t) => setAt(t, split(path), value ?? null)), ok),
-      update: (path, patch) => {
+      set: (path, value) => this.write((t) => setAt(t, split(path), value ?? null)),
+      update: (path, patch) =>
         this.write((t) => {
           for (const [k, v] of Object.entries(patch)) setAt(t, [...split(path), ...split(k)], v ?? null);
-        });
-        return ok;
-      },
-      remove: (path) => (this.write((t) => setAt(t, split(path), null)), ok),
-      claim: (path, value) => {
+        }),
+      remove: (path) => this.write((t) => setAt(t, split(path), null)),
+      claim: async (path, value) => {
         let won = false;
-        this.write((t) => {
+        await this.write((t) => {
           const cur = getAt(t, split(path));
           won = cur === null || (!isObj(cur) && cur === value);
           if (won) setAt(t, split(path), value);
         });
-        return Promise.resolve(won);
+        return won;
+      },
+      transact: async (path, fn) => {
+        let wrote = false;
+        await this.write((t) => {
+          const next = fn(copy(getAt(t, split(path))));
+          if (next === undefined) return;
+          wrote = true;
+          setAt(t, split(path), next);
+        });
+        return wrote;
       },
       watch: (path, cb) => {
         const v = getAt(this.backing.load(), split(path));
@@ -176,7 +204,7 @@ export class MemoryHub {
           this.watchers.delete(w);
         }
         mine.clear();
-        if (onDrop.size) this.write((t) => onDrop.forEach((p) => setAt(t, split(p), null)));
+        if (onDrop.size) this.writeNow((t) => onDrop.forEach((p) => setAt(t, split(p), null)));
         onDrop.clear();
       },
     };

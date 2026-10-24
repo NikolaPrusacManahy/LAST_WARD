@@ -61,6 +61,9 @@ PLAN = {
     # Both kept at the loudness they were recorded at (the game plays the breathing at half of that).
     'player_running_breathing': ('loop', -30),
     'player_intro_wakingUp': ('oneshot', -28),
+    # Update 0.9.9 — co-op, down: heavy breathing (loop). The recording is very quiet (-44.5): brought up
+    # to the running breath's level; the game plays it at half that, like the running breath.
+    'player_downed/dying_breathing_heavy': ('loop', -30),
 }
 OUT_NAMES = {
     'footSteps_player': 'step_player',
@@ -83,6 +86,7 @@ OUT_NAMES = {
     'throwable/glass_bottle_break': 'bottle_break',
     'player_running_breathing': 'run_breath',
     'player_intro_wakingUp': 'wake_up',
+    'player_downed/dying_breathing_heavy': 'down_breath',
 }
 
 

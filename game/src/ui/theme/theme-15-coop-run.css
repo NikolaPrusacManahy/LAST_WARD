@@ -1,0 +1,61 @@
+/* theme-15 — Update 0.9.9: a co-op run. Your teammates (top left, under the objective), your
+   microphone (bottom left), down on the floor, watching once you're out. */
+.lw-team {
+  position: absolute; left: 28px; top: 92px; margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+  font-family: var(--lw-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--lw-bone); text-shadow: 0 1px 4px #000;
+}
+.lw-team-mate { display: grid; grid-template-columns: 10px auto auto; align-items: center; gap: 8px; }
+.lw-team-name { font-family: var(--lw-type); font-size: 16px; letter-spacing: 0.03em; }
+.lw-team-state { color: var(--lw-bone-dim); text-transform: uppercase; font-size: 10px; letter-spacing: 0.18em; }
+.lw-team-voice { width: 7px; height: 7px; border-radius: 50%; background: rgba(216, 210, 188, 0.15); transition: background 0.1s, box-shadow 0.1s; }
+.lw-team-talking { background: var(--lw-sick); box-shadow: 0 0 8px var(--lw-sick); }
+.lw-team-hurt .lw-team-state { color: #c9746f; }
+.lw-team-caught .lw-team-state, .lw-team-down .lw-team-state { color: #e0524c; animation: lw-team-pulse 0.9s ease-in-out infinite; }
+.lw-team-out, .lw-team-left { opacity: 0.45; }
+.lw-team-escaped .lw-team-state { color: var(--lw-sick); }
+@keyframes lw-team-pulse { 50% { opacity: 0.35; } }
+
+.lw-mic {
+  position: absolute; left: 28px; bottom: 64px; display: flex; align-items: center; gap: 8px; pointer-events: none;
+  font-family: var(--lw-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--lw-bone-dim); text-shadow: 0 1px 4px #000;
+}
+.lw-mic-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(216, 210, 188, 0.35); }
+.lw-mic-talking .lw-mic-dot { background: var(--lw-sick); box-shadow: 0 0 10px var(--lw-sick); }
+.lw-mic-muted { color: #c9746f; }
+.lw-mic-muted .lw-mic-dot { background: var(--lw-blood); }
+
+/* Down: low and red, the clock. */
+.lw-hud-down { background: radial-gradient(ellipse at center, transparent 35%, rgba(70, 0, 0, 0.55) 100%); }
+.lw-down {
+  position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px;
+  text-shadow: 0 2px 12px #000; pointer-events: none; animation: lw-fade-in 0.6s ease-out;
+}
+.lw-down-title { font-family: var(--lw-type); font-size: 44px; letter-spacing: 0.06em; color: #e0524c; }
+.lw-down-line { font-family: var(--lw-mono); font-size: 14px; letter-spacing: 0.1em; color: var(--lw-bone); }
+
+/* Watching a teammate. */
+.lw-watch {
+  position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px;
+  text-shadow: 0 2px 10px #000; pointer-events: none;
+}
+.lw-watch-label { font-family: var(--lw-mono); font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--lw-bone-dim); }
+.lw-watch-name { font-family: var(--lw-type); font-size: 30px; letter-spacing: 0.05em; color: var(--lw-bone); }
+.lw-watch-hint { display: flex; align-items: center; gap: 6px; font-family: var(--lw-mono); font-size: 11px; color: var(--lw-bone-dim); }
+.lw-watch-host { margin-top: 8px; font-family: var(--lw-mono); font-size: 11px; color: var(--lw-sick); opacity: 0.8; }
+
+/* The end of a co-op run: how each of you ended up. */
+.lw-end-team { list-style: none; margin: 0 0 28px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lw-end-team li { display: flex; justify-content: space-between; gap: 32px; font-size: 14px; }
+.lw-end-team span { font-family: var(--lw-type); font-size: 20px; }
+.lw-end-team em { font-style: normal; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.75; }
+
+/* Down / watching: messages go up top, clear of the big text at the bottom. */
+.lw-hud-down .lw-hud-toast, .lw-hud-watching .lw-hud-toast { bottom: auto; top: 22%; }
+.lw-down-hint { display: flex; align-items: center; gap: 4px; font-family: var(--lw-mono); font-size: 12px; color: var(--lw-bone-dim); }
+
+/* Update 0.9.9 — their voice hasn't reached you (proximity chat on). */
+.lw-team-mate { grid-template-columns: 10px auto auto auto; }
+.lw-team-novoice { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: #c9746f; border: 1px solid rgba(201, 116, 111, 0.5); padding: 1px 4px; }
+.lw-mic-none { color: #c9746f; }
+.lw-mic-none .lw-mic-dot { background: transparent; border: 1px solid #c9746f; }

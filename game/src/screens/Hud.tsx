@@ -6,6 +6,9 @@ import { InputIcon } from './InputIcon';
 import { SkillCheck } from './SkillCheck';
 import { SlotBar } from './SlotBar';
 
+/** Update 0.9.9 — how a teammate's state reads in the team list. */
+const LIFE_WORDS: Record<string, string> = { up: 'on their feet', caught: 'caught!', down: 'DOWN', out: 'taken', escaped: 'got out', left: 'left' };
+
 interface Props {
   store: HudStore;
   hidden: boolean;
@@ -43,6 +46,73 @@ export function Hud({ store, hidden, onBegin }: Props) {
   }
 
   if (hidden || h.cinematic) return null;
+
+  // Update 0.9.9 — co-op: your teammates, and your microphone.
+  const team = h.team && h.team.length > 0 && (
+    <ul className="lw-team">
+      {h.team.map((m) => (
+        <li key={m.name} className={`lw-team-mate lw-team-${m.life} ${m.hurt ? 'lw-team-hurt' : ''}`}>
+          <span className={`lw-team-voice ${m.talking ? 'lw-team-talking' : ''}`} />
+          <span className="lw-team-name">{m.name}</span>
+          {m.voice === false && m.life !== 'left' && <span className="lw-team-novoice" title="Their voice hasn't reached you">no voice</span>}
+          <span className="lw-team-state">
+            {LIFE_WORDS[m.life] ?? m.life}
+            {m.life === 'up' && m.hurt ? ' · hurt' : ''}
+            {m.life === 'down' ? ` · ${m.bleed} s` : ''}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+  const mic = h.mic && (
+    <div className={`lw-mic lw-mic-${h.mic}`}>
+      <span className="lw-mic-dot" />
+      {h.mic === 'muted' ? 'Muted' : h.mic === 'none' ? 'No mic' : 'Mic'}
+      {h.mic !== 'none' && <InputIcon code={h.bindings.mute} size="sm" />}
+    </div>
+  );
+  // Down: on the floor, the clock running out (or someone getting you up).
+  if (h.down) {
+    return (
+      <div className="lw-hud lw-hud-down">
+        {team}
+        {mic}
+        <div className="lw-down">
+          <span className="lw-down-title">You're down</span>
+          <span className="lw-down-line">{h.down.helper ? `${h.down.helper} is getting you up…` : `Hold on. ${h.down.left} s`}</span>
+          {!h.down.helper && (
+            <span className="lw-down-hint">
+              <InputIcon code={h.bindings.forward} size="sm" />
+              <InputIcon code={h.bindings.left} size="sm" />
+              <InputIcon code={h.bindings.back} size="sm" />
+              <InputIcon code={h.bindings.right} size="sm" /> crawl to a friend
+            </span>
+          )}
+        </div>
+        {h.toast && <div className="lw-hud-toast" key={h.toast}>{h.toast}</div>}
+      </div>
+    );
+  }
+  // Out: watching a teammate.
+  if (h.watching) {
+    return (
+      <div className="lw-hud lw-hud-watching">
+        {team}
+        {mic}
+        <div className="lw-watch">
+          <span className="lw-watch-label">{h.watching.name ? 'Watching' : 'Waiting for the others'}</span>
+          {h.watching.name && <span className="lw-watch-name">{h.watching.name}</span>}
+          {h.watching.name && (
+            <span className="lw-watch-hint">
+              <InputIcon code={h.bindings.interact} size="sm" /> next
+            </span>
+          )}
+          {h.watching.host && <span className="lw-watch-host">You're the host: keep this tab open until the run is over.</span>}
+        </div>
+        {h.toast && <div className="lw-hud-toast" key={h.toast}>{h.toast}</div>}
+      </div>
+    );
+  }
 
   const low = h.battery < 20;
   return (
@@ -104,7 +174,7 @@ export function Hud({ store, hidden, onBegin }: Props) {
           <div className="lw-repair-track">
             <div className="lw-repair-fill lw-use-fill" style={{ width: `${Math.round(h.use * 100)}%` }} />
           </div>
-          <span className="lw-use-label">Patching yourself up</span>
+          <span className="lw-use-label">{h.useLabel}</span>
         </div>
       )}
       {!h.hiding && !h.note && <SlotBar slots={h.slots} slot={h.slot} stowed={h.stowed} dropKey={h.bindings.skillCheck} />}
@@ -117,6 +187,8 @@ export function Hud({ store, hidden, onBegin }: Props) {
           </span>
         </div>
       )}
+      {team}
+      {mic}
       <div className="lw-hud-bars">
         <div className={`lw-bar ${low ? 'lw-bar-low' : ''} ${h.flashlightOn ? '' : 'lw-bar-off'}`}>
           <label>{h.nightVision ? 'NV' : 'LIGHT'}</label>

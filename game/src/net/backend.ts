@@ -9,6 +9,10 @@ export function wantsLocalCoop(dev: boolean, search: string): boolean {
 
 let hub: MemoryHub | null = null;
 
+/** The stand-in database of ?coop=local (null otherwise): lets a dev-console "bot" join a room from the
+ *  same tab, to try co-op with one browser tab. */
+export const localCoopHub = () => hub;
+
 function randomId(): string {
   const b = new Uint8Array(10);
   crypto.getRandomValues(b);

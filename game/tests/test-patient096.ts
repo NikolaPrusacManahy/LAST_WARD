@@ -4,6 +4,7 @@ import { check, section } from './harness';
 import { LEVEL_01 } from '../src/world/content/level01';
 import { cellCenter, dist, parseLevel } from '../src/world/level';
 import { lockerSpots, propFront } from '../src/world/props';
+import { LOCKER, seesYouGetIn } from '../src/state/hiding';
 import { ENEMY, EnemyEvent, LockerSpot, createEnemy, heardNoise, litByBeam, stepEnemy, turnToward } from '../src/world/enemyAI';
 import { createRng } from '../src/world/rng';
 
@@ -88,9 +89,10 @@ section('Thrown things (0.9.6)');
   check('you far from it: it just searches', !far.spotted && far.e.mode === 'search');
 }
 
-section('Checking lockers (0.9.6)');
+section('Lockers are safe (0.9.6 checked them; 0.9.9 never)');
 {
-  // It goes to look at a noise right by locker 1, finds nothing, and checks the locker.
+  // It goes to look at a noise right by locker 1, finds nothing, and searches round there: it used to open
+  // the nearest locker, which was always the one you'd hidden in.
   const l = lockers[0];
   const go = (playerLocker: number | null) => {
     const e = createEnemy(level);
@@ -98,19 +100,38 @@ section('Checking lockers (0.9.6)');
     const rng = createRng(3);
     const events: EnemyEvent[] = [];
     events.push(...stepEnemy(level, e, { dt: 1 / 60, player: hidden, noise: { pos: l.stand, radius: 20 }, fuses: 0, lockers, playerLocker }, rng));
-    let t = 0;
-    for (let i = 0; i < 30 * 60 && !events.includes('lockerClose') && !events.includes('foundYou'); i++) {
+    let searched = false;
+    for (let i = 0; i < 30 * 60; i++) {
       events.push(...stepEnemy(level, e, { dt: 1 / 60, player: hidden, noise: null, fuses: 0, lockers, playerLocker }, rng));
-      if (events.includes('lockerOpen')) t += 1 / 60;
+      if (e.mode === 'search') searched = true;
     }
-    return { e, events, t };
+    return { e, events, searched };
   };
   const empty = go(null);
-  check('it walks up to a locker near where it lost you and opens it', empty.events.includes('lockerOpen') && dist(empty.e.pos, lockers[0].stand) < 1.2);
-  check('looks for about a second, then shuts it', empty.events.includes('lockerClose') && empty.t > 0.9 && empty.t < 1.3, `${empty.t.toFixed(2)} s`);
-  check('…and won\'t check the same one again straight away', empty.e.checked[0] !== undefined);
-  const found = go(0);
-  check('you were in it: found', found.events.includes('foundYou'));
+  check('it walks over to the noise and searches round there', empty.searched);
+  check('…but never opens a locker', !empty.events.includes('lockerOpen') && empty.e.check === null);
+  const inside = go(0);
+  check('you in the locker right by the noise: never found', !inside.events.includes('foundYou') && !inside.events.includes('caught'));
+}
+
+section('Hiding mid-chase (0.9.9)');
+{
+  // It chases you round a corner; you get into a locker out of its sight. It used to keep tracking you for
+  // 1.2 s after losing sight (into the locker), walk to its door and, searching, open it.
+  const e = createEnemy(level);
+  e.pos = at(10, 5);
+  e.dir = { x: 1, z: 0 };
+  const rng = createRng(5);
+  // Chasing you: it saw you a moment ago at (12, 5).
+  Object.assign(e, { mode: 'chase', alert: 1, windup: 0, sinceSeen: 0, lastKnown: at(12, 5) });
+  const seenAt = { ...e.lastKnown! };
+  // You're in a locker it didn't see you get into (its door: far from where it last saw you).
+  const l = lockers[lockers.length - 1];
+  const inLocker = { pos: l.stand, flashlightOn: false, crouching: true, hidden: true };
+  for (let i = 0; i < 20; i++) stepEnemy(level, e, { dt: 1 / 60, player: inLocker, noise: null, fuses: 0, lockers }, rng);
+  check('it remembers where it saw you, not the locker you went into', dist(e.lastKnown!, seenAt) < 0.5 && dist(e.lastKnown!, l.stand) > 3, `${dist(e.lastKnown!, l.stand).toFixed(1)} m from your locker`);
+  check('it only knows you got in if it saw you from close by', seesYouGetIn(true, 4) && seesYouGetIn(true, LOCKER.seenWithin) && !seesYouGetIn(true, 7) && !seesYouGetIn(false, 1));
+  check('(it can see you much further than that: from a lead, a locker works)', ENEMY.viewDistDark > LOCKER.seenWithin + 3);
 }
 
 section('Tasks before teleports (0.9.6)');

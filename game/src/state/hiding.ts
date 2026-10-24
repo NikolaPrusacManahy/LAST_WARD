@@ -2,6 +2,7 @@
 // flashlight, no goggles). Hold the skill-check key (Space) and forward (W) to ease the door open and
 // peek out, at most 60°; let go and it swings back. Interact (left click) gets you out. If The Patient
 // saw you get in, it knows: it comes and drags you out. If it didn't, you're invisible in there.
+// Update 0.9.9 — "saw you get in" only up close (`seenWithin`), and it never checks lockers by itself.
 // Pure (tested): the engine places the camera and swings the door from what this says.
 export const LOCKER = {
   /** Stepping in / out (s): the door swings open and shut around you. */
@@ -24,7 +25,15 @@ export const LOCKER = {
   leanForward: 0.4,
   leanSide: 0.17,
   leanRoll: 0.16,
+  /** Update 0.9.9 — it only knows you got in if it saw you from this close (m). Before, from anywhere it
+   *  could see you (up to ~21 m with your flashlight on), so a locker never helped in a chase. */
+  seenWithin: 6,
 };
+
+/** Update 0.9.9 — does it see you get in? `visible`: in its view with nothing in between; `distance`: m. */
+export function seesYouGetIn(visible: boolean, distance: number): boolean {
+  return visible && distance <= LOCKER.seenWithin;
+}
 
 /** Update 0.9.5.1 — how far your head leans out for a peek of `peek` (0..1): eases in so the first
  *  creak of the door is just the door, then your head follows it out. */

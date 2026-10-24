@@ -20,6 +20,14 @@
           ".write": "auth != null && root.child('rooms').child($code).child('host').val() === auth.uid",
           ".validate": "newData.isString() && newData.val().matches(/^(normal|hard)$/)"
         },
+        "voice": {
+          ".write": "auth != null && root.child('rooms').child($code).child('host').val() === auth.uid",
+          ".validate": "newData.isBoolean()"
+        },
+        "hear": {
+          ".write": "auth != null && root.child('rooms').child($code).child('host').val() === auth.uid",
+          ".validate": "newData.isBoolean()"
+        },
         "slots": {
           "$slot": {
             ".write": "auth != null && root.child('rooms').child($code).child('host').exists() && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && !newData.exists()))",
@@ -36,6 +44,30 @@
               ".validate": "(newData.val() === 0 && newData.parent().parent().parent().child('slots/s0').val() === $uid) || (newData.val() === 1 && newData.parent().parent().parent().child('slots/s1').val() === $uid) || (newData.val() === 2 && newData.parent().parent().parent().child('slots/s2').val() === $uid)"
             },
             "$other": { ".validate": false }
+          }
+        },
+        "run": {
+          "p": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid && (!newData.exists() || root.child('rooms').child($code).child('players').child(auth.uid).exists())"
+            }
+          },
+          "e": {
+            ".write": "auth != null && root.child('rooms').child($code).child('host').val() === auth.uid"
+          },
+          "it": { "$id": { ".write": "auth != null && root.child('rooms').child($code).child('players').child(auth.uid).exists()" } },
+          "pn": { "$i": { ".write": "auth != null && root.child('rooms').child($code).child('players').child(auth.uid).exists()" } },
+          "lk": { "$i": { ".write": "auth != null && root.child('rooms').child($code).child('players').child(auth.uid).exists()" } },
+          "pw": { ".write": "auth != null && root.child('rooms').child($code).child('players').child(auth.uid).exists()" },
+          "rv": { "$uid": { ".write": "auth != null && root.child('rooms').child($code).child('players').child(auth.uid).exists()" } },
+          "$other": { ".validate": false }
+        },
+        "rtc": {
+          "$to": {
+            ".write": "auth != null && auth.uid === $to && !newData.exists()",
+            "$from": {
+              ".write": "auth != null && (auth.uid === $to || (auth.uid === $from && root.child('rooms').child($code).child('players').child(auth.uid).exists()))"
+            }
           }
         },
         "$other": { ".validate": false }

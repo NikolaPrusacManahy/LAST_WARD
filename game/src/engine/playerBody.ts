@@ -89,7 +89,7 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
   const actions = new Map<PlayerClip, THREE.AnimationAction>();
   for (const clip of gltf.animations) {
     const a = mixer.clipAction(clip);
-    if (clip.name === 'thrown' || clip.name === 'getUp') {
+    if (clip.name === 'thrown' || clip.name === 'getUp' || clip.name === 'hitFly' || clip.name === 'proneDeath') {
       a.setLoop(THREE.LoopOnce, 1);
       a.clampWhenFinished = true;
     }

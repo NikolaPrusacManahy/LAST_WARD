@@ -60,6 +60,9 @@ export class PlayerController {
   }
   /** Update 0.7 — how high up a flight of stairs you are (the camera rises with it). */
   rise = 0;
+  /** Update 0.9.9 — co-op: teammates on their feet, set by the Game each frame. You can't walk through
+   *  them, but one you're already overlapping (a lag jump) lets you walk out of them. */
+  teammates: Blocker[] = [];
 
   constructor(level: Level, private camera: THREE.PerspectiveCamera, scene: THREE.Scene) {
     this.pos = cellCenter(level.playerStart);
@@ -126,7 +129,8 @@ export class PlayerController {
     this.vel.x += (wx * speed - this.vel.x) * a;
     this.vel.z += (wz * speed - this.vel.z) * a;
     const before = this.pos;
-    this.pos = moveWithCollision(level, this.pos, this.vel.x * dt, this.vel.z * dt, PLAYER.radius, this.blockers);
+    const mates = this.teammates.filter((b) => (this.pos.x - b.x) ** 2 + (this.pos.z - b.z) ** 2 >= (PLAYER.radius + (b.r ?? PLAYER.radius)) ** 2);
+    this.pos = moveWithCollision(level, this.pos, this.vel.x * dt, this.vel.z * dt, PLAYER.radius, mates.length ? [...this.blockers, ...mates] : this.blockers);
     const moved = dist(before, this.pos);
     tickStatus(status, gait, dt);
 

@@ -13,11 +13,13 @@ export interface WakeSceneInput {
   /** Facing (game yaw) once you're up. */
   yaw: number;
   eyeHeight: number;
+  /** Update 0.9.9 — start this far in (s): a revive starts at the get-up (`wakeTimes.getUpAt`). */
+  startAt?: number;
 }
 
 export function createWakeScene(i: WakeSceneInput) {
-  let t = 0;
-  let prev = -1;
+  let t = i.startAt ?? 0;
+  let prev = t - 1;
   let clipT = 0;
   const eyePos = new THREE.Vector3();
   const eyeQ = new THREE.Quaternion();

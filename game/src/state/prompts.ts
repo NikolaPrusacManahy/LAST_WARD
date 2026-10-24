@@ -7,7 +7,9 @@ import type { CarryKind } from './throwables';
 export type PromptVerb =
   | 'collect' | 'read' | 'interact' | 'repair' | 'fit a fuse' | 'switch on' | 'start' | 'hide' | 'pick up'
   /** Update 0.9.8 — using what's in your hand. */
-  | 'throw it' | 'load it' | 'patch yourself up' | 'fit the fuse';
+  | 'throw it' | 'load it' | 'patch yourself up' | 'fit the fuse'
+  /** Update 0.9.9 — co-op: a teammate who's down. */
+  | 'get them up';
 
 export interface Prompt {
   /** What you're looking at. */

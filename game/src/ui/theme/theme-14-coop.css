@@ -85,3 +85,18 @@
   .lw-lobby-player { grid-template-columns: 22px 1fr 80px; }
   .lw-lobby-tags { display: none; }
 }
+
+/* Update 0.9.9 — the host's voice options. */
+.lw-lobby-opts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.lw-opt {
+  display: grid; grid-template-columns: 22px 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; padding: 8px 14px;
+  border: 1px solid rgba(216, 210, 188, 0.12); background: rgba(216, 210, 188, 0.03); cursor: pointer;
+}
+.lw-opt input { grid-row: 1 / 3; width: 18px; height: 18px; accent-color: var(--lw-blood); cursor: pointer; }
+.lw-opt input:disabled { cursor: default; }
+.lw-opt-name { font-family: var(--lw-type); font-size: 18px; letter-spacing: 0.03em; }
+.lw-opt-blurb { font-size: 12px; line-height: 1.5; color: var(--lw-bone-dim); }
+.lw-opt-off { opacity: 0.4; }
+.lw-lobby-mic { margin: 2px 0 0; font-size: 12px; color: var(--lw-bone-dim); }
+.lw-lobby-mic-on { color: var(--lw-sick); }
+.lw-lobby-mic-off { color: #c9746f; }

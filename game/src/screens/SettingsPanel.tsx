@@ -1,10 +1,11 @@
 import { FOV_MAX, FOV_MIN, Settings } from '../state/settings';
 import { KeyBindings } from './KeyBindings';
 
-const VOLUMES: [key: 'volume' | 'sfxVolume' | 'bgmVolume', label: string][] = [
+const VOLUMES: [key: 'volume' | 'sfxVolume' | 'bgmVolume' | 'voiceVolume', label: string][] = [
   ['volume', 'Master volume'],
   ['sfxVolume', 'Sound effects'],
   ['bgmVolume', 'Background'],
+  ['voiceVolume', 'Voice chat'], // Update 0.9.9 — co-op proximity chat
 ];
 
 interface Props {

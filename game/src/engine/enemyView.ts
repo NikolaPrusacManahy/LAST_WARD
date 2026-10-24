@@ -13,8 +13,9 @@ export interface EnemyView {
   update(pos: { x: number; z: number }, dir: { x: number; z: number }, mode: EnemyMode, moved: number, t: number, windingUp?: boolean, crawl?: CrawlPose | null): void;
   /** Jumpscare: the neck stretches and the face lunges at the camera. k: 0 → 1. */
   lunge(k: number, t: number): void;
-  /** Update 0.4.3b — menu: place it exactly (no turning lerp) and loop a named clip, e.g. 'stare'. */
-  pose(pos: { x: number; z: number }, yaw: number, clip: string, t: number, timeScale?: number): void;
+  /** Update 0.4.3b — menu: place it exactly (no turning lerp) and loop a named clip, e.g. 'stare'.
+   *  Update 0.9.9 — `from`: start the clip there (the hit starts its attack just before it rears up). */
+  pose(pos: { x: number; z: number }, yaw: number, clip: string, t: number, timeScale?: number, from?: number): void;
   dispose(): void;
 }
 

@@ -46,6 +46,16 @@ export interface HudState {
   stowed: boolean;
   /** Update 0.9.8 — using the med kit: 0..1 of the 5 s hold, null when you're not. */
   use: number | null;
+  /** Update 0.9.9 — what the use bar says (the med kit, or getting a teammate up). */
+  useLabel: string;
+  /** Update 0.9.9 — co-op: your teammates (null in solo). */
+  team: { name: string; life: string; hurt: boolean; talking: boolean; bleed: number; voice: boolean | null }[] | null;
+  /** Down: seconds left, and who's getting you up. */
+  down: { left: number; helper: string | null } | null;
+  /** Out: whose eyes you're watching through (`host`: you're the host, keep the tab open). */
+  watching: { name: string | null; host: boolean } | null;
+  /** Proximity chat: your microphone ('none': chat is on but you have no microphone, or said no). */
+  mic: 'live' | 'muted' | 'talking' | 'none' | null;
 }
 
 export const initialHud: HudState = {
@@ -73,6 +83,11 @@ export const initialHud: HudState = {
   slot: 0,
   stowed: false,
   use: null,
+  useLabel: '',
+  team: null,
+  down: null,
+  watching: null,
+  mic: null,
   banner: null,
   repair: null,
 };
