@@ -46,9 +46,15 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `screens/SlotBar.tsx` + `ItemIcon.tsx` | 0.9.8: the slot bar (bottom centre) and the drawn item icons; styles in `theme-13-slots.css` | no |
 | `state/hiding.ts` | Lockers: getting in / out, peeking (Space + W, 60° max), seen-getting-in = exposed, look limits (0.9.5) | yes |
 | `state/difficulty.ts` + `screens/DifficultyPanel.tsx` | Easy / Normal / Hard rules (lives, battery drain, night vision) and the picker after Begin (0.9.3) | yes / no |
+| `state/coop.ts` | 0.9.9: co-op rules: room codes (`makeRoomCode`, `normalizeCode`, `isValidCode`), `cleanName`, the room JSON (`parseRoom`), `hostStep` (start / stop the countdown, start the run), `countdownLeft`, `lobbyHint`, `spawnSpot` (side by side in the spawn room) | yes |
+| `net/store.ts` | 0.9.9: the database interface co-op talks to, shaped like the Realtime Database (paths, JSON, null deletes, `claim`, `watch`, remove-on-disconnect, server clock) | types |
+| `net/memoryStore.ts` | 0.9.9: `MemoryHub`, the stand-in database: in memory for the tests, in localStorage for `?coop=local` (tabs of one browser, dev build only) | no (tested) |
+| `net/firebaseStore.ts` + `firebaseConfig.ts` | 0.9.9: Firebase Realtime Database + anonymous sign-in (per tab); `net/backend.ts` picks it or the stand-in and loads Firebase only when Co-op is opened | no |
+| `net/room.ts` | 0.9.9: `CoopClient`, one player's side of a room: create, join, ready, difficulty, leave, the host's `tick`, `startInfo`; React reads it with `subscribe` / `getSnapshot` | no (tested on the stand-in) |
+| `screens/CoopPanel.tsx` | 0.9.9: Co-op from the main menu: name, Create room / Join with code, the lobby, the countdown; styles in `theme-14-coop.css` | no |
 | `state/version.ts` | The version on the main menu (keep `package.json` the same; tested) | yes |
 | `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time; `mixVolumes` master × SFX / BGM (0.9.2) | yes (+ localStorage I/O) |
-| `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring | no |
+| `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring; 0.9.9: a co-op run (`coop`) takes the room's difficulty and wakes you on your slot's spot | no |
 | `engine/playerController.ts` | Camera, head bob, footsteps, flashlight rig | no |
 | `engine/propsView.ts` | Loads and places the prop models, swaps in the fluorescent fixtures and the real generator, panel doors, switch levers, sparks light (0.8–0.9), locker doors (0.9.5), the item tables (0.9.6) | no |
 | `engine/buildLevel.ts` | Walls (instanced), floor, ceiling, lamps, items (+ grey stand-in cabinets until the tables load), stand-in generator, exit door; 0.7: every floor at its real height, steps, stairwell railings | no |
@@ -93,6 +99,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 - **Enemy:** `stepEnemy(level, enemy, { dt, player, noise, fuses, lockers, playerLocker }, rng)` mutates `enemy` and returns events. Noise is one-shot per frame: `{ pos, radius, run?, lure?, step? }` (`run`: a panel blowing, heard anywhere; `lure`: a thrown thing; `step`: your footsteps, 0.9.7). On the ceiling (`e.crawl`) it never catches you; events `crawlUp` / `landed` (0.9.7). It hears `radius × ENEMY.hearingMul` (2). `player.hidden` = in a locker it didn't see you get into.
 - **Game → React:** only through `GameCallbacks` (`onEnd`, `onPause`) and the HUD store. React → Game only through `GameHandle` (`resume`, `setSettings`) and `begin()` from the intro click.
 - **Pointer lock:** losing lock while playing = pause. Death and escape release it on purpose and never trigger pause.
+- **Co-op rooms (0.9.9):** `rooms/{code}` = `{ host, created, status: 'lobby' | 'starting' | 'playing', startAt (server ms, 0 = none), difficulty: 'normal' | 'hard', seed, slots: { s0, s1, s2 } (uids; s-keys because number keys come back from Firebase as arrays), players: { [uid]: { name, ready, slot } } }`. Only the host writes `status`, `startAt` and `difficulty` (and only the host's `CoopClient.tick` runs `hostStep`); a player writes only their own `players/{uid}` and claims a slot with a transaction. The rules in `game/firebase/database.rules.json` enforce this; change them with the shape. The host's whole room and each player's entry + slot are removed on disconnect.
 - **Saves:** a new saved field needs a default in `defaultSave()` **and** a line in `hydrateSave()`, or it is wiped on load.
 
 ## Tuning cheat sheet

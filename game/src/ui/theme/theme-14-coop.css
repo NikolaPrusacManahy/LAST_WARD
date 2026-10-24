@@ -1,0 +1,87 @@
+/* theme-14 — Update 0.9.9: co-op (name, room code, the lobby, the countdown). */
+.lw-coop { width: min(620px, 92vw); max-height: 100vh; overflow-y: auto; }
+.lw-coop .lw-menu-btn:disabled { opacity: 0.35; cursor: default; transform: none; }
+.lw-coop .lw-menu-btn:disabled::before { opacity: 0; }
+
+.lw-coop-label { font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--lw-bone-dim); }
+.lw-coop-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.lw-coop-field span { font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--lw-bone-dim); }
+.lw-coop-field input {
+  width: 100%; padding: 12px 14px; user-select: text;
+  font-family: var(--lw-type); font-size: 24px; letter-spacing: 0.04em; color: var(--lw-bone);
+  background: rgba(216, 210, 188, 0.03); border: 1px solid rgba(216, 210, 188, 0.18); border-radius: 0; outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.lw-coop-field input::placeholder { color: rgba(140, 135, 117, 0.45); }
+.lw-coop-field input:focus { border-color: var(--lw-blood); background: rgba(163, 18, 15, 0.08); }
+.lw-coop-code { font-size: 34px !important; letter-spacing: 0.4em !important; text-transform: uppercase; }
+.lw-coop-error { min-height: 20px; margin: 0 0 18px; font-size: 13px; color: #d4524d; }
+.lw-coop-local { margin: 22px 0 0; font-size: 11px; letter-spacing: 0.06em; color: var(--lw-sick); opacity: 0.75; }
+
+/* Room code: big, spaced, easy to read out over voice chat. */
+.lw-room-code {
+  display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 18px; row-gap: 4px;
+  align-items: end; margin-bottom: 24px; padding: 14px 18px;
+  border: 1px solid rgba(216, 210, 188, 0.14); background: rgba(216, 210, 188, 0.03);
+}
+.lw-room-code .lw-coop-label { grid-column: 1 / -1; }
+.lw-room-code-value {
+  font-family: var(--lw-type); font-size: 52px; line-height: 1; letter-spacing: 0.32em; color: var(--lw-bone);
+  text-shadow: 0 0 18px rgba(163, 18, 15, 0.35); user-select: text;
+}
+.lw-room-copy {
+  padding: 6px 14px; margin-bottom: 4px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--lw-bone-dim);
+  border: 1px solid rgba(216, 210, 188, 0.2); transition: color 0.15s, border-color 0.15s;
+}
+.lw-room-copy:hover, .lw-room-copy:focus-visible { color: var(--lw-bone); border-color: var(--lw-blood); outline: none; }
+
+/* Who's in: one row per slot, empty ones waiting. */
+.lw-lobby-players { list-style: none; margin: 0 0 24px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lw-lobby-player {
+  display: grid; grid-template-columns: 28px 1fr auto 96px; align-items: center; gap: 14px; padding: 10px 16px;
+  border: 1px solid rgba(216, 210, 188, 0.1); background: rgba(5, 5, 6, 0.5);
+  transition: border-color 0.2s, background 0.2s;
+}
+.lw-lobby-slot { font-family: var(--lw-mono); font-size: 12px; color: var(--lw-bone-dim); }
+.lw-lobby-name { font-family: var(--lw-type); font-size: 22px; letter-spacing: 0.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lw-lobby-tags { display: flex; gap: 6px; }
+.lw-lobby-tags em {
+  font-style: normal; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; padding: 2px 6px;
+  color: var(--lw-bone-dim); border: 1px solid rgba(216, 210, 188, 0.18);
+}
+.lw-lobby-state { text-align: right; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--lw-bone-dim); }
+.lw-lobby-me { border-color: rgba(216, 210, 188, 0.28); }
+.lw-lobby-ready { border-color: rgba(127, 174, 143, 0.45); background: rgba(127, 174, 143, 0.06); }
+.lw-lobby-ready .lw-lobby-state { color: var(--lw-sick); }
+.lw-lobby-empty { border-style: dashed; background: none; }
+.lw-lobby-empty .lw-lobby-name { font-family: var(--lw-mono); font-size: 13px; color: var(--lw-bone-dim); opacity: 0.6; }
+
+.lw-lobby-diff { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.lw-lobby-diff .lw-diff { padding: 10px 16px; }
+.lw-lobby-diff .lw-diff-name { font-size: 20px; }
+.lw-lobby-diff .lw-diff:disabled { cursor: default; transform: none; }
+.lw-lobby-diff .lw-diff:disabled:not(.lw-diff-current) { opacity: 0.4; }
+.lw-lobby-diff .lw-diff:disabled:hover { border-color: rgba(216, 210, 188, 0.14); background: rgba(216, 210, 188, 0.03); }
+.lw-lobby-diff .lw-diff-current:disabled:hover { border-color: rgba(216, 210, 188, 0.4); }
+.lw-lobby-hint { margin: 0 0 18px; font-size: 13px; color: var(--lw-bone-dim); }
+
+/* 3, 2, 1: one big number, re-mounted each second so it punches in. */
+.lw-countdown {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; pointer-events: none;
+  font-family: var(--lw-type); font-size: 220px; line-height: 1; color: var(--lw-bone);
+  text-shadow: 0 0 40px rgba(163, 18, 15, 0.8), 0 0 4px #000;
+  background: radial-gradient(ellipse at center, rgba(5, 5, 6, 0.55), transparent 60%);
+  animation: lw-count 1s ease-out both;
+}
+@keyframes lw-count {
+  0% { opacity: 0; transform: scale(1.5); }
+  15% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0.2; transform: scale(0.94); }
+}
+
+@media (max-width: 560px) {
+  .lw-room-code-value { font-size: 38px; }
+  .lw-lobby-player { grid-template-columns: 22px 1fr 80px; }
+  .lw-lobby-tags { display: none; }
+}

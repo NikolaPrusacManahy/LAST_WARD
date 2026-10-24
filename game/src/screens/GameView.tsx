@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'rea
 import { Game } from '../engine/Game';
 import { createHudStore } from '../engine/hudStore';
 import type { Settings } from '../state/settings';
+import type { CoopStart } from '../net/room';
 import { Hud } from './Hud';
 
 export interface GameHandle {
@@ -17,9 +18,11 @@ interface Props {
   onPause(): void;
   /** Update 0.7.1 — level to start on (tester picker; ignored by the public build). */
   startLevel: number;
+  /** Update 0.9.9 — set when the run came from a co-op room (its difficulty, your spawn slot). */
+  coop?: CoopStart | null;
 }
 
-export const GameView = forwardRef<GameHandle, Props>(function GameView({ settings, paused, onEnd, onPause, startLevel }, ref) {
+export const GameView = forwardRef<GameHandle, Props>(function GameView({ settings, paused, onEnd, onPause, startLevel, coop = null }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const game = useRef<Game | null>(null);
   const hud = useMemo(() => createHudStore(), []);
@@ -34,7 +37,7 @@ export const GameView = forwardRef<GameHandle, Props>(function GameView({ settin
       game.current = new Game(host.current, settings, hud, {
         onEnd: (r, s) => cbs.current.onEnd(r, s),
         onPause: () => cbs.current.onPause(),
-      }, startLevel);
+      }, startLevel, coop);
     });
     return () => {
       disposed = true;

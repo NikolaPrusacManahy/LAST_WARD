@@ -27,5 +27,6 @@ import './test-version';
 import './test-stuck096';
 import './test-crawl';
 import './test-slots';
+import './test-coop';
 
 process.exit(summary() > 0 ? 1 : 0);

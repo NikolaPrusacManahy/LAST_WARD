@@ -1,7 +1,7 @@
 {
   "name": "last-ward",
   "private": true,
-  "version": "0.9.8",
+  "version": "0.9.9",
   "type": "module",
   "scripts": {
     "dev": "vite --open",
@@ -12,6 +12,7 @@
     "verify:quick": "node verify.mjs --quick"
   },
   "dependencies": {
+    "firebase": "^13.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.186.1"

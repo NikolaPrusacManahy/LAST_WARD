@@ -19,6 +19,8 @@ import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, 
 import { debugLines } from '../state/debugInfo';
 import { mixVolumes } from '../state/settings';
 import { DIFFICULTY, DifficultyRules } from '../state/difficulty';
+import { spawnSpot } from '../state/coop';
+import type { CoopStart } from '../net/room';
 import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
 import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
 import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
@@ -159,8 +161,10 @@ export class Game {
     private cb: GameCallbacks,
     /** Update 0.7.1 — tester level picker / ?level=N; the public build always starts at 0. */
     startLevel = 0,
+    /** Update 0.9.9 — a co-op run: the room's difficulty, and where in the spawn room you wake up. */
+    private coop: CoopStart | null = null,
   ) {
-    this.rules = DIFFICULTY[settings.difficulty];
+    this.rules = DIFFICULTY[coop?.difficulty ?? settings.difficulty];
     this.lives = this.rules.lives;
     this.status = createPlayerStatus(this.rules.batteryDrainMul);
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
@@ -197,6 +201,7 @@ export class Game {
     this.player = new PlayerController(this.level, this.camera, this.scene);
     this.player.nightVision = this.rules.nightVision; // Update 0.9.3 — Easy: right click is the goggles, no beam
     this.player.baseFov = settings.fov;
+    this.placeAtSpawn();
     // Update 0.5.4 — starts in one of the four corners, never the one by you.
     this.enemy = spawnAtCorner(this.level, this.rng, cellCenter(this.level.playerStart));
     this.enemyView = createEnemyView();
@@ -221,6 +226,11 @@ export class Game {
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.frame);
     if (this.debug) (window as unknown as { __lastWard: Game }).__lastWard = this;
+  }
+
+  /** Update 0.9.9 — in co-op each slot wakes up on its own spot, side by side (state/coop.ts). */
+  private placeAtSpawn() {
+    if (this.coop) this.player.pos = spawnSpot(this.level, this.coop.slot, PLAYER.radius);
   }
 
   /** Must be called from a click (user gesture) — starts audio and grabs the mouse. */
@@ -284,6 +294,7 @@ export class Game {
     this.debugView.setEnabled(debugOn);
     this.world.add(this.debugView.root);
     this.player.reset(this.level);
+    this.placeAtSpawn();
     this.enemy = spawnAtCorner(this.level, this.rng, cellCenter(this.level.playerStart));
     this.enemyFrozen = false;
     this.progress = createProgress(panelSpots(this.level).length);

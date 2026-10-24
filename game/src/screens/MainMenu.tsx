@@ -7,6 +7,8 @@ import { GAME_STAGE, GAME_VERSION } from '../state/version';
 interface Props {
   save: SaveData;
   onStart(): void;
+  /** Update 0.9.9 — co-op: make or join a room. */
+  onCoop(): void;
   onSettings(): void;
   /** Update 0.8 — the Credits screen. */
   onCredits(): void;
@@ -15,7 +17,7 @@ interface Props {
   onPickLevel(level: number): void;
 }
 
-export function MainMenu({ save, onStart, onSettings, onCredits, startLevel, onPickLevel }: Props) {
+export function MainMenu({ save, onStart, onCoop, onSettings, onCredits, startLevel, onPickLevel }: Props) {
   return (
     <div className="lw-menu">
       <MenuScene />
@@ -25,6 +27,7 @@ export function MainMenu({ save, onStart, onSettings, onCredits, startLevel, onP
         <h1 className="lw-title">LAST WARD</h1>
         <nav className="lw-menu-nav">
           <button className="lw-menu-btn" onClick={onStart}>Begin</button>
+          <button className="lw-menu-btn" onClick={onCoop}>Co-op</button>
           <button className="lw-menu-btn" onClick={onSettings}>Settings</button>
           <button className="lw-menu-btn" onClick={onCredits}>Credits</button>
         </nav>

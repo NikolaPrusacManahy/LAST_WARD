@@ -2,6 +2,7 @@
 // or old saves lose it on load.
 import { Bindings, DEFAULT_BINDINGS, hydrateBindings } from './bindings';
 import { DEFAULT_DIFFICULTY, Difficulty, hydrateDifficulty } from './difficulty';
+import { NAME_MAX } from './coop';
 
 export interface Settings {
   sensitivity: number; // 0.2 – 3
@@ -27,6 +28,8 @@ export interface SaveData {
   bestTime: number | null; // seconds
   escapes: number;
   deaths: number;
+  /** Update 0.9.9 — the name you go by in co-op (what you last typed). */
+  coopName: string;
 }
 
 export const SAVE_KEY = 'last-ward-save';
@@ -37,7 +40,7 @@ export const FOV_MAX = 100;
 export const DEFAULT_SETTINGS: Settings = { sensitivity: 1, volume: 0.8, sfxVolume: 1, bgmVolume: 1, invertY: false, grain: true, fov: 72, bindings: DEFAULT_BINDINGS, difficulty: DEFAULT_DIFFICULTY };
 
 export function defaultSave(): SaveData {
-  return { version: 1, settings: { ...DEFAULT_SETTINGS, bindings: { ...DEFAULT_BINDINGS } }, bestTime: null, escapes: 0, deaths: 0 };
+  return { version: 1, settings: { ...DEFAULT_SETTINGS, bindings: { ...DEFAULT_BINDINGS } }, bestTime: null, escapes: 0, deaths: 0, coopName: '' };
 }
 
 const clamp = (v: unknown, lo: number, hi: number, d: number) =>
@@ -65,6 +68,7 @@ export function hydrateSave(raw: unknown): SaveData {
     bestTime: typeof r.bestTime === 'number' && r.bestTime > 0 ? r.bestTime : null,
     escapes: clamp(r.escapes, 0, 1e9, 0),
     deaths: clamp(r.deaths, 0, 1e9, 0),
+    coopName: typeof r.coopName === 'string' ? r.coopName.slice(0, NAME_MAX) : '',
   };
 }
 

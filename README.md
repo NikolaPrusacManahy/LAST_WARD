@@ -4,7 +4,7 @@ A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
 You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find four fuses, bring four electrical panels back to life, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 0.9.8. The full patch history is in `HANDOVER.md`.
+Current version: 0.9.9. The full patch history is in `HANDOVER.md`.
 
 ## How the game works
 
@@ -26,6 +26,12 @@ Picked each time you press Begin:
 - **Easy:** night vision goggles instead of the flashlight (right click). Everything turns green and you can see The Patient from far away.
 - **Normal:** the game as designed.
 - **Hard:** the battery lasts 40% less and you have one life.
+
+## Co-op
+
+Up to three players, over the internet (Firebase). Press **Co-op** on the main menu and type your name. One player presses **Create room** and gets a five-letter code to send to the others, who press **Join with code**. In the lobby the host picks Normal or Hard; when everyone is ready, a 3-second countdown starts and you all wake up side by side in the same room.
+
+Co-op is being built in steps. For now the lobby, the countdown and the shared start work, but each player still plays their own copy of the ward: you don't see each other yet, and each of you has your own Patient. Next: seeing each other move, then one shared ward and one Patient hunting all of you, then reviving each other.
 
 ## Controls
 
@@ -61,6 +67,8 @@ npm run dev
 
 The game runs at http://localhost:5173.
 
+To try the co-op lobby without the server, open http://localhost:5173/?coop=local in two tabs: rooms are then shared only between tabs of that browser (development build only).
+
 ## Commands
 
 Run these from `game/`:
@@ -90,10 +98,12 @@ LAST_WARD/
       world/content/ the level map and note texts
       engine/        three.js side: the Game class, level meshes, characters, camera, lights, effects
       audio/         sound playback (Web Audio)
-      screens/       React screens: main menu, HUD, pause menu, settings, end screen
+      net/           co-op networking: Firebase, the stand-in database, rooms
+      screens/       React screens: main menu, co-op lobby, HUD, pause menu, settings, end screen
       ui/theme/      CSS, split into numbered files
     tests/           one test file per area, all run by run-all.ts
     tools/           scripts that convert raw assets into game-ready files
+    firebase/        the database rules for co-op (pasted into the Firebase console)
 ```
 
 The rules in `state/` and `world/` are plain functions with no three.js, React or browser code. That keeps them testable: the tests run them directly and check the results. The `engine/` code only draws what the rules decide.
@@ -140,9 +150,12 @@ Adding `?debug` to the address skips the credit screen and gives the browser con
 
 The game is a static site, set up for Netlify in `game/netlify.toml`. Netlify runs `npm run build` and publishes `game/dist/`. The live site only changes after a fresh build.
 
+Co-op needs the site's address in Firebase: Authentication → Settings → Authorized domains (e.g. `your-site.netlify.app`). Without it, signing in fails there. If the database rules in `game/firebase/database.rules.json` change, paste them again under Realtime Database → Rules and publish.
+
 ## Built with
 
 - Vite, React 18 and TypeScript
+- Firebase (Realtime Database and anonymous sign-in) for co-op
 - three.js for the 3D world and post-processing
 - Web Audio API for sound, including 3D positional audio
 
