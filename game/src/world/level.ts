@@ -55,6 +55,14 @@ export interface AiTuning {
   searchRadiusTiles?: number;
 }
 
+/** Update 0.9.6 — something to throw, lying on the floor. */
+export interface ThrowableSpawn {
+  kind: 'brick' | 'bottle';
+  cell: Cell;
+  /** Offset from the cell's middle (m), to lie against a wall rather than in the walking line. */
+  at?: [number, number];
+}
+
 export interface LevelDef {
   name: string;
   /** One floor (level 1). */
@@ -73,6 +81,8 @@ export interface LevelDef {
   props?: PropPlacement[];
   /** Update 0.9 — rooms (cell rectangles) whose walls are lined with brick instead of tiles. */
   brickRooms?: { from: Cell; to: Cell }[];
+  /** Update 0.9.6 — bricks and bottles lying in the halls: the cell and an offset from its middle (m). */
+  throwables?: ThrowableSpawn[];
 }
 
 /** Update 0.7 — a straight flight of stairs. `cells` are logic cells on `floor`, bottom → top. */
@@ -123,6 +133,7 @@ export interface Level {
   startYaw: number;
   props: PropPlacement[];
   brickRooms: { from: Cell; to: Cell }[];
+  throwables: ThrowableSpawn[];
 }
 
 /** Update 0.7 — solid rows between stacked floors in the logic grid (keeps them apart). */
@@ -298,6 +309,7 @@ export function parseLevel(def: LevelDef): Level {
     startYaw: def.startYaw ?? Math.PI,
     props: def.props ?? [],
     brickRooms: def.brickRooms ?? [],
+    throwables: def.throwables ?? [],
   };
 }
 

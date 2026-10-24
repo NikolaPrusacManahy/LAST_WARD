@@ -8,10 +8,27 @@ import { Rng } from './rng';
 
 export type EnemyMode = 'patrol' | 'investigate' | 'chase' | 'search';
 /** Update 0.5.4 — 'teleported': moved to another corner after a minute without finding you. */
-export type EnemyEvent = 'spotted' | 'lost' | 'heard' | 'caught' | 'teleported';
+export type EnemyEvent = 'spotted' | 'lost' | 'heard' | 'caught' | 'teleported'
+  /** Update 0.9.6 — checking a locker: door open / shut, and you were in it. */
+  | 'lockerOpen' | 'lockerClose' | 'foundYou';
 
 export const ENEMY = {
-  speed: { patrol: 1.5, investigate: 2.6, chase: 4.3, search: 2.1 } as Record<EnemyMode, number>,
+  /** Update 0.9.6 — it walks twice as fast (patrol 1.5 → 3.0, as fast as you walk); searching and
+   *  going to look at a noise keep up with it, still a walk. The chase is unchanged. */
+  speed: { patrol: 3.0, investigate: 3.2, chase: 4.3, search: 3.0 } as Record<EnemyMode, number>,
+  /** Update 0.9.6 — it hears everything twice as far. */
+  hearingMul: 2,
+  /** Update 0.9.6 — your flashlight on its body: it knows where you are at once, whichever way it faces.
+   *  Your beam's half-angle (rad) and how far it counts (m). */
+  beamHalf: 0.55,
+  beamRange: 30,
+  /** Update 0.9.6 — after running to a thrown thing: you within this far (m) and it comes for you. */
+  lureRadius: 5,
+  /** Update 0.9.6 — locker checks while searching: lockers this close (m) to where it lost you, at most
+   *  once per `lockerRecheck` s each; door open for `lockerCheckSeconds`. */
+  lockerCheckRadius: 9,
+  lockerRecheck: 25,
+  lockerCheckSeconds: 1,
   /** Each fuse collected makes it this much faster (it knows what you're doing). */
   ragePerFuse: 0.07,
   catchRadius: 1.1,
@@ -70,6 +87,13 @@ export interface EnemyState {
   sinceSpotted: number;
   /** Update 0.6.4 — sprinting to the generator after the power came on (cleared on arrival / mode change). */
   rush: boolean;
+  /** Update 0.9.6 — running to something you threw: if you're near when it gets there, it chases you. */
+  lure: boolean;
+  /** Update 0.9.6 — checking a locker: walking to it, then the door open. */
+  check: { locker: number; phase: 'going' | 'open'; t: number } | null;
+  /** When it last checked each locker (its own clock, s). */
+  checked: number[];
+  clock: number;
 }
 
 export interface PlayerSense {
@@ -78,6 +102,9 @@ export interface PlayerSense {
   crouching: boolean;
   /** Update 0.9 — sprinting (it sees you further). */
   running?: boolean;
+  /** Update 0.9.6 — where you look, and whether a real flashlight beam is on (goggles don't count). */
+  facing?: Vec2;
+  beam?: boolean;
   /** Update 0.9.5 — in a locker it didn't see you get into: it can't see you or catch you. */
   hidden?: boolean;
 }
@@ -87,6 +114,8 @@ export interface Noise {
   radius: number;
   /** Update 0.9.1 — something it runs to (a panel blowing), not one it wanders over to check. */
   run?: boolean;
+  /** Update 0.9.6 — something you threw: it runs there and comes for you if you're close by. */
+  lure?: boolean;
 }
 
 export function createEnemy(level: Level): EnemyState {
@@ -108,6 +137,10 @@ export function createEnemy(level: Level): EnemyState {
     home: level.enemyStart,
     sinceSpotted: 0,
     rush: false,
+    lure: false,
+    check: null,
+    checked: [],
+    clock: 0,
   };
 }
 
@@ -172,6 +205,8 @@ export function teleportAway(level: Level, e: EnemyState, player: Vec2): void {
   e.sinceSpotted = 0;
   e.sinceSeen = Infinity;
   e.rush = false;
+  e.lure = false;
+  e.check = null;
 }
 
 /** Update 0.6.4 — the open cell next to the generator (the machine itself is solid, so no path ends on it). */
@@ -230,6 +265,8 @@ function tryTeleport(level: Level, e: EnemyState, player: Vec2, rng: Rng): boole
   e.alert = 0;
   e.idle = 1;
   e.sinceSpotted = 0;
+  e.lure = false;
+  e.check = null;
   return true;
 }
 
@@ -252,8 +289,21 @@ export function visibility(level: Level, e: EnemyState, p: PlayerSense): number 
 
 export function heardNoise(level: Level, e: EnemyState, n: Noise): boolean {
   const d = dist(e.pos, n.pos);
-  if (d > n.radius) return false;
-  return lineOfSight(level, e.pos, n.pos) || d <= n.radius * ENEMY.muffledNoiseMul;
+  const r = n.radius * ENEMY.hearingMul; // Update 0.9.6 — twice as far
+  if (d > r) return false;
+  return lineOfSight(level, e.pos, n.pos) || d <= r * ENEMY.muffledNoiseMul;
+}
+
+/** Update 0.9.6 — your flashlight beam is on it (and nothing's in the way). */
+export function litByBeam(level: Level, e: EnemyState, p: PlayerSense): boolean {
+  if (!p.beam || !p.facing || p.hidden) return false;
+  const d = dist(e.pos, p.pos);
+  if (d > ENEMY.beamRange || d < 0.01) return false;
+  const to = { x: (e.pos.x - p.pos.x) / d, z: (e.pos.z - p.pos.z) / d };
+  const dot = to.x * p.facing.x + to.z * p.facing.z;
+  // Its body is ~0.5 m wide: count it lit if the beam cone reaches its edge.
+  const half = ENEMY.beamHalf + Math.atan2(ENEMY.bodyRadius, d);
+  return Math.acos(Math.max(-1, Math.min(1, dot))) <= half && lineOfSight(level, p.pos, e.pos);
 }
 
 function setMode(e: EnemyState, mode: EnemyMode) {
@@ -261,7 +311,27 @@ function setMode(e: EnemyState, mode: EnemyMode) {
     e.mode = mode;
     e.modeTime = 0;
     e.rush = false;
+    e.lure = false;
+    e.check = null;
   }
+}
+
+/** Update 0.9.6 — start checking the nearest locker to `near` it hasn't looked in lately, if any. */
+function startLockerCheck(level: Level, e: EnemyState, lockers: LockerSpot[] | undefined, near: Vec2) {
+  if (!lockers?.length) return;
+  let best = -1;
+  let bestD = ENEMY.lockerCheckRadius;
+  lockers.forEach((l, i) => {
+    const d = dist(l.center, near);
+    const last = e.checked[i];
+    if (d <= bestD && (last === undefined || e.clock - last >= ENEMY.lockerRecheck)) {
+      best = i;
+      bestD = d;
+    }
+  });
+  if (best < 0) return;
+  e.check = { locker: best, phase: 'going', t: 0 };
+  goTo(level, e, lockers[best].stand);
 }
 
 /** Update 0.5.2 — pull a point in from the walls so its body fits there (a noise right by a wall). */
@@ -355,12 +425,25 @@ function followPath(level: Level, e: EnemyState, speed: number, dt: number): boo
   return false;
 }
 
-function turnToward(e: EnemyState, dir: Vec2, dt: number) {
+/**
+ * Turns its facing toward `dir` (eased). Update 0.9.6 — by angle: blending the two vectors never turned
+ * it when the new way was straight behind it (they cancel out), so after a teleport or a U-turn it
+ * walked backwards down the corridor. Now it always turns round.
+ */
+export function turnToward(e: EnemyState, dir: Vec2, dt: number) {
   const k = Math.min(1, dt * 8);
-  const x = e.dir.x + (dir.x - e.dir.x) * k;
-  const z = e.dir.z + (dir.z - e.dir.z) * k;
-  const len = Math.hypot(x, z) || 1;
-  e.dir = { x: x / len, z: z / len };
+  const from = Math.atan2(e.dir.x, e.dir.z);
+  let d = Math.atan2(dir.x, dir.z) - from;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  if (Math.abs(d) > Math.PI - 0.05) d = Math.PI - 0.05; // dead behind: pick a side and turn
+  const a = from + d * k;
+  e.dir = { x: Math.sin(a), z: Math.cos(a) };
+}
+
+/** Update 0.9.6 — a locker it can check: its middle, and where it stands to open it. */
+export interface LockerSpot {
+  center: Vec2;
+  stand: Vec2;
 }
 
 export interface StepInput {
@@ -368,6 +451,9 @@ export interface StepInput {
   player: PlayerSense;
   noise: Noise | null;
   fuses: number;
+  /** Update 0.9.6 — the lockers, and the one you're hiding in (if any). */
+  lockers?: LockerSpot[];
+  playerLocker?: number | null;
 }
 
 /** Advances the enemy one frame. Mutates `e`, returns what happened. */
@@ -377,13 +463,16 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
   const tune = tuningFor(level);
   e.rage = input.fuses * ENEMY.ragePerFuse;
   e.modeTime += dt;
+  e.clock += dt;
 
   // Update 0.5.4 — a minute without finding you: teleport to another corner (only when unseen).
   e.sinceSpotted = e.mode === 'chase' ? 0 : e.sinceSpotted + dt;
   if (tryTeleport(level, e, player.pos, rng)) events.push('teleported');
 
-  const vis = visibility(level, e, player);
-  const close = vis > 0 && dist(e.pos, player.pos) <= ENEMY.senseRadius;
+  // Update 0.9.6 — your beam on its body gives you away at once, even from behind.
+  const lit = litByBeam(level, e, player);
+  const vis = lit ? 1 : visibility(level, e, player);
+  const close = lit || (vis > 0 && dist(e.pos, player.pos) <= ENEMY.senseRadius);
   if (vis > 0) {
     e.alert = Math.min(1, e.alert + vis * ENEMY.alertRise * dt);
     e.sinceSeen = 0;
@@ -406,7 +495,8 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
     if (e.mode !== 'investigate') events.push('heard');
     setMode(e, 'investigate');
     goTo(level, e, noise.pos);
-    if (noise.run) e.rush = true; // chase speed, and no other noise turns it aside on the way
+    if (noise.run || noise.lure) e.rush = true; // chase speed, and no other noise turns it aside on the way
+    if (noise.lure) e.lure = true;
   }
 
   if (e.mode === 'chase' && e.sinceSeen <= tune.memorySeconds) e.lastKnown = { ...player.pos };
@@ -442,6 +532,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
           setMode(e, 'search');
           events.push('lost');
           pickWanderGoal(level, e, rng, e.lastKnown, tune.searchRadiusTiles);
+          startLockerCheck(level, e, input.lockers, e.lastKnown); // Update 0.9.6 — did you hide nearby?
         }
       }
       break;
@@ -454,12 +545,50 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
       }
       if (!e.goal) pickWanderGoal(level, e, rng, null, 0);
       if (followPath(level, e, speed, dt)) {
+        // Update 0.9.6 — it ran to something you threw: you're close by, so it comes for you.
+        if (e.lure && !player.hidden && dist(e.pos, player.pos) <= ENEMY.lureRadius) {
+          setMode(e, 'chase');
+          e.alert = 1;
+          e.windup = ENEMY.windupSeconds;
+          e.lastKnown = { ...player.pos };
+          e.sinceSeen = 0;
+          events.push('spotted');
+          break;
+        }
+        const here = e.goal ?? e.pos;
         setMode(e, 'search');
-        pickWanderGoal(level, e, rng, e.goal, tune.searchRadiusTiles);
+        pickWanderGoal(level, e, rng, here, tune.searchRadiusTiles);
+        startLockerCheck(level, e, input.lockers, here); // Update 0.9.6
       }
       break;
     }
     case 'search': {
+      // Update 0.9.6 — checking a locker: walk up, open it for a second, shut it.
+      if (e.check && input.lockers) {
+        const c = e.check;
+        const l = input.lockers[c.locker];
+        if (c.phase === 'going') {
+          c.t += dt;
+          if (followPath(level, e, speed, dt) || c.t > 15) {
+            c.phase = 'open';
+            c.t = 0;
+            events.push('lockerOpen');
+            if (input.playerLocker === c.locker) events.push('foundYou');
+          }
+        } else {
+          c.t += dt;
+          const d = dist(e.pos, l.center) || 1;
+          turnToward(e, { x: (l.center.x - e.pos.x) / d, z: (l.center.z - e.pos.z) / d }, dt);
+          if (c.t >= ENEMY.lockerCheckSeconds) {
+            events.push('lockerClose');
+            e.checked[c.locker] = e.clock;
+            e.check = null;
+            e.modeTime = Math.min(e.modeTime, tune.searchSeconds * 0.5); // a little more searching after
+            pickWanderGoal(level, e, rng, e.lastKnown ?? e.pos, tune.searchRadiusTiles);
+          }
+        }
+        break;
+      }
       if (e.modeTime > tune.searchSeconds) {
         setMode(e, 'patrol');
         e.idle = 1.5;

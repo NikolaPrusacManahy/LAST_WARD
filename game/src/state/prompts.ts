@@ -3,7 +3,7 @@
 import type { Target } from '../world/interact';
 import { Progress, allPanelsOn, fusesHeld, panelsOn } from './objectives';
 
-export type PromptVerb = 'collect' | 'read' | 'interact' | 'repair' | 'fit a fuse' | 'switch on' | 'start' | 'hide';
+export type PromptVerb = 'collect' | 'read' | 'interact' | 'repair' | 'fit a fuse' | 'switch on' | 'start' | 'hide' | 'pick up';
 
 export interface Prompt {
   /** What you're looking at. */
@@ -17,8 +17,13 @@ export interface Prompt {
 
 const ITEM_TITLE = { fuse: 'Fuse', battery: 'Battery', note: 'Note' } as const;
 
-export function promptFor(t: Target | null, p: Progress, noteOpen: boolean): Prompt | null {
+export function promptFor(t: Target | null, p: Progress, noteOpen: boolean, handsFull = false): Prompt | null {
   if (!t || noteOpen) return null;
+  // Update 0.9.6 — a brick or bottle: one at a time.
+  if (t.type === 'throwable') {
+    const title = t.kind === 'brick' ? 'Brick' : 'Glass bottle';
+    return handsFull ? { title, verb: null, info: 'Your hands are full.' } : { title, verb: 'pick up' };
+  }
   if (t.type === 'item') {
     return { title: ITEM_TITLE[t.item.kind], verb: t.item.kind === 'note' ? 'read' : 'collect' };
   }

@@ -27,6 +27,8 @@ export const CREDITS: Credit[] = [
   { id: 'fluorescent', what: 'Ceiling lights', title: 'Fluorecent lights', author: 'Sean Thomas', licence: CC_BY, source: 'https://sketchfab.com/3d-models/fluorecent-lights-bca96f873b0743f88d61cd12b0750507' },
   // Update 0.9.5 — the model page's own link wasn't recorded; this search finds it (swap in the page link).
   { id: 'locker', what: 'Lockers', title: 'Dirty Locker (256x256 Retro)', author: 'xylvnking', licence: CC_BY, source: 'https://sketchfab.com/search?q=Dirty+Locker+256x256+Retro&type=models' },
+  { id: 'brick', what: 'Brick', title: 'Brick Libra', author: 'Nikitos & 3130', licence: CC_BY, source: 'https://sketchfab.com/3d-models/brick-libra-ae48f306cd6446599197fb1aa0a31f88' },
+  { id: 'bottle', what: 'Glass bottle', title: 'Beer Bottle', author: 'gelmi.com.br', licence: CC_BY, source: 'https://sketchfab.com/3d-models/beer-bottle-c3de7f8b092e4092aef14d4ffc9fac7f' },
   { id: 'mixamo', what: 'The Patient and the player: characters and animations', title: 'Mixamo', author: 'Adobe', licence: 'Mixamo terms', source: 'https://www.mixamo.com' },
   { id: 'kenney', what: 'Control icons', title: 'Input Prompts', author: 'Kenney', licence: 'CC0', source: 'https://kenney.nl' },
   { id: 'fonts', what: 'Fonts', title: 'Special Elite, IBM Plex Mono', author: 'Astigmatic, IBM', licence: 'Apache 2.0, SIL OFL 1.1', source: 'https://fonts.google.com' },

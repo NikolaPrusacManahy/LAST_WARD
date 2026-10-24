@@ -8,12 +8,13 @@ Current version: 0.9. The full patch history is in `HANDOVER.md`.
 
 ## How the game works
 
-- **The Patient** hunts you by sight and sound. It sees further when your flashlight is on or you run, and less well when you crouch. Walking makes some noise and running makes a lot; crouching is silent. When it spots you it screams, then charges.
+- **The Patient** hunts you by sight and sound. It sees further when your flashlight is on or you run, and less well when you crouch. Shine your flashlight on it and it knows where you are at once. Walking makes some noise and running makes a lot; crouching is silent. When it spots you it screams, then charges.
 - **It moves around.** It starts in one corner of the map and patrols that area. If it goes 35 seconds without spotting you, it disappears and turns up at another corner.
 - **You have two lives.** The first time it catches you, it picks you up and throws you across the room. You black out, get up injured (red at the edges of the screen, grunting now and then) and it vanishes somewhere else. The second time is the end.
 - **Fuses, batteries and notes** are shuffled across the tables every run. Batteries recharge the flashlight, which starts switched off. Notes are left by people who were here before you, and reading one pauses the game.
 - **Electrical panels** are spread across the ward, one in each quarter. Fit a fuse, hold to repair the panel, then throw its switch. While you repair, skill checks come up: a circle with a needle sweeping round it. Press Space while the needle is in the marked zone (the white slice at its start is a perfect hit). Miss and the panel blows, loud enough for The Patient to hear.
-- **Lockers** are spread around the ward. Step into one and you're hidden, as long as The Patient didn't see you get in. If it did, it will drag you out. Hold Space and W to ease the door open and peek.
+- **Bricks and bottles** lie in the halls. Pick one up and press Space to throw it: The Patient runs to the noise, so you can send it away from you. If you're close to where it lands, it will come for you instead.
+- **Lockers** are spread around the ward. Step into one and you're hidden, as long as The Patient didn't see you get in. If it did, it will drag you out. When it loses you it checks the lockers nearby. Hold Space and W to ease the door open and peek.
 - **Restarting the generator** needs all four panels live. It turns the lights back on, but The Patient hears it. It screams, then sprints to the generator room, so don't stay there.
 
 ## Difficulty
@@ -34,7 +35,7 @@ Picked each time you press Begin:
 | Crouch (toggle) | Left Ctrl |
 | Flashlight | Right click |
 | Collect / interact | Left click |
-| Skill check | Space |
+| Skill check / throw | Space |
 | Peek out of a locker | Hold Space + W |
 | Look back (hold while running) | Q |
 | Pause | Esc |

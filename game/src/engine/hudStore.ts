@@ -39,6 +39,8 @@ export interface HudState {
   nightVision: boolean;
   /** Update 0.9.5 — inside a locker: show how to peek and get out. */
   hiding: boolean;
+  /** Update 0.9.6 — holding a brick / bottle: show how to throw it. */
+  holding: 'brick' | 'bottle' | null;
 }
 
 export const initialHud: HudState = {
@@ -62,6 +64,7 @@ export const initialHud: HudState = {
   objectiveDetail: '',
   nightVision: false,
   hiding: false,
+  holding: null,
   banner: null,
   repair: null,
 };

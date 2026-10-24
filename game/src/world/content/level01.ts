@@ -35,6 +35,18 @@ export const LEVEL_01: LevelDef = {
   // Update 0.8 — real props (world/props.ts, models credited in state/credits.ts). `wall` = the side of the
   // cell it stands against; it faces into the room.
   // Update 0.9 — the generator room is lined with brick on every wall (everything else stays tiled).
+  // Update 0.9.6 — bricks and bottles lying in the halls, against the walls (state/throwables.ts).
+  throwables: [
+    { kind: 'brick', cell: { col: 2, row: 5 }, at: [0.3, -1.15] },
+    { kind: 'bottle', cell: { col: 10, row: 5 }, at: [-0.4, 1.15] },
+    { kind: 'brick', cell: { col: 17, row: 5 }, at: [0.5, -1.15] },
+    { kind: 'bottle', cell: { col: 1, row: 8 }, at: [-1.15, 0.4] },
+    { kind: 'brick', cell: { col: 5, row: 11 }, at: [-0.3, -1.15] },
+    { kind: 'bottle', cell: { col: 14, row: 11 }, at: [0.6, 1.15] },
+    { kind: 'brick', cell: { col: 23, row: 13 }, at: [1.15, -0.5] },
+    { kind: 'bottle', cell: { col: 9, row: 17 }, at: [0.2, 1.15] },
+    { kind: 'brick', cell: { col: 20, row: 17 }, at: [-0.6, -1.15] },
+  ],
   brickRooms: [{ from: { col: 9, row: 7 }, to: { col: 15, row: 9 } }],
   props: [
     // The room you wake up in: the bed, its screen, cabinets, the medicine shelf, pictures.

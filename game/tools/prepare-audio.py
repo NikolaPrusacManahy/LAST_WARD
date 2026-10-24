@@ -55,6 +55,8 @@ PLAN = {
     'night_vision/deploy': ('oneshot', -16),  # Update 0.9.3 — Easy: goggles on
     'locker/enter_locker': ('oneshot', -16),  # Update 0.9.5 — getting in / out of a locker
     'locker/peeking': ('oneshot', -20),  # Update 0.9.5 — easing the locker door open
+    'throwable/brick_impact_ground': ('oneshot', -14),  # Update 0.9.6
+    'throwable/glass_bottle_break': ('oneshot', -14),  # Update 0.9.6
 }
 OUT_NAMES = {
     'footSteps_player': 'step_player',
@@ -73,6 +75,8 @@ OUT_NAMES = {
     'night_vision/deploy': 'night_vision_on',
     'locker/enter_locker': 'locker_enter',
     'locker/peeking': 'locker_peek',
+    'throwable/brick_impact_ground': 'brick_impact',
+    'throwable/glass_bottle_break': 'bottle_break',
 }
 
 

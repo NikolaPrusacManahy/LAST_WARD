@@ -23,6 +23,8 @@ import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools'
 import { Progress, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
 import { RepairState, SKILL, cancelCheck, createRepair, stepRepair } from '../state/skillCheck';
 import { lockerSpots, panelSpots, panelSwitches, propFront } from '../world/props';
+import { Throwable, heldPos, launch, spawnThrowables, stepFlight } from '../state/throwables';
+import { ThrowablesView, createThrowablesView } from './throwablesView';
 import { HideState, LOCKER, clampLook, doorOpen, hiddenFrom, insideness, peekLean, requestExit, startHide, stepHide } from '../state/hiding';
 import { createPropsView, PropsView } from './propsView';
 import type { Settings } from '../state/settings';
@@ -107,6 +109,10 @@ export class Game {
   private hide: HideState | null = null;
   private hideFromYaw = 0;
   private hideWasCrouching = false;
+  /** Update 0.9.6 — bricks and bottles, the one in your hand, and their drawing. */
+  private throwables: Throwable[] = [];
+  private held: number | null = null;
+  private throwView!: ThrowablesView;
   /** Update 0.9.4 — the last worked-out way its sound reaches you. */
   private sound: SoundPath | null = null;
   private soundIn = 0;
@@ -177,6 +183,9 @@ export class Game {
     this.world.add(this.view.root);
     this.props = createPropsView(this.level, this.view);
     this.world.add(this.props.root);
+    this.throwView = createThrowablesView(); // Update 0.9.6
+    this.world.add(this.throwView.root);
+    this.throwables = spawnThrowables(this.level.throwables);
     this.repair = createRepair(this.rng);
     this.progress = createProgress(panelSpots(this.level).length);
     this.lights = createLighting(this.view);
@@ -249,9 +258,17 @@ export class Game {
     this.world.add(this.view.root);
     this.props = createPropsView(this.level, this.view);
     this.world.add(this.props.root);
+    this.world.remove(this.throwView.root);
+    this.throwView.dispose();
+    this.throwView = createThrowablesView();
+    this.world.add(this.throwView.root);
+    this.throwables = spawnThrowables(this.level.throwables);
+    this.held = null;
     this.repair = createRepair(this.rng);
     this.panelOpen = [];
     this.hide = null;
+    this.lockerCache = null;
+    this.enemyDoor = null;
     this.banner = null;
     this.lastObjective = '';
     this.lastObjectiveShown = '';
@@ -480,6 +497,7 @@ export class Game {
     });
     if (!scripted && this.body) this.body.root.position.y = this.player.rise; // Update 0.7 — up the stairs
     this.debugView.update(this.enemy, this.t, this.toWorld);
+    this.drawThrowables();
     this.lights.update(this.t, this.curFloor);
     this.fx.set({ time: this.t, fear: this.debugView.enabled ? 0 : this.fear, injured: this.debugView.enabled ? 0 : injuredTint(this.injured, this.t - this.impactT) });
     // Update 0.9.3 — the beam thins the fog (you see further down the hall while it's on).
@@ -542,8 +560,13 @@ export class Game {
       this.target = null;
     } else {
       if (input.actionPressed('interact')) this.interact();
-      this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected);
+      const lying = this.throwables.filter((x) => x.state === 'ground').map((x) => ({ id: x.id, kind: x.kind, pos: { x: x.pos.x, z: x.pos.z } }));
+      this.target = findTarget(this.level, player.pos, player.forward, this.progress.collected, lying);
+      // Update 0.9.6 — Space throws what you're holding (unless Space is busy with a skill check).
+      const atRepair = this.target?.type === 'panel' && input.action('interact');
+      if (this.held !== null && input.actionPressed('skillCheck') && !this.repair.check && !atRepair) this.throwHeld();
     }
+    this.stepThrowables(dt);
     this.workPanel(this.realDt, !this.hide && input.action('interact'), input.actionPressed('skillCheck'));
 
     // Enemy.
@@ -551,7 +574,15 @@ export class Game {
     const events = this.enemyFrozen ? [] : stepEnemy(
       this.level,
       this.enemy,
-      { dt, player: { pos: this.hide ? this.lockerDoorPos() : player.pos, flashlightOn: this.lightShows(), crouching: player.crouching, running: step.gait === 'sprint', hidden: hiddenFrom(this.hide) }, noise: this.noise, fuses: this.progress.fuses },
+      {
+        dt,
+        player: { pos: this.hide ? this.lockerDoorPos() : player.pos, flashlightOn: this.lightShows(), crouching: player.crouching, running: step.gait === 'sprint', hidden: hiddenFrom(this.hide), facing: player.forward, beam: this.lightShows() },
+        noise: this.noise,
+        fuses: this.progress.fuses,
+        // Update 0.9.6 — lockers it can check, and the one you're in.
+        lockers: this.enemyLockers(),
+        playerLocker: this.hide && this.hide.phase !== 'exiting' ? this.hide.locker : null,
+      },
       this.rng,
     );
     this.noise = null;
@@ -570,6 +601,14 @@ export class Game {
     if (events.includes('spotted')) {
       this.audio.enemyScream(this.enemy3D());
       this.audio.stinger();
+    }
+    // Update 0.9.6 — checking a locker: the door swings open for a second, then shut.
+    this.animateEnemyLocker(events);
+    if (events.includes('foundYou') && this.hide) {
+      this.leaveLockerNow(true);
+      if (this.lives > 1) this.startCaught();
+      else this.startDying();
+      return;
     }
     if (events.includes('caught')) {
       // Update 0.9.5 — it saw you get in: it drags you out. You're put outside the locker first so the
@@ -600,6 +639,57 @@ export class Game {
     this.audio.updateEnemy(heardAt, chasing, mix);
     this.audio.tickFear(dt, this.fear, chasing);
     this.audio.tickAmbient(dt, this.camAbs());
+  }
+
+  /** Update 0.9.6 — your eyes and which way you look (logic coords), for holding and throwing. */
+  private viewBasis() {
+    const eye = { x: this.camera.position.x, y: this.camera.position.y, z: this.camera.position.z };
+    const v = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const forward = { x: v.x, y: v.y, z: v.z };
+    const flat = Math.hypot(v.x, v.z) || 1;
+    const right = { x: -v.z / flat, y: 0, z: v.x / flat };
+    return { eye, forward, right };
+  }
+
+  private throwHeld() {
+    const it = this.throwables.find((x) => x.id === this.held);
+    if (!it) return;
+    const b = this.viewBasis();
+    Object.assign(it, launch(it, heldPos(b.eye, b.forward, b.right), b.forward));
+    this.held = null;
+  }
+
+  /** Update 0.9.6 — things in flight: gravity, and the crash (or thud) that brings it running. */
+  private stepThrowables(dt: number) {
+    for (let i = 0; i < this.throwables.length; i++) {
+      const it = this.throwables[i];
+      if (it.state !== 'flying') continue;
+      const r = stepFlight(this.level, it, dt);
+      this.throwables[i] = r.item;
+      if (r.landing) {
+        const w = this.toWorld(r.landing.at);
+        if (r.landing.broke) this.audio.bottleBreak({ x: w.x, y: w.y + 0.1, z: w.z });
+        else this.audio.brickImpact({ x: w.x, y: w.y + 0.1, z: w.z });
+        this.noise = { pos: r.landing.noise.pos, radius: r.landing.noise.radius, lure: true };
+      }
+    }
+  }
+
+  /** Caught with something in your hand: it drops where you stood. */
+  private dropHeld() {
+    const it = this.throwables.find((x) => x.id === this.held);
+    if (it) Object.assign(it, { state: 'ground', pos: { x: this.player.pos.x, y: 0, z: this.player.pos.z } });
+    this.held = null;
+  }
+
+  private drawThrowables() {
+    const b = this.viewBasis();
+    const show = this.held !== null && !this.hide && (this.phase === 'playing' || this.phase === 'paused' || this.phase === 'reading');
+    const held = show ? { pos: heldPos(b.eye, b.forward, b.right), quat: this.camera.quaternion } : null;
+    this.throwView.update(this.throwables, (p) => {
+      const w = this.toWorld(p);
+      return { x: w.x, y: w.y + p.y, z: w.z };
+    }, held, this.t);
   }
 
   /** Update 0.9.5 — one frame in a locker: getting in / out, peeking, the camera and the door. */
@@ -676,6 +766,37 @@ export class Game {
     this.hide = null;
   }
 
+  /** Update 0.9.6 — the lockers as The Patient sees them: middle, and where it stands to open one. */
+  private lockerCache: { center: { x: number; z: number }; stand: { x: number; z: number } }[] | null = null;
+  private enemyLockers() {
+    if (!this.lockerCache) {
+      this.lockerCache = lockerSpots(this.level).map((l) => {
+        const f = propFront(l);
+        return { center: { x: l.x, z: l.z }, stand: { x: l.x + f.x * 0.95, z: l.z + f.z * 0.95 } };
+      });
+    }
+    return this.lockerCache;
+  }
+
+  /** Update 0.9.6 — the locker it's checking (door open while it looks), with the door sound. */
+  private enemyDoor: number | null = null;
+  private animateEnemyLocker(events: string[]) {
+    const c = this.enemy.check;
+    const open = c?.phase === 'open' ? c.locker : null;
+    if (this.enemyDoor !== null && this.enemyDoor !== open && this.hide?.locker !== this.enemyDoor) {
+      this.props.setLockerDoor(this.enemyDoor, 0);
+    }
+    if (events.includes('lockerOpen') || events.includes('lockerClose')) {
+      const i = events.includes('lockerOpen') ? open : this.enemyDoor;
+      if (i !== null) {
+        const w = this.toWorld(lockerSpots(this.level)[i]);
+        this.audio.lockerEnter({ x: w.x, y: w.y + 1.2, z: w.z });
+      }
+    }
+    if (open !== null && c) this.props.setLockerDoor(open, Math.min(1, c.t / 0.25) * 1.35);
+    this.enemyDoor = open;
+  }
+
   /** Where it goes for you when it saw you hide: right at the locker door. */
   private lockerDoorPos() {
     const l = lockerSpots(this.level)[this.hide!.locker];
@@ -698,6 +819,16 @@ export class Game {
     const t = this.target;
     if (!t) return;
     const p = this.progress;
+    if (t.type === 'throwable') {
+      // Update 0.9.6 — pick it up (one at a time).
+      if (this.held !== null) return;
+      const it = this.throwables.find((x) => x.id === t.id);
+      if (!it || it.state !== 'ground') return;
+      it.state = 'held';
+      this.held = it.id;
+      this.audio.pickup();
+      return;
+    }
     if (t.type === 'item') {
       p.collected.push(t.item.id);
       this.view.items.get(t.item.id)!.visible = false;
@@ -844,6 +975,7 @@ export class Game {
 
   /** Update 0.6 — first catch: grab, lift, throw, get up injured (engine/caughtScene.ts). */
   private startCaught() {
+    this.dropHeld(); // Update 0.9.6
     this.phase = 'caught';
     this.lives--;
     this.toast = null;
@@ -921,6 +1053,7 @@ export class Game {
   }
 
   private startDying() {
+    this.dropHeld(); // Update 0.9.6
     this.phase = 'dying';
     this.toast = null;
     this.note = null;
@@ -1011,7 +1144,7 @@ export class Game {
 
   /** Same object while the words don't change, so the HUD doesn't re-render for nothing. */
   private currentPrompt(): Prompt | null {
-    const next = this.phase === 'playing' ? promptFor(this.target, this.progress, !!this.note) : null;
+    const next = this.phase === 'playing' ? promptFor(this.target, this.progress, !!this.note, this.held !== null) : null;
     if (!samePrompt(next, this.lastPrompt)) this.lastPrompt = next;
     return this.lastPrompt;
   }
@@ -1025,6 +1158,7 @@ export class Game {
       flashlightOn: s.flashlightOn,
       nightVision: this.rules.nightVision,
       hiding: this.hide?.phase === 'inside',
+      holding: this.held !== null && !this.hide && this.phase === 'playing' ? (this.throwables.find((x) => x.id === this.held)?.kind ?? null) : null,
       stamina: Math.round((s.stamina / 4.5) * 100) / 100,
       exhausted: s.exhausted,
       objective: objectiveText(this.progress),
@@ -1100,7 +1234,7 @@ export class Game {
     else this.startDying();
   }
   debugState() {
-    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, level: this.levelIndex + 1, floor: this.curFloor, enemyFloor: floorAt(this.level, this.enemy.pos), rise: this.player.rise, enemy: { ...this.enemy, path: undefined }, progress: this.progress, repair: this.repair, hide: this.hide, status: this.status, pos: this.player.pos };
+    return { lives: this.lives, injured: this.injured, caughtT: this.caught?.t ?? null, wakeT: this.wake?.t ?? null, caughtEnd: this.caught?.endPos ?? null, phase: this.phase, level: this.levelIndex + 1, floor: this.curFloor, enemyFloor: floorAt(this.level, this.enemy.pos), rise: this.player.rise, enemy: { ...this.enemy, path: undefined }, progress: this.progress, repair: this.repair, hide: this.hide, throwables: this.throwables, held: this.held, status: this.status, pos: this.player.pos };
   }
 
   /** Update 0.3 — F2: full light, no fog or screen FX, enemy marked through walls. */
@@ -1167,6 +1301,7 @@ export class Game {
     this.body?.dispose();
     this.debugView.dispose();
     this.props.dispose();
+    this.throwView.dispose();
     this.player.dispose(this.scene);
     this.fx.dispose();
     this.renderer.dispose();

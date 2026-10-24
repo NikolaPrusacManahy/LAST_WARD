@@ -15,7 +15,9 @@ export type Target =
   /** Update 0.9.1 — a panel's power switch (thrown once the panel is repaired). */
   | { type: 'switch'; index: number }
   /** Update 0.9.5 — a locker to hide in. */
-  | { type: 'locker'; index: number };
+  | { type: 'locker'; index: number }
+  /** Update 0.9.6 — a brick or bottle on the floor. */
+  | { type: 'throwable'; id: number; kind: 'brick' | 'bottle' };
 
 /** Lower is better. Update 0.9.1 — what you aim at wins over what's merely closer (a panel and its
  *  switch are a metre apart: look at the one you mean). */
@@ -27,7 +29,7 @@ function inView(from: Vec2, facing: Vec2, at: Vec2, reach: number): number | nul
   return dot > 0.55 ? (1 - dot) * 4 + d * 0.15 : null;
 }
 
-export function findTarget(level: Level, pos: Vec2, facing: Vec2, collected: string[]): Target | null {
+export function findTarget(level: Level, pos: Vec2, facing: Vec2, collected: string[], throwables: { id: number; kind: 'brick' | 'bottle'; pos: Vec2 }[] = []): Target | null {
   let best: { t: Target; d: number } | null = null;
   const consider = (t: Target, at: Vec2, reach: number) => {
     const d = inView(pos, facing, at, reach);
@@ -41,5 +43,6 @@ export function findTarget(level: Level, pos: Vec2, facing: Vec2, collected: str
   panelSpots(level).forEach((at, index) => consider({ type: 'panel', index }, at, REACH));
   panelSwitches(level).forEach((at, index) => consider({ type: 'switch', index }, at, REACH));
   lockerSpots(level).forEach((at, index) => consider({ type: 'locker', index }, at, REACH));
+  for (const t of throwables) consider({ type: 'throwable', id: t.id, kind: t.kind }, t.pos, REACH);
   return (best as { t: Target } | null)?.t ?? null;
 }

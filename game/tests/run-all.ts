@@ -21,5 +21,7 @@ import './test-panels';
 import './test-difficulty';
 import './test-hearing';
 import './test-hiding';
+import './test-patient096';
+import './test-throwables';
 
 process.exit(summary() > 0 ? 1 : 0);

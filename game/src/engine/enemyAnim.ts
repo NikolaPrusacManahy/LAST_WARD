@@ -20,7 +20,7 @@ export const CLIP_GROUND_SPEED: Record<EnemyClip, number> = {
 
 export const MOVING_THRESHOLD = 0.25; // m/s
 /** Update 0.6.4 — this fast it runs whatever its mode (sprinting to the generator). */
-export const RUN_THRESHOLD = 3.4; // m/s
+export const RUN_THRESHOLD = 4.0; // m/s (0.9.6: 4.0, was 3.4 — its walk is faster now, and stays a walk)
 
 export function chooseEnemyClip(mode: EnemyMode, speed: number, windingUp: boolean): EnemyClip {
   if (windingUp) return 'scream';
@@ -36,5 +36,5 @@ export function clipTimeScale(clip: EnemyClip, speed: number): number {
   const ref = CLIP_GROUND_SPEED[clip];
   if (clip === 'scream') return 1.6; // fits the AI windup
   if (!ref) return 1;
-  return Math.min(1.9, Math.max(0.6, speed / ref));
+  return Math.min(2.2, Math.max(0.6, speed / ref)); // 0.9.6: 2.2 (its walk is twice as fast now)
 }

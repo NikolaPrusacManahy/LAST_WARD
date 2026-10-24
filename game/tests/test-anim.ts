@@ -9,8 +9,8 @@ check('patrol moving → walk', chooseEnemyClip('patrol', 1.5, false) === 'walk'
 check('patrol standing → idle', chooseEnemyClip('patrol', 0, false) === 'idle');
 check('search standing → search', chooseEnemyClip('search', 0, false) === 'search');
 check('investigate moving → walk', chooseEnemyClip('investigate', 2.6, false) === 'walk');
-check('patrol walk plays near authored speed', Math.abs(clipTimeScale('walk', ENEMY.speed.patrol) - 1) < 0.1);
-check('fastest chase stays under the clamp', clipTimeScale('run', ENEMY.speed.chase * 1.21) <= 1.9);
+check('0.9.6: the twice-as-fast patrol walk plays the walk clip sped up, within the clamp', clipTimeScale('walk', ENEMY.speed.patrol) > 1.9 && clipTimeScale('walk', ENEMY.speed.patrol) <= 2.2 && chooseEnemyClip('patrol', ENEMY.speed.patrol, false) === 'walk');
+check('fastest chase stays under the clamp', clipTimeScale('run', ENEMY.speed.chase * 1.21) <= 2.2);
 check('idle ignores speed', clipTimeScale('idle', 3) === 1);
 
 import { armScaleFor, bodyBackOffset, bodyRootFor, choosePlayerClip, playerClipTimeScale } from '../src/engine/playerAnim';

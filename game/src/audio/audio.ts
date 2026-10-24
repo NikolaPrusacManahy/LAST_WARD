@@ -591,6 +591,14 @@ export class AudioEngine {
     if (!this.playSample('night_vision_on', { gain: NIGHT_VISION_SFX_GAIN })) this.click();
   }
 
+  /** Update 0.9.6 — a thrown brick thuds down; a bottle smashes. */
+  brickImpact(p: V3) {
+    if (!this.playSample('brick_impact', { at: p, ref: 3, rolloff: 1, gain: 0.9 })) this.panelClunk(p);
+  }
+  bottleBreak(p: V3) {
+    if (!this.playSample('bottle_break', { at: p, ref: 3, rolloff: 1, gain: 0.9 })) this.shortBang(p);
+  }
+
   /** Update 0.9.5 — getting into / out of a locker, and easing its door open to peek. */
   lockerEnter(p: V3) {
     if (!this.playSample('locker_enter', { at: p, ref: 2, rolloff: 1.2, gain: 0.8 })) this.panelClunk(p);

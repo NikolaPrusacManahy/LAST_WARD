@@ -1,6 +1,16 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.5.1
+## Current version: 0.9.6
+
+- **Things to throw** (`state/throwables.ts`, `engine/throwablesView.ts`): nine bricks and glass bottles lie against the walls of the halls. Look at one and left click to pick it up (one at a time); it floats in front of you. Space throws it where you look: it flies off with a little lift, gravity pulls it down, and the first thing it hits (floor, wall; the ceiling bounces it back down) is where it lands. A bottle smashes and is gone; a brick thuds down and can be picked up again. Models: Brick Libra (Nikitos & 3130) and Beer Bottle (gelmi.com.br), both CC BY 4.0; sounds from `ASSETS/audio/throwable/`.
+- **The landing lures The Patient:** it sprints to the spot. If you're within 5 m of it when it gets there, it screams and chases you; otherwise it searches round there.
+- **It checks lockers:** when it loses you (or finds nothing at a noise), it walks to the nearest locker within 9 m, opens it (door swings, locker sound), looks for a second and shuts it. If you're in it, you're caught (put outside it first, as before). It won't check the same locker again for 25 s.
+- **It walks twice as fast:** patrol 1.5 → 3.0 m/s (as fast as you walk). Searching 3.0 and going to look at a noise 3.2, still a walk; the chase is unchanged (4.3). Its walk animation plays faster to match (the run clip now starts at 4 m/s).
+- **It hears twice as far** (every noise radius ×2: walking 12 m, running 30 m).
+- **Your flashlight on its body gives you away at once,** whichever way it faces (within 30 m, nothing in the way). The night vision goggles don't count.
+- **Fixed: walking backwards.** Its turning blended the old and new facing, which cancel out when the new way is straight behind it: after a teleport or a U-turn it could walk backwards down a corridor. It now turns by angle and always turns round.
+
+## 0.9.5.1
 
 - **Peeking leans you out.** As the locker door creaks open, your head follows it: forward past the door's edge and sideways into the gap (the door hinges on your left, so you lean right), with a tilt of the head. At the full 60° you're looking down the room, not at the inside of the door. Some of the glow round your eyes comes back while your head is out. It still doesn't give you away (`state/hiding.ts` `peekLean`).
 

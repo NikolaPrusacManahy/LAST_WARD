@@ -3,7 +3,7 @@ import { check, section } from './harness';
 import { ENEMY, cornerCells, spawnAtCorner, stepEnemy, EnemyEvent } from '../src/world/enemyAI';
 import { shuffleItems } from '../src/world/itemShuffle';
 import { LEVEL_01 } from '../src/world/content/level01';
-import { cellCenter, dist, parseLevel, sameCell } from '../src/world/level';
+import { cellCenter, dist, parseLevel, sameCell, worldToCell } from '../src/world/level';
 import { lineOfSight } from '../src/world/lineOfSight';
 import { reachable } from '../src/world/pathfinding';
 import { createRng } from '../src/world/rng';
@@ -50,7 +50,9 @@ section('Teleport after 35 s without finding you (0.5.4, 0.6.4)');
   let far = 0;
   for (let i = 0; i < 30 * 60; i++) {
     stepEnemy(level, e, { dt: 1 / 60, player: hidden, noise: null, fuses: 0 }, rng);
-    if (e.mode === 'patrol' && dist(e.pos, cellCenter(e.home)) > (ENEMY.homeRadiusTiles + 1.5) * 3) far++;
+    // (0.9.6: by cells, as patrol goals are picked — at twice the speed it reaches the far ones.)
+    const c = worldToCell(e.pos);
+    if (e.mode === 'patrol' && Math.max(Math.abs(c.col - e.home.col), Math.abs(c.row - e.home.row)) > ENEMY.homeRadiusTiles + 1) far++;
   }
   check('patrols its own corner of the map', far === 0, `${far} frames outside`);
 

@@ -25,6 +25,8 @@ const onWall = (n, b) => n.getName() !== 'WallTest' && b.max[2] <= 2.1;
  * scale — metres per source unit (world units of the source scene), or `height` to size it.
  * anchor — 'floor': base at y = 0 (default); 'center': middle at the origin (things hung on walls).
  * simplify — keep about this share of the triangles (very dense models).
+ * drop — node names to remove from inside what was kept (Update 0.9.6).
+ * post — last fix-ups on the document (materials), after everything else (Update 0.9.6).
  * metal — metalness for materials with no metal/rough map. The spec/gloss → metal/rough conversion leaves
  *         some fully metallic, which renders near black without reflections (Update 0.9: brick, panels).
  */
@@ -59,6 +61,22 @@ export const PLAN = [
   { out: 'toilet', src: 'props/toilet_game_ready.glb', keep: ['LP1'], height: 0.8 },
   // Fluorecent lights (Sean Thomas, CC BY 4.0): the long ceiling housing.
   { out: 'fluorescent', src: 'props/fluorecent_lights.glb', keep: ['group8'], scale: 0.01, anchor: 'center' },
+  // Update 0.9.6 — things to throw. Brick Libra (Nikitos & 3130, CC BY 4.0): a 22 cm brick, simplified
+  // from 10.6k triangles. Beer Bottle (gelmi.com.br, CC BY 4.0): an empty 25 cm green bottle, its
+  // see-through outer shell and the beer dropped (plain materials, no glass refraction pass).
+  { out: 'brick', src: 'props/brick_throwable.glb', keep: ['LIBRA1_1'], scale: 0.22 / 2.287, simplify: 0.15, metal: 0, tex: 512 },
+  {
+    out: 'bottle', src: 'props/glass_bottle_throwable.glb', keep: ['GARRAFA'], scale: 0.25 / 47.38, tex: 256,
+    drop: ['GARRAFA_VIDRO FORA_0', 'GARRAFA_LIQUIDO_0', 'GARRAFA_LIMITE LIQUIDO_0'],
+    post: (doc) => {
+      for (const m of doc.getRoot().listMaterials()) {
+        m.setExtension('KHR_materials_transmission', null);
+        m.setMetallicFactor(0.05);
+        m.setRoughnessFactor(0.2);
+        if (m.getName() === 'VIDRO_DENTRO') m.setBaseColorFactor([0.12, 0.34, 0.1, 1]);
+      }
+    },
+  },
 ];
 
 const [srcDir, outDir] = process.argv.slice(2);
@@ -89,6 +107,7 @@ for (const job of PLAN) {
     all.reverse().forEach((n) => n.dispose());
   }
   if (!kept) throw new Error(`${job.out}: nothing matched in ${job.src}`);
+  for (const n of root.listNodes().filter((x) => job.drop?.includes(x.getName()))) n.dispose();
   const b = getBounds(scene);
   const size = b.max.map((v, i) => v - b.min[i]);
   const s = job.height ? job.height / size[1] : job.scale;
@@ -107,6 +126,7 @@ for (const job of PLAN) {
     steps.push(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: job.simplify, error: 0.002 }));
   }
   await doc.transform(...steps, textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [job.tex ?? 1024, job.tex ?? 1024], quality: 80 }));
+  job.post?.(doc);
   if (job.metal !== undefined) {
     for (const m of root.listMaterials()) if (!m.getMetallicRoughnessTexture()) m.setMetallicFactor(Math.min(m.getMetallicFactor(), job.metal));
   }

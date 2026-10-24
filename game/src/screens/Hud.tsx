@@ -97,6 +97,13 @@ export function Hud({ store, hidden, onBegin }: Props) {
           </span>
         </div>
       )}
+      {h.holding && !h.repair && (
+        <div className="lw-hide-hint">
+          <span>
+            Press <InputIcon code={h.bindings.skillCheck} size="sm" /> to throw the {h.holding === 'brick' ? 'brick' : 'bottle'}
+          </span>
+        </div>
+      )}
       {h.toast && <div className="lw-hud-toast" key={h.toast}>{h.toast}</div>}
       {h.note && (
         <div className="lw-note">
