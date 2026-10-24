@@ -104,8 +104,8 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | Flashlight battery | `PLAYER.batteryDrainPerSec` | ~90 s per full battery, +45% per pickup (Hard: drains 1/0.6× as fast) |
 | Footstep noise radius | `PLAYER.noise` | walk 6 m, sprint 15 m, crouch silent (it hears ×2: 12 / 30 m) |
 | Enemy speed | `ENEMY.speed`, `ragePerFuse` | patrol 1.5, search 2.1, investigate 2.6, chase 4.3 m/s (0.9.6.2: walks back from 3.0 / 3.0 / 3.2); +4% per fuse found, chase only (4.99 with all four, `enemySpeed`) |
-| Enemy sight | `ENEMY.viewDistLight / Dark` | 20.8 m with your flashlight on, 10.4 m off (×0.7 crouched, ×1.3 running), 130° cone; your beam on its body = spotted at once (30 m) |
-| Lose it | `ENEMY.memorySeconds`, `searchSeconds` | tracks you 1.2 s after losing sight, then (0.9.8) straight back to its patrol; after a noise where it finds nothing it searches 7 s (and checks a locker within 9 m) |
+| Enemy sight | `ENEMY.viewDistLight / Dark` | 20.8 m with your flashlight on, 10.4 m off (×0.7 crouched, ×1.3 running), 130° cone; your beam on its body = spotted at once (30 m); 0.9.8: beam and the 3 m close sense only in front / at its sides (`sideHalf` 90°), never behind |
+| Lose it | `ENEMY.memorySeconds`, `searchSeconds` | tracks you 1.2 s after losing sight, then (0.9.8) straight back to its patrol (and gives up the chase 10 s after losing sight at most, `giveUpSeconds`); after a noise where it finds nothing it searches 7 s (and checks a locker within 9 m) |
 | Med kit | `MEDKIT_SECONDS` (state/inventory.ts) | hold use 5 s: not injured, lives back to the difficulty's full count |
 | Scream head start | `ENEMY.windupSeconds` | screams in place 1.0 s after spotting you, then charges |
 | Corner teleport | `ENEMY.teleportAfter`, `teleportMinDist`, `homeRadiusTiles` | 35 s without spotting you → another corner, ≥ 14 m from you and out of sight (never mid-task); patrols within 12 tiles of its corner |

@@ -30,9 +30,20 @@ section('Your flashlight on its body (0.9.6)');
   e.pos = at(16, 5);
   e.dir = { x: 1, z: 0 }; // facing away from you
   const you = { pos: at(10, 5), flashlightOn: true, crouching: true, facing: { x: 1, z: 0 }, beam: true };
-  check('beam on its back, 18 m away: it knows', litByBeam(level, e, you));
+  // Update 0.9.8 — not from behind any more: only from in front of it or at its side.
+  check('0.9.8: beam on its back, 18 m away: it doesn\'t know', !litByBeam(level, e, you));
   const ev = stepEnemy(level, e, { dt: 1 / 60, player: you, noise: null, fuses: 0 }, createRng(1));
-  check('…spotted at once, even facing away', ev.includes('spotted') && e.mode === 'chase');
+  check('0.9.8: …nothing happens', !ev.includes('spotted') && e.mode !== 'chase');
+  const front = createEnemy(level);
+  front.pos = at(16, 5);
+  front.dir = { x: -1, z: 0 }; // facing you
+  check('beam on it from in front, 18 m away: it knows at once', litByBeam(level, front, you));
+  const ev2 = stepEnemy(level, front, { dt: 1 / 60, player: you, noise: null, fuses: 0 }, createRng(1));
+  check('…spotted at once', ev2.includes('spotted') && front.mode === 'chase');
+  const side = createEnemy(level);
+  side.pos = at(16, 5);
+  side.dir = { x: 0, z: 1 }; // side on to you
+  check('0.9.8: from its side: it knows (front and sides, not behind)', litByBeam(level, side, you));
   const e2 = createEnemy(level);
   e2.pos = at(16, 5);
   e2.dir = { x: 1, z: 0 };

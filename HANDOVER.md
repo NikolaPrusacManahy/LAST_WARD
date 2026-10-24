@@ -10,6 +10,10 @@
 - **No shadows from things you carry:** a brick or bottle in your hand, with the flashlight on, threw a shadow across the screen. Nothing you carry casts one now.
 - **The Patient no longer searches after losing you.** When it loses you in a chase, it goes to where it last knew you were and then straight back to its patrol. It used to search round there and check the nearest locker, which was always the one you'd just got away into. (It still searches, and checks lockers, where it heard a noise and found nothing.)
 - **Your walk animation is back to half speed** (0.9.7 matched it to the ground; the quick steps looked off).
+- **It doesn't notice you from behind** (`ENEMY.sideHalf`). Your flashlight on its back used to give you away at once from up to 30 m, and anyone within 3 m was noticed at any angle; that made the flashlight useless. Now your beam on it and the close-up 3 m sense only count in front of it and at its sides (90° round from where it faces), never behind. Its normal sight (the 130° cone in front) is unchanged, and it still hears your footsteps from behind.
+- **Fixed: it got stuck going left and right where it lost you, until it saw you again.** Chasing the spot where it lost sight of you, it re-plans every 0.4 s, and a re-plan inside that spot's cell always sent it back to the cell's middle first. A spot near the cell's edge (in front of a locker, by a wall) was more than 0.4 s from the middle, so it never got there. Reproduced on the map: 494 of 620 such spots stuck before. Now, in the spot's cell, it walks straight to it (`goTo`), and as a safety net it gives up 10 s after losing sight of you wherever it is (`ENEMY.giveUpSeconds`). After: none stuck, all there within 2 s; and from a few cells away, 28 of 134 chases that went round in circles before, none after.
+- **3 more item tables** (15 in all): one more med kit and two more batteries (map letters at (19, 3), (21, 9), (8, 13)), shuffled with the rest. Two med kits on 15 tables: about a 37% chance one is on the first three tables you check (it was 25%: one on 12).
+- **The notes are short logs, up to date:** the old maintenance note still said three fuses; the victim's story is cut down to a few lines; they now hint at the four panels, the ceiling, the med kits and its blind back.
 - **Fixed: the breath line came in late.** It measured your stamina against 4.5 s, but a full sprint has been 5.5 s since before 0.9.6, so the line stayed hidden for your first second of running and filled up early. It uses the real sprint length now (`staminaShare` in `state/hudLayout.ts`) and shows as soon as you start running.
 - Checked in the browser: picking a fuse off a table, keys 1–3 (empty hands, put away, back), dropping it with Space and picking it up, the slot bar with a fuse, a brick and a med kit, the med kit healing after 5 s, the brick thrown with left click. New checks in `tests/test-slots.ts`.
 
@@ -306,7 +310,7 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + rule tests, 662 at 0.9.8) and `npm run verify` (adds the production build). Run `verify` before every commit.
+From `game/`: `npm run verify:quick` (typecheck + rule tests, 672 at 0.9.8) and `npm run verify` (adds the production build). Run `verify` before every commit.
 
 ## How to publish
 `npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready). The public build has the debug tools (F2, F3, `?debug`, `?level=N`, the tester level picker) switched off.
@@ -319,7 +323,7 @@ From `game/`: `npm run verify:quick` (typecheck + rule tests, 662 at 0.9.8) and 
 - **Assets:** raw files in `ASSETS/` (not shipped), converted by the scripts in `game/tools/` into `game/public/`. Every outside asset needs a line in `game/src/state/credits.ts`.
 
 ## Verified vs unverified
-- ✅ Typecheck, 662 rule tests and the production build pass (0.9.8).
+- ✅ Typecheck, 672 rule tests and the production build pass (0.9.8).
 - ✅ Headless browser checks (software rendering, ~1–2 fps) of each feature as it was added: panels and skill checks, banner, difficulty picker and night vision, lockers and peeking, throwing, locker checks, the furnished generator room.
 - ⚠️ **Not verified by playing:** real-GPU frame rate, how it sounds (volumes, the hearing model; 0.9.6.1: the running breath's level and loop seam, the wake-up sound against the scene), mouse feel, timing of skill checks, chases after throws, how escapable a chase feels after 0.9.6.2 (the next knob if it's still too hard: `ENEMY.windupSeconds`, its scream, 1.0 → 1.5 s), the ceiling crawl in play (how often, how the flip looks at full speed, its scuttle sound). Tuned on paper; adjust `ENEMY` / `PLAYER` / `THROW` / `SKILL` after playing.
 

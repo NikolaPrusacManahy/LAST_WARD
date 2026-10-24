@@ -85,7 +85,7 @@ section('Table items shuffle (0.5.4)');
   for (let seed = 1; seed <= 50; seed++) {
     const l = shuffleItems(level, createRng(seed));
     const kinds = (k: string) => l.items.filter((i) => i.kind === k).length;
-    if (kinds('fuse') !== FUSES_NEEDED || kinds('battery') !== 3 || kinds('note') !== 4) ok = false;
+    if (kinds('fuse') !== FUSES_NEEDED || kinds('battery') !== 5 || kinds('note') !== 4 || kinds('medkit') !== 2) ok = false; // 0.9.8: 5 batteries, 2 med kits
     if (l.items.map((i) => `${i.cell.col},${i.cell.row}`).sort().join(' ') !== spots) ok = false;
     if (!l.items.every((i) => fromStart.has(i.cell.row * l.cols + i.cell.col))) ok = false;
     const notes = l.items.filter((i) => i.kind === 'note').map((i) => i.noteIndex).sort().join(',');

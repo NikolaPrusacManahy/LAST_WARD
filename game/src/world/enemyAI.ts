@@ -23,7 +23,7 @@ export const ENEMY = {
   speed: { patrol: 1.5, investigate: 2.6, chase: 4.3, search: 2.1, crawl: 8.6 } as Record<EnemyMode, number>,
   /** Update 0.9.6 — it hears everything twice as far. */
   hearingMul: 2,
-  /** Update 0.9.6 — your flashlight on its body: it knows where you are at once, whichever way it faces.
+  /** Update 0.9.6 — your flashlight on its body: it knows where you are at once (0.9.8: unless its back is to you).
    *  Your beam's half-angle (rad) and how far it counts (m). */
   beamHalf: 0.55,
   beamRange: 30,
@@ -47,10 +47,15 @@ export const ENEMY = {
   crouchSightMul: 0.7,
   /** Update 0.9 — running makes you easier to spot: it sees you this much further. */
   runSightMul: 1.3,
-  senseRadius: 3, // sees you at any angle this close
+  senseRadius: 3, // this close it notices you at its sides too (0.9.8: not behind it; it used to at any angle)
+  /** Update 0.9.8 — up close, or with your beam on it, it notices you in front and at its sides (this far
+   *  round from where it faces, rad), never behind it: the flashlight on its back gave you away at once. */
+  sideHalf: Math.PI / 2,
   alertRise: 2.4,
   alertDecay: 0.5,
   memorySeconds: 1.2, // keeps tracking you briefly after losing sight
+  /** Update 0.9.8 — a safety net: this long after losing sight of you it gives up the chase wherever it is. */
+  giveUpSeconds: 10,
   searchSeconds: 7,
   repathSeconds: 0.4,
   muffledNoiseMul: 0.6, // noise through walls carries less
@@ -345,10 +350,11 @@ export function visibility(level: Level, e: EnemyState, p: PlayerSense): number 
   if (p.crouching) view *= ENEMY.crouchSightMul;
   if (p.running) view *= ENEMY.runSightMul;
   if (d > view) return 0;
-  if (d > ENEMY.senseRadius) {
+  if (d > 0.01) {
     const toP = { x: (p.pos.x - e.pos.x) / d, z: (p.pos.z - e.pos.z) / d };
     const dot = toP.x * e.dir.x + toP.z * e.dir.z;
-    if (Math.acos(Math.max(-1, Math.min(1, dot))) > ENEMY.fovHalf) return 0;
+    // Its view cone; up close, its sides too. Update 0.9.8 — never behind it.
+    if (Math.acos(Math.max(-1, Math.min(1, dot))) > (d > ENEMY.senseRadius ? ENEMY.fovHalf : ENEMY.sideHalf)) return 0;
   }
   if (!lineOfSight(level, e.pos, p.pos)) return 0;
   return Math.min(1, (1 - d / view) * 1.6 + 0.2);
@@ -361,12 +367,14 @@ export function heardNoise(level: Level, e: EnemyState, n: Noise): boolean {
   return lineOfSight(level, e.pos, n.pos) || d <= r * ENEMY.muffledNoiseMul;
 }
 
-/** Update 0.9.6 — your flashlight beam is on it (and nothing's in the way). */
+/** Update 0.9.6 — your flashlight beam is on it (and nothing's in the way).
+ *  Update 0.9.8 — and you're in front of it or at its side: shining it on its back gives nothing away. */
 export function litByBeam(level: Level, e: EnemyState, p: PlayerSense): boolean {
   if (!p.beam || !p.facing || p.hidden) return false;
   const d = dist(e.pos, p.pos);
   if (d > ENEMY.beamRange || d < 0.01) return false;
   const to = { x: (e.pos.x - p.pos.x) / d, z: (e.pos.z - p.pos.z) / d };
+  if (-(to.x * e.dir.x + to.z * e.dir.z) < Math.cos(ENEMY.sideHalf) - 1e-9) return false; // you're behind it
   const dot = to.x * p.facing.x + to.z * p.facing.z;
   // Its body is ~0.5 m wide: count it lit if the beam cone reaches its edge.
   const half = ENEMY.beamHalf + Math.atan2(ENEMY.bodyRadius, d);
@@ -421,6 +429,10 @@ function goTo(level: Level, e: EnemyState, target: Vec2) {
   // walking back to the centre first, every re-plan, kept it from ever reaching the top step's portal.
   const crossing = e.path.length > 1 && (Math.abs(e.path[1].col - e.path[0].col) > 1 || Math.abs(e.path[1].row - e.path[0].row) > 1);
   e.pathIndex = e.path.length > 1 && (crossing || clearLine(level, e.pos, cellCenter(e.path[1]), ENEMY.bodyRadius)) ? 1 : 0;
+  // Update 0.9.8 — already in the target's cell: straight to it if its body fits. Walking to the cell's
+  // middle first, every re-plan (each 0.4 s in a chase), left it going back and forth, never getting to a
+  // spot near the cell's edge (in front of a locker, by a wall) until it saw you again.
+  if (e.path.length === 1 && e.goal && clearLine(level, e.pos, e.goal, ENEMY.bodyRadius)) e.pathIndex = 1;
   e.repath = ENEMY.repathSeconds;
   if (!e.path.length) e.goal = null; // unreachable: never walk through walls
 
@@ -805,7 +817,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
         e.repath -= dt;
         if (e.repath <= 0 || !e.goal || dist(e.goal, e.lastKnown) > TILE * 0.5) goTo(level, e, e.lastKnown);
         const arrived = followPath(level, e, speed, dt);
-        if (arrived && e.sinceSeen > tune.memorySeconds) {
+        if ((arrived && e.sinceSeen > tune.memorySeconds) || e.sinceSeen > tune.memorySeconds + ENEMY.giveUpSeconds) {
           // Update 0.9.8 — lost you: straight back to its patrol. It used to search round there and check
           // the nearest locker, which was always the one you'd just got away into.
           setMode(e, 'patrol');
