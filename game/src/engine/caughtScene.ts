@@ -5,7 +5,7 @@
 //   so you feel every flip and the slam into the floor.
 import * as THREE from 'three';
 import type { Level, Vec2 } from '../world/level';
-import { throwLanding } from '../world/throwLanding';
+import { throwLanding, throwPlan } from '../world/throwLanding';
 import { ENEMY_THROW_SPEED, caughtTimes, cuesBetween, flightProgress, THROWN_CLIP, CaughtCue } from '../state/caughtSequence';
 import { Blocker, overlapsWall } from '../world/collision';
 import type { EnemyView } from './enemyView';
@@ -51,9 +51,18 @@ export function createCaughtScene(i: CaughtSceneInput) {
   const toPlayer = { x: i.playerPos.x - i.enemyPos.x, z: i.playerPos.z - i.enemyPos.z };
   const len = Math.hypot(toPlayer.x, toPlayer.z) || 1;
   const facing = { x: toPlayer.x / len, z: toPlayer.z / len }; // it faces you
-  const enemyYaw = Math.atan2(facing.x, facing.z);
-  const landing = throwLanding(i.level, i.playerPos, facing, i.blockers ?? []);
+  // Update 0.9.7 — it turns, with you in its hands, to the way it throws you (down the hall / into open
+  // room), then throws you forward from its hands.
+  const plan = throwPlan(i.level, i.enemyPos, facing, i.blockers ?? []);
+  const landing = throwLanding(i.level, plan.from, plan.dir, i.blockers ?? []);
   const bodyYaw = bodyYawForThrow(landing.dir);
+  const yawAtYou = Math.atan2(facing.x, facing.z);
+  const turn = Math.atan2(Math.sin(Math.atan2(plan.dir.x, plan.dir.z) - yawAtYou), Math.cos(Math.atan2(plan.dir.x, plan.dir.z) - yawAtYou));
+  /** Its facing during the grab: from you round to the throw (0.3 → 1.6 s), then held. */
+  const enemyYawAt = (t: number) => {
+    const k = Math.min(1, Math.max(0, (t - 0.3) / 1.3));
+    return yawAtYou + turn * k * k * (3 - 2 * k);
+  };
 
   const startEye = new THREE.Vector3(i.playerPos.x, i.eyeHeight, i.playerPos.z);
   const held = new THREE.Vector3();
@@ -88,17 +97,18 @@ export function createCaughtScene(i: CaughtSceneInput) {
       const cam = i.camera;
       const body = i.body();
 
-      // The Patient: grab → throw in place, facing you; after vanishing, idling at its corner.
+      // The Patient: grab (turning to the throw) → throw in place; after vanishing, idling at its corner.
       // Update 0.6.1 — the throw clip plays 1.5× slower so it is still throwing while you fly.
-      if (!enemyGone) i.enemyView.pose(i.enemyPos, enemyYaw, t < caughtTimes.throwAt ? 'grab' : 'throw', clock, t < caughtTimes.throwAt ? 1 : ENEMY_THROW_SPEED);
-      else i.enemyView.pose(enemyAt, enemyYaw, 'idle', clock);
+      const yaw = enemyYawAt(t);
+      if (!enemyGone) i.enemyView.pose(i.enemyPos, yaw, t < caughtTimes.throwAt ? 'grab' : 'throw', clock, t < caughtTimes.throwAt ? 1 : ENEMY_THROW_SPEED);
+      else i.enemyView.pose(enemyAt, yaw, 'idle', clock);
 
       if (t < caughtTimes.launchAt || !body) {
         // In its hands: ride up to them (lifted), look it in the face, thrash a little.
         i.enemyView.hands(held);
         held.y -= 0.08;
-        held.x += facing.x * 0.12;
-        held.z += facing.z * 0.12;
+        held.x += Math.sin(yaw) * 0.12;
+        held.z += Math.cos(yaw) * 0.12;
         const k = Math.min(1, t / 0.8);
         const lift = k * k * (3 - 2 * k);
         if (t < caughtTimes.launchAt) cam.position.lerpVectors(startEye, held, lift);
@@ -107,9 +117,9 @@ export function createCaughtScene(i: CaughtSceneInput) {
           const f = flightProgress(t);
           const arc = Math.sin(Math.min(1, f) * Math.PI) * 1.2;
           cam.position.set(
-            i.playerPos.x + (landing.at.x - i.playerPos.x) * f,
+            plan.from.x + (landing.at.x - plan.from.x) * f,
             Math.max(0.25, 1.4 * (1 - f) + 0.25 * f + arc),
-            i.playerPos.z + (landing.at.z - i.playerPos.z) * f,
+            plan.from.z + (landing.at.z - plan.from.z) * f,
           );
         }
         i.enemyView.head.getWorldPosition(face);
@@ -123,16 +133,18 @@ export function createCaughtScene(i: CaughtSceneInput) {
         body.setVisible(true);
         const f = t < caughtTimes.getUpAt ? flightProgress(t) : 1;
         // Update 0.6.1 — the wall stops you; if your head would end up in it, the body slides back off it.
+        // Update 0.9.7 — from its hands (in front of it), not from where you stood.
         const at = {
-          x: i.playerPos.x + (landing.at.x - i.playerPos.x) * f - landing.dir.x * wallPush,
-          z: i.playerPos.z + (landing.at.z - i.playerPos.z) * f - landing.dir.z * wallPush,
+          x: plan.from.x + (landing.at.x - plan.from.x) * f - landing.dir.x * wallPush,
+          z: plan.from.z + (landing.at.z - plan.from.z) * f - landing.dir.z * wallPush,
         };
         if (t < caughtTimes.getUpAt) body.cinematic({ clip: 'thrown', startAt: THROWN_CLIP.flipStart, fade: 0.05, pos: at, yaw: bodyYaw, dt });
         // Hard cut while your eyes are shut: a blend from on-your-back to face-down sank the head into the floor.
         else body.cinematic({ clip: 'getUp', startAt: 0, fade: 0, pos: at, yaw: bodyYaw, dt });
         body.eyes(eyePos, eyeQ);
         if (wallPush < 1.2 && overlapsWall(i.level, { x: eyePos.x, z: eyePos.z }, 0.15, i.blockers ?? [])) wallPush += 0.04;
-        endAt = at;
+        // Update 0.9.7 — the get-up moves you (its hips travel back over your feet): you end where your eyes are.
+        endAt = t < caughtTimes.getUpAt ? at : { x: eyePos.x, z: eyePos.z };
         cam.position.copy(eyePos);
         cam.position.y = Math.max(0.1, cam.position.y); // never below the floor
         cam.quaternion.copy(eyeQ);

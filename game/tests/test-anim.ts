@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { check, section } from './harness';
 import { chooseEnemyClip, clipTimeScale } from '../src/engine/enemyAnim';
 import { ENEMY } from '../src/world/enemyAI';
@@ -34,8 +35,31 @@ check('arms hidden while running', armScaleFor('run') === 0);
   check('looking down pushes the body further back', bodyBackOffset(-1) > bodyBackOffset(0));
 }
 check('arms shown otherwise', armScaleFor('walk') === 1 && armScaleFor('idle') === 1 && armScaleFor('crouch') === 1);
-check('walk plays at half speed', playerClipTimeScale('walk', 1.6) === 0.5 && Math.abs(playerClipTimeScale('walk', 3.0) - 0.85) < 1e-9);
+check('0.9.7: walk matches the ground, no sliding (3 m/s ÷ the clip\'s 1.6 m/s)', playerClipTimeScale('walk', 1.6) === 1 && Math.abs(playerClipTimeScale('walk', 3.0) - 3.0 / 1.6) < 1e-9);
+check('0.9.7: strafe and the injured walk too', Math.abs(playerClipTimeScale('strafeLeft', 3.0) - 3.0 / 1.6) < 1e-9 && Math.abs(playerClipTimeScale('injuredWalk', 3.0) - 3.0 / 1.6) < 1e-9);
 check('run plays at half speed', playerClipTimeScale('run', 3.2) === 0.5);
+
+section('Player get-up keeps its hip movement (0.9.7)');
+{
+  // The hips' translation over a clip, read straight out of player.glb (JSON chunk + binary chunk).
+  const glb = readFileSync(new URL('../public/models/player.glb', import.meta.url));
+  const jsonLen = glb.readUInt32LE(12);
+  const gltf = JSON.parse(glb.subarray(20, 20 + jsonLen).toString('utf8'));
+  const bin = glb.subarray(20 + jsonLen + 8);
+  const hips = (clip: string) => {
+    const anim = gltf.animations.find((a: { name: string }) => a.name === clip);
+    const ch = anim.channels.find((c: { target: { node: number; path: string } }) => /Hips$/.test(gltf.nodes[c.target.node].name) && c.target.path === 'translation');
+    const acc = gltf.accessors[anim.samplers[ch.sampler].output];
+    const view = gltf.bufferViews[acc.bufferView];
+    const at = (view.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+    const v = (i: number) => bin.readFloatLE(at + i * 4);
+    return { first: { x: v(0), z: v(2) }, last: { x: v(acc.count * 3 - 3), z: v(acc.count * 3 - 1) } };
+  };
+  const up = hips('getUp');
+  check('getting up, the hips travel back over the feet (~0.6 m) instead of pinning: the hands stay planted', Math.hypot(up.last.x - up.first.x, up.last.z - up.first.z) > 0.4);
+  const walk = hips('walk');
+  check('…while the walk still walks in place (the game moves you)', Math.hypot(walk.last.x - walk.first.x, walk.last.z - walk.first.z) < 1e-6);
+}
 
 section('Debug panel');
 {
@@ -74,7 +98,7 @@ section('Strafe (0.5.3)');
   const c = localVelocity({ x: 0, z: -3 }, 0);
   check('local velocity: moving to your right is +side', Math.abs(a.side - 3) < 1e-9 && Math.abs(b.side - 3) < 1e-9);
   check('local velocity: moving where you look is +ahead', Math.abs(c.ahead - 3) < 1e-9 && Math.abs(c.side) < 1e-9);
-  check('strafe plays at the walk pace (half speed)', ts('strafeLeft', 1.6) === 0.5 && ts('strafeRight', 1.6) === 0.5);
+  check('strafe plays at the walk pace (0.9.7: matched, like the walk)', ts('strafeLeft', 1.6) === ts('walk', 1.6) && ts('strafeRight', 3) === ts('walk', 3));
 }
 
 section('Diagonal body turn (0.5.3)');

@@ -1,7 +1,7 @@
 // Sound engine. Recorded samples from public/audio (see manifest.json) with a synthesised
 // fallback per sound. Enemy and generator sounds are 3D (PannerNode, HRTF); enemy sounds are
 // also filtered by distance and walls (audio/spatial.ts).
-import { EnemyMix, FLASHLIGHT_CLICK_GAIN, NIGHT_VISION_SFX_GAIN, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, RUN_BREATH_GAIN, SPOT_SCREAM_GAIN, enemyStepGain } from './spatial';
+import { CRAWL_STEP_GAIN, EnemyMix, FLASHLIGHT_CLICK_GAIN, NIGHT_VISION_SFX_GAIN, PANEL_SFX_GAIN, PLAYER_STEP_GAIN, RUN_BREATH_GAIN, SPOT_SCREAM_GAIN, enemyStepGain } from './spatial';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -152,10 +152,12 @@ export class AudioEngine {
     this.runBreath.gain.gain.setTargetAtTime(on ? RUN_BREATH_GAIN : 0, this.now, on ? 0.1 : 0.25);
   }
 
-  /** 3D footstep at its position, darker with distance and muffled behind walls. */
-  enemyStep(p: V3, heavy: boolean, mix: EnemyMix = { cutoff: 16000, gain: 1, occluded: false }) {
-    const gain = enemyStepGain(heavy, mix);
-    if (!this.playSample('step_patient', { at: p, ref: 2.5, rolloff: 1.3, gain, cutoff: mix.cutoff, rate: 0.9 * this.jitter(0.06) })) this.synthEnemyStep(p, heavy);
+  /** 3D footstep at its position, darker with distance and muffled behind walls.
+   *  Update 0.9.7 — `crawl`: its hands and feet on the ceiling, quicker and lighter. */
+  enemyStep(p: V3, heavy: boolean, mix: EnemyMix = { cutoff: 16000, gain: 1, occluded: false }, crawl = false) {
+    const gain = enemyStepGain(heavy, mix) * (crawl ? CRAWL_STEP_GAIN : 1);
+    const rate = (crawl ? 1.35 : 0.9) * this.jitter(0.06);
+    if (!this.playSample('step_patient', { at: p, ref: 2.5, rolloff: 1.3, gain, cutoff: mix.cutoff, rate })) this.synthEnemyStep(p, heavy);
   }
 
   /** Update 0.4 — its scream from where it stands (on spotting you). */

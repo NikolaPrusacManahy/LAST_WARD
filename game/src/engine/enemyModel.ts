@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { EnemyMode } from '../world/enemyAI';
 import type { EnemyView } from './enemyView';
-import { EnemyClip, chooseEnemyClip, clipTimeScale } from './enemyAnim';
+import { CRAWL_FLIP_PIVOT, EnemyClip, chooseEnemyClip, clipTimeScale } from './enemyAnim';
+import { CRAWL } from '../world/enemyAI';
 
 export const PATIENT_URL = '/models/patient.glb';
 const SCALE = 1.15; // ~2.25 m tall: a bit too big to be human
@@ -34,7 +35,13 @@ export async function loadEnemyModel(url = PATIENT_URL): Promise<EnemyView> {
   });
 
   const root = new THREE.Group();
-  root.add(model);
+  // Update 0.9.7 — it turns over onto the ceiling about its middle (spin), not its feet: turning about its
+  // feet swung its whole body out sideways into the corridor walls.
+  const spin = new THREE.Group();
+  spin.position.y = CRAWL_FLIP_PIVOT;
+  model.position.y = -CRAWL_FLIP_PIVOT;
+  spin.add(model);
+  root.add(spin);
   const head = model.getObjectByName('mixamorigHead') ?? model;
   const handL = model.getObjectByName('mixamorigLeftHand');
   const handR = model.getObjectByName('mixamorigRightHand');
@@ -44,7 +51,7 @@ export async function loadEnemyModel(url = PATIENT_URL): Promise<EnemyView> {
   const actions = new Map<EnemyClip, THREE.AnimationAction>();
   for (const clip of gltf.animations) {
     const a = mixer.clipAction(clip);
-    if (['scream', 'attack', 'grab', 'throw'].includes(clip.name)) {
+    if (['scream', 'attack', 'grab', 'throw', 'jumpUp'].includes(clip.name)) {
       a.setLoop(THREE.LoopOnce, 1);
       a.clampWhenFinished = true;
     }
@@ -81,17 +88,25 @@ export async function loadEnemyModel(url = PATIENT_URL): Promise<EnemyView> {
       handL.getWorldPosition(out);
       return out.add(handR.getWorldPosition(tmpH)).multiplyScalar(0.5);
     },
-    update(pos, dir, mode: EnemyMode, moved, t, windingUp = false) {
+    update(pos, dir, mode: EnemyMode, moved, t, windingUp = false, crawl = null) {
       const dt = tick(t);
       root.position.set(pos.x, 0, pos.z);
       const targetYaw = Math.atan2(dir.x, dir.z);
       const d = Math.atan2(Math.sin(targetYaw - yaw), Math.cos(targetYaw - yaw));
       yaw += d * Math.min(1, dt * 10);
       root.rotation.y = yaw;
+      spin.rotation.z = (crawl?.flip ?? 0) * Math.PI; // Update 0.9.7 — upside down on the ceiling
       // A teleport (metres in one frame) isn't running: don't let it spike the gait.
       if (dt > 0) speed += ((moved > 2 ? 0 : moved) / dt - speed) * Math.min(1, dt * 8);
-      const clip = chooseEnemyClip(mode, speed, windingUp);
-      play(clip, clipTimeScale(clip, speed));
+      if (crawl) {
+        // Update 0.9.7 — going up / coming down: the jump clip at the time the AI gives (forwards or back).
+        play(crawl.clip, crawl.timeScale);
+        const jump = actions.get('jumpUp');
+        if (crawl.clip === 'jumpUp' && jump) jump.time = Math.min(crawl.time ?? 0, CRAWL.jumpTop);
+      } else {
+        const clip = chooseEnemyClip(mode, speed, windingUp);
+        play(clip, clipTimeScale(clip, speed));
+      }
       mixer.update(dt);
     },
     pose(pos, yawNow, clip, t, timeScale = 1) {

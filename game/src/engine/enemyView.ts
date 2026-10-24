@@ -2,13 +2,15 @@
 // Animation only — where it goes is decided by world/enemyAI.ts.
 import * as THREE from 'three';
 import type { EnemyMode } from '../world/enemyAI';
+import { CRAWL_FLIP_PIVOT, type CrawlPose } from './enemyAnim';
 
 export interface EnemyView {
   root: THREE.Group;
   head: THREE.Object3D;
   /** Update 0.6 — where it holds you: between its hands (world space). */
   hands(out: THREE.Vector3): THREE.Vector3;
-  update(pos: { x: number; z: number }, dir: { x: number; z: number }, mode: EnemyMode, moved: number, t: number, windingUp?: boolean): void;
+  /** Update 0.9.7 — `crawl`: up on the ceiling (turned over by `flip`; Game lifts the root by `lift`). */
+  update(pos: { x: number; z: number }, dir: { x: number; z: number }, mode: EnemyMode, moved: number, t: number, windingUp?: boolean, crawl?: CrawlPose | null): void;
   /** Jumpscare: the neck stretches and the face lunges at the camera. k: 0 → 1. */
   lunge(k: number, t: number): void;
   /** Update 0.4.3b — menu: place it exactly (no turning lerp) and loop a named clip, e.g. 'stare'. */
@@ -26,8 +28,15 @@ export function createEnemyView(): EnemyView {
   const dark = track(new THREE.MeshBasicMaterial({ color: 0x050505 }));
 
   const root = new THREE.Group();
+  // Update 0.9.7 — it turns over onto the ceiling about its middle (spin), not its feet.
+  const spin = new THREE.Group();
+  spin.position.y = CRAWL_FLIP_PIVOT;
+  const figure = new THREE.Group();
+  figure.position.y = -CRAWL_FLIP_PIVOT;
+  spin.add(figure);
+  root.add(spin);
   const body = new THREE.Group(); // leans forward when chasing
-  root.add(body);
+  figure.add(body);
 
   // Gown — a slightly flared, open tube.
   const gown = new THREE.Mesh(track(new THREE.CylinderGeometry(0.2, 0.34, 1.15, 10, 1, true)), gownMat);
@@ -80,7 +89,7 @@ export function createEnemyView(): EnemyView {
     const hip = new THREE.Group();
     hip.position.set(side * 0.1, 0.85, 0);
     hip.add(new THREE.Mesh(legGeo, skin));
-    root.add(hip);
+    figure.add(hip);
     return hip;
   };
   const legL = makeLeg(-1);
@@ -101,13 +110,14 @@ export function createEnemyView(): EnemyView {
       root.updateWorldMatrix(true, false);
       return out.set(0, 2.2, 0.55).applyMatrix4(root.matrixWorld);
     },
-    update(pos, dir, mode, moved, t) {
+    update(pos, dir, mode, moved, t, _windingUp, crawl) {
       root.position.set(pos.x, 0, pos.z);
       const targetYaw = Math.atan2(dir.x, dir.z);
       let d = targetYaw - yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       yaw += d * 0.25;
       root.rotation.y = yaw;
+      spin.rotation.z = (crawl?.flip ?? 0) * Math.PI; // Update 0.9.7 — upside down on the ceiling
 
       stride += moved * 2.2;
       const chasing = mode === 'chase';

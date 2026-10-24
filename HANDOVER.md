@@ -1,6 +1,21 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.6.2
+## Current version: 0.9.7
+
+- **The Patient crawls on the ceiling** ("search by crawling", `CRAWL` and `stepCrawl` in `world/enemyAI.ts`). Now and then while it patrols a corridor, it screams, crouches and jumps, turns over in the air and ends up upside down on the ceiling. That takes 2.6 s on the spot, which is your warning. It's never less than 60 s into a run, then 40–70 s after the last time; once it's allowed, it happens after about 12 s of corridor patrol on average. Up there it crawls along the corridors only, never into a room, at 8.6 m/s (twice its run), for 15–20 s. Then it drops down (the jump played backwards, 1.6 s) and patrols again.
+- **It plans its whole route the moment it's up** (`planCrawlRoute`): for all the crawling time it has, always on along the corridors to the nearest stretch it hasn't crawled yet (a random way at a fork). So in 15–20 s it sweeps 45–55 different corridor cells, about half the ward's halls, without doubling back, and every corridor if it had the time. Before, it picked random spots and wandered back and forth. F2 draws the route.
+- **Hide in a room, and keep quiet.** It can't catch you from the ceiling. If it sees you (in its view, right under it, or your beam on it) or hears your footsteps, it screams, drops and chases you. The drop is your head start; it doesn't scream again once it lands. Crouching makes no noise, so crouching in a room it passes is safe, unless it sees you through the doorway.
+- **Anything else you do up there gives you away:** a panel blowing on a missed skill check, a switch, repair work, something you threw. It keeps crawling along the corridors to the corridor cell nearest the sound (the hall outside the room's door), drops there, and runs to the sound whether it sees you or not. Something you threw still works as a lure.
+- **No teleport** while it's going up, crawling or coming down; a teleport it's owed happens once it's down. **If the generator comes on** while it's up there, it drops first, then does the usual: vanish to a far corner, scream, sprint for the generator.
+- **Corridors** are marked in `level01.ts` (`corridors`): the ring round the ward, the middle hall and the four short halls between them. Doorways aren't corridor. `findPath` takes an optional mask of cells to walk only (the corridors, for crawling).
+- **Animations:** `Patient_crawl.fbx` → `crawl` (a 0.67 s loop, played 2.4× fast) and `Patient_jump_to_changeMode.fbx` → `jumpUp` (3.2 s; the game uses it up to its top at 1.58 s). Both were added to `patient.glb` with the converter's new `--add` mode, which keeps the model, textures and other clips as they are (+96 KB). It turns over about its middle, 1.1 m up, so it stays inside the 3 m corridor while it flips (turning about its feet swung its whole body into the wall). It rolls about its forward axis. On the ceiling its hands and feet touch it, and its hips hang down to about 2.5 m, roughly 0.7 m over your eyes (`crawlPose` in `engine/enemyAnim.ts`). Checked in the browser: the poses through the jump, on the ceiling and during the drop, and a full live crawl (up 2.5 s, crawling 15.7 s, down 1.6 s).
+- **Sound:** it screams as it goes up. While it crawls, its footsteps play quicker and lighter (60%) from the ceiling, so you hear it scuttling overhead, and its breathing comes from up there too. A thud when it lands. F2 shows it purple.
+- New checks in `tests/test-crawl.ts`: the corridors, when it goes up, its route, crawling only the corridors at 8.6 m/s, coming down after 15–20 s, finding you, noises, the generator, the poses, and the clips in `patient.glb`.
+- **Fixed: it threw you backwards.** It turned to you and threw you 180° from that, back over its shoulder, and in a room it could throw you at a wall a step away, so you clipped into it. Now (`throwPlan` in `world/throwLanding.ts`) it turns, with you in its hands, to the way it throws, and throws you forward from its hands. In a corridor: straight down the middle of the hall, toward the end closest to where it was looking. In a room: the way closest to where it was looking with at least 2 m of room. Checked in the browser: caught in the top hall you fly 10 m straight down its middle; caught with your back to the spawn room's wall, it turns and throws you 5.4 m along the room.
+- **Fixed: your feet slid when you walked.** The walk played at half the speed that matches your feet to the ground (asked for in 0.4.1, when it looked rushed), so your feet covered under half the ground you moved over. It's matched again (`WALK_ANIM_SLOWDOWN` = 1), and so are strafing and the injured walk. The catch: the clip's step is short (0.8 m) for your 3 m/s walk, so your legs step quicker than before (about 3.75 steps a second). A Mixamo walk with a longer stride would look calmer with no sliding. The run still plays at half speed (its feet slide a bit too); say if it should be matched.
+- **Fixed: your hands slid on the floor getting up** (waking up, and after a throw). The converter pinned every clip's hips in place, but in your get-up the hips travel about 0.6 m back over your feet, so pinning them dragged the body forward under the hands. The get-up now keeps that movement (`--keep-root=getUp`, `player.glb` rebuilt for that one clip, +146 KB), and when it ends you're where your eyes are: you get up about 0.7 m from where you lay, with no camera jump (checked: the biggest frame-to-frame move at the hand-over was 4 cm).
+
+## 0.9.6.2
 
 Escaping The Patient was too hard. Each fuse made it 7% faster in every mode, which was tuned for three fuses: with all four, its chase (5.5 m/s) was faster than your sprint (5.4) and its patrol (3.84) faster than your walk (3.0).
 
@@ -278,7 +293,7 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + rule tests, 566 at 0.9.6.2) and `npm run verify` (adds the production build). Run `verify` before every commit.
+From `game/`: `npm run verify:quick` (typecheck + rule tests, 622 at 0.9.7) and `npm run verify` (adds the production build). Run `verify` before every commit.
 
 ## How to publish
 `npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready). The public build has the debug tools (F2, F3, `?debug`, `?level=N`, the tester level picker) switched off.
@@ -291,11 +306,12 @@ From `game/`: `npm run verify:quick` (typecheck + rule tests, 566 at 0.9.6.2) an
 - **Assets:** raw files in `ASSETS/` (not shipped), converted by the scripts in `game/tools/` into `game/public/`. Every outside asset needs a line in `game/src/state/credits.ts`.
 
 ## Verified vs unverified
-- ✅ Typecheck, 566 rule tests and the production build pass (0.9.6.2).
+- ✅ Typecheck, 622 rule tests and the production build pass (0.9.7).
 - ✅ Headless browser checks (software rendering, ~1–2 fps) of each feature as it was added: panels and skill checks, banner, difficulty picker and night vision, lockers and peeking, throwing, locker checks, the furnished generator room.
-- ⚠️ **Not verified by playing:** real-GPU frame rate, how it sounds (volumes, the hearing model; 0.9.6.1: the running breath's level and loop seam, the wake-up sound against the scene), mouse feel, timing of skill checks, chases after throws, how escapable a chase feels after 0.9.6.2 (the next knob if it's still too hard: `ENEMY.windupSeconds`, its scream, 1.0 → 1.5 s). Tuned on paper; adjust `ENEMY` / `PLAYER` / `THROW` / `SKILL` after playing.
+- ⚠️ **Not verified by playing:** real-GPU frame rate, how it sounds (volumes, the hearing model; 0.9.6.1: the running breath's level and loop seam, the wake-up sound against the scene), mouse feel, timing of skill checks, chases after throws, how escapable a chase feels after 0.9.6.2 (the next knob if it's still too hard: `ENEMY.windupSeconds`, its scream, 1.0 → 1.5 s), the ceiling crawl in play (how often, how the flip looks at full speed, its scuttle sound). Tuned on paper; adjust `ENEMY` / `PLAYER` / `THROW` / `SKILL` after playing.
 
 ## Known limits / ideas for next
+- The ceiling crawl's scuttle is its footstep sample, sped up and quieter; a recorded crawl sound would be better (drop it in `ASSETS/audio/` and say).
 - Panel repair animation: the first-person hands working on the panel (a Mixamo clip for the player rig, played while you hold repair, plus camera framing on the panel).
 - Level 0: the apartment prologue before you're taken (waiting on the apartment model).
 - Brightness calibration screen on first launch (the game is very dark).

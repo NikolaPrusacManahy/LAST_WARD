@@ -83,6 +83,9 @@ export interface LevelDef {
   brickRooms?: { from: Cell; to: Cell }[];
   /** Update 0.9.6 — bricks and bottles lying in the halls: the cell and an offset from its middle (m). */
   throwables?: ThrowableSpawn[];
+  /** Update 0.9.7 — the corridors (cell rectangles, all open floor): The Patient crawls along their
+   *  ceilings and never into a room. */
+  corridors?: { from: Cell; to: Cell }[];
 }
 
 /** Update 0.7 — a straight flight of stairs. `cells` are logic cells on `floor`, bottom → top. */
@@ -134,6 +137,8 @@ export interface Level {
   props: PropPlacement[];
   brickRooms: { from: Cell; to: Cell }[];
   throwables: ThrowableSpawn[];
+  /** Update 0.9.7 — true = a corridor cell (The Patient can crawl on its ceiling). Index: row * cols + col. */
+  corridor: boolean[];
 }
 
 /** Update 0.7 — solid rows between stacked floors in the logic grid (keeps them apart). */
@@ -285,6 +290,17 @@ export function parseLevel(def: LevelDef): Level {
     if (!wallAt || !open) throw new Error(`Wall note at ${w.cell.col},${w.cell.row} must be on a wall facing floor`);
   }
 
+  // Update 0.9.7 — corridor cells (level 1 only has one floor; rows are logic rows).
+  const corridor: boolean[] = new Array(cols * rows).fill(false);
+  for (const c of def.corridors ?? []) {
+    for (let r = Math.min(c.from.row, c.to.row); r <= Math.max(c.from.row, c.to.row); r++) {
+      for (let col = Math.min(c.from.col, c.to.col); col <= Math.max(c.from.col, c.to.col); col++) {
+        if (solid[r * cols + col]) throw new Error(`Corridor cell ${col},${r} is a wall`);
+        corridor[r * cols + col] = true;
+      }
+    }
+  }
+
   return {
     name: def.name,
     cols,
@@ -310,7 +326,13 @@ export function parseLevel(def: LevelDef): Level {
     props: def.props ?? [],
     brickRooms: def.brickRooms ?? [],
     throwables: def.throwables ?? [],
+    corridor,
   };
+}
+
+/** Update 0.9.7 — a corridor cell (The Patient can crawl on its ceiling). */
+export function isCorridor(level: Level, cell: Cell): boolean {
+  return cell.col >= 0 && cell.row >= 0 && cell.col < level.cols && cell.row < level.rows && level.corridor[cell.row * level.cols + cell.col];
 }
 
 /** Update 0.7 — rows from one floor's top row to the next floor's in the logic grid. */

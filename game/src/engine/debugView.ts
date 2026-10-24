@@ -9,6 +9,7 @@ const MODE_COLOR: Record<EnemyMode, number> = {
   investigate: 0xffc233,
   search: 0x4aa8ff,
   chase: 0xff2a2a,
+  crawl: 0xb04dff, // Update 0.9.7 — up on the ceiling
 };
 
 export function createDebugView(level: Level) {

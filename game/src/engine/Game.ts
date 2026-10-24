@@ -2,8 +2,9 @@
 // Keep it a façade: new mechanics go in their own module.
 import * as THREE from 'three';
 import { LEVELS } from '../world/content/levels';
-import { Level, Vec2, cellCenter, crossPortal, dist, floorAt, floorOffset, floorStride, itemPos, parseLevel, stairRise, worldToCell } from '../world/level';
-import { ENEMY, EnemyState, Noise, spawnAtCorner, stepEnemy, summonToGenerator, teleportAway, visibility } from '../world/enemyAI';
+import { Level, Vec2, WALL_HEIGHT, cellCenter, crossPortal, dist, floorAt, floorOffset, floorStride, itemPos, parseLevel, stairRise, worldToCell } from '../world/level';
+import { ENEMY, EnemyState, Noise, dropFromCeiling, spawnAtCorner, stepEnemy, summonToGenerator, teleportAway, visibility } from '../world/enemyAI';
+import { CRAWL_LIFT, crawlPose } from './enemyAnim';
 import { CAUGHT, LIVES, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
 import { CaughtScene, createCaughtScene } from './caughtScene';
 import { WakeScene, createWakeScene } from './wakeScene';
@@ -313,8 +314,9 @@ export class Game {
 
   private drawEnemy(moved: number) {
     const r = this.enemyRel();
-    this.enemyView.update({ x: r.x, z: r.z }, this.enemy.dir, this.enemy.mode, moved, this.worldT, this.enemy.windup > 0);
-    this.enemyView.root.position.y = r.y;
+    const crawl = crawlPose(this.enemy.crawl); // Update 0.9.7 — up on the ceiling
+    this.enemyView.update({ x: r.x, z: r.z }, this.enemy.dir, this.enemy.mode, moved, this.worldT, this.enemy.windup > 0, crawl);
+    this.enemyView.root.position.y = r.y + (crawl ? crawl.lift * CRAWL_LIFT : 0);
   }
 
   /** Update 0.7 — where a logic position really is (for the debug view, which lives in `world`). */
@@ -337,6 +339,8 @@ export class Game {
         const view = scene.lastView();
         this.wake = null;
         this.fx.set({ lids: 0 });
+        // Update 0.9.7 — the get-up moves you (its hips travel back over your feet): you're where you got up.
+        this.player.pos = nearestFree(this.level, { x: view.pos.x, z: view.pos.z }, PLAYER.radius, this.player.obstacles);
         this.camReturn = { pos: view.pos, quat: view.quat, t: 0 };
         this.player.pitch = 0;
         this.input.clear();
@@ -437,7 +441,9 @@ export class Game {
 
   private enemy3D() {
     const w = this.toWorld(this.enemy.pos);
-    return { x: w.x, y: w.y + 1.6, z: w.z };
+    // Update 0.9.7 — on the ceiling its sounds come from up there (its head hangs ~0.5 m under it).
+    const lift = crawlPose(this.enemy.crawl)?.lift ?? 0;
+    return { x: w.x, y: w.y + 1.6 + lift * (WALL_HEIGHT - 0.5 - 1.6), z: w.z };
   }
 
   private toastMsg(text: string, seconds = 3) {
@@ -549,7 +555,7 @@ export class Game {
     if (input.wasPressed('F3') && this.devTools && this.debugView.enabled) this.enemyFrozen = !this.enemyFrozen;
     if (step.footstep) {
       this.audio.footstep(step.footstep.gait);
-      if (step.footstep.noise > 0) this.noise = { pos: { ...player.pos }, radius: step.footstep.noise };
+      if (step.footstep.noise > 0) this.noise = { pos: { ...player.pos }, radius: step.footstep.noise, step: true }; // 0.9.7: it's you
     }
 
     // Update 0.5 — rebindable: right click flashlight, left click collect / interact by default.
@@ -602,10 +608,15 @@ export class Game {
     // Update 0.9.4 — properly: through each wall, or round through the halls (world/soundPath.ts).
     const mix = this.enemyHearing(dt);
     const heardAt = this.enemySoundPos(mix);
-    if (this.enemyStepAccum > (chasing ? 1.4 : 1.0)) {
+    // Update 0.9.7 — on the ceiling: quick, light scuttling overhead.
+    const crawling = this.enemy.crawl?.phase === 'on';
+    if (this.enemyStepAccum > (crawling ? 0.9 : chasing ? 1.4 : 1.0)) {
       this.enemyStepAccum = 0;
-      this.audio.enemyStep(heardAt, chasing, mix);
+      this.audio.enemyStep(heardAt, chasing, mix, crawling);
     }
+    // Update 0.9.7 — it screams and goes up on the ceiling; it thuds back down onto the floor.
+    if (events.includes('crawlUp')) this.audio.enemyScream(this.enemy3D());
+    if (events.includes('landed')) this.audio.enemyStep(heardAt, true, mix);
     if (events.includes('spotted')) {
       this.audio.enemyScream(this.enemy3D());
       this.audio.stinger();
@@ -866,8 +877,8 @@ export class Game {
         this.applyAtmosphere(); // with the lights back you can see further down the halls
         this.toastMsg('The lights come on. Something screams in the dark.', 5);
         // Update 0.6.4 — it vanishes to a random corner, screams, and sprints for the generator:
-        // your window to get out of the room.
-        summonToGenerator(this.level, this.enemy, this.player.pos, this.rng);
+        // your window to get out of the room. Update 0.9.7 — on the ceiling, it drops down first.
+        if (!dropFromCeiling(this.enemy)) summonToGenerator(this.level, this.enemy, this.player.pos, this.rng);
         this.audio.powerScream();
         this.stingerTimer = window.setTimeout(() => this.audio.stinger(), 1200);
       } else if (r === 'panels') {

@@ -1,22 +1,26 @@
 // "The Patient" — enemy brain. Pure state machine: patrol → investigate → chase → search.
+// Update 0.9.7 — and now and then, from a corridor patrol: crawl (up on the ceiling, see CRAWL).
 // The engine calls stepEnemy() every frame and only renders the result.
-import { Cell, Level, TILE, Vec2, cellCenter, crossPortal, dist, floorCells, floorOfRow, floorStride, isSolid, worldToCell, sameCell } from './level';
+import { Cell, Level, TILE, Vec2, cellCenter, crossPortal, dist, floorCells, floorOfRow, floorStride, isCorridor, isSolid, worldToCell, sameCell } from './level';
 import { findPath } from './pathfinding';
 import { lineOfSight } from './lineOfSight';
 import { clearLine, moveWithCollision, overlapsWall } from './collision';
 import { Rng } from './rng';
 
-export type EnemyMode = 'patrol' | 'investigate' | 'chase' | 'search';
+/** Update 0.9.7 — 'crawl': up on the ceiling ("search by crawling", see CRAWL). */
+export type EnemyMode = 'patrol' | 'investigate' | 'chase' | 'search' | 'crawl';
 /** Update 0.5.4 — 'teleported': moved to another corner after a minute without finding you. */
 export type EnemyEvent = 'spotted' | 'lost' | 'heard' | 'caught' | 'teleported'
   /** Update 0.9.6 — checking a locker: door open / shut, and you were in it. */
-  | 'lockerOpen' | 'lockerClose' | 'foundYou';
+  | 'lockerOpen' | 'lockerClose' | 'foundYou'
+  /** Update 0.9.7 — it screams and goes up on the ceiling; back on the floor. */
+  | 'crawlUp' | 'landed';
 
 export const ENEMY = {
   /** Update 0.9.6 — it walked twice as fast (patrol 1.5 → 3.0, as fast as you walk), searching and going
    *  to look at a noise too. Update 0.9.6.2 — back to its old walk (it was too hard to get away from).
-   *  The chase is unchanged. */
-  speed: { patrol: 1.5, investigate: 2.6, chase: 4.3, search: 2.1 } as Record<EnemyMode, number>,
+   *  The chase is unchanged. Update 0.9.7 — on the ceiling it crawls at twice its run. */
+  speed: { patrol: 1.5, investigate: 2.6, chase: 4.3, search: 2.1, crawl: 8.6 } as Record<EnemyMode, number>,
   /** Update 0.9.6 — it hears everything twice as far. */
   hearingMul: 2,
   /** Update 0.9.6 — your flashlight on its body: it knows where you are at once, whichever way it faces.
@@ -67,6 +71,35 @@ export const ENEMY = {
   spawnMinDist: 20,
 };
 
+/**
+ * Update 0.9.7 — "search by crawling". Now and then, patrolling a corridor, it screams, jumps, turns over
+ * onto the ceiling and crawls along the corridors (never into a room) at twice its run, for 15–20 s.
+ * Up there it can't catch you. If it sees you (or your beam) or hears your footsteps, it drops (the jump
+ * played backwards) and chases you. Any other noise (a panel blowing, a switch, repair work, something you
+ * threw): it crawls on to the corridor cell nearest it, the room's doorway, drops, and runs to it. No
+ * teleport while it's up there, going up or coming down. (Speed: `ENEMY.speed.crawl`.)
+ */
+export const CRAWL = {
+  /** It screams before the jump (s). */
+  screamSeconds: 1.0,
+  /** The jump clip's top (s): it's on the ceiling by then. Coming down plays the clip from here back to 0. */
+  jumpTop: 1.58,
+  /** Jump clip time it leaves the floor and starts turning over (s). */
+  liftOff: 0.95,
+  /** How long it crawls if it finds nothing (s). */
+  minSeconds: 15,
+  maxSeconds: 20,
+  /** Never in the first minute of a run (s). */
+  firstWait: 60,
+  /** Then this long between two crawls (s). */
+  cooldownMin: 40,
+  cooldownMax: 70,
+  /** Chance per second while it patrols a corridor once the cooldown is over (~12 s on average). */
+  chancePerSecond: 0.08,
+};
+export const crawlUpSeconds = CRAWL.screamSeconds + CRAWL.jumpTop;
+export const crawlDownSeconds = CRAWL.jumpTop;
+
 export interface EnemyState {
   mode: EnemyMode;
   pos: Vec2;
@@ -96,6 +129,23 @@ export interface EnemyState {
   /** When it last checked each locker (its own clock, s). */
   checked: number[];
   clock: number;
+  /** Update 0.9.7 — up on the ceiling (mode 'crawl'), else null. */
+  crawl: CrawlState | null;
+  /** Seconds before it may go up on the ceiling again. */
+  crawlCooldown: number;
+}
+
+/** Update 0.9.7 — on the ceiling: going up, crawling the corridors, or dropping back down. */
+export interface CrawlState {
+  phase: 'up' | 'on' | 'down';
+  /** Seconds into this phase. */
+  t: number;
+  /** Seconds of crawling left before it comes down on its own. */
+  left: number;
+  /** What it does once it's down: patrol again, chase you, run to `noise`, or the generator summon. */
+  then: 'patrol' | 'chase' | 'noise' | 'generator';
+  /** A noise it heard up there: it crawls to the corridor cell nearest it, drops, and runs to it. */
+  noise: Noise | null;
 }
 
 export interface PlayerSense {
@@ -118,6 +168,8 @@ export interface Noise {
   run?: boolean;
   /** Update 0.9.6 — something you threw: it runs there and comes for you if you're close by. */
   lure?: boolean;
+  /** Update 0.9.7 — your footsteps (it's you, not something you did): on the ceiling it drops and chases. */
+  step?: boolean;
 }
 
 export function createEnemy(level: Level): EnemyState {
@@ -143,6 +195,8 @@ export function createEnemy(level: Level): EnemyState {
     check: null,
     checked: [],
     clock: 0,
+    crawl: null,
+    crawlCooldown: CRAWL.firstWait, // never in the first minute
   };
 }
 
@@ -209,6 +263,7 @@ export function teleportAway(level: Level, e: EnemyState, player: Vec2): void {
   e.rush = false;
   e.lure = false;
   e.check = null;
+  e.crawl = null;
 }
 
 /** Update 0.6.4 — the open cell next to the generator (the machine itself is solid, so no path ends on it). */
@@ -248,9 +303,10 @@ export function summonToGenerator(level: Level, e: EnemyState, player: Vec2, rng
   return to;
 }
 
-/** Update 0.9.6 — busy with something it has to finish before it may teleport. */
+/** Update 0.9.6 — busy with something it has to finish before it may teleport.
+ *  Update 0.9.7 — being on the ceiling (going up, crawling, coming down) counts too. */
 export function onTask(e: EnemyState): boolean {
-  return !!e.check || (e.lure && e.mode === 'investigate');
+  return !!e.check || (e.lure && e.mode === 'investigate') || !!e.crawl;
 }
 
 /** Update 0.5.4 — after a minute without finding you, move to another corner you can't see. */
@@ -467,6 +523,198 @@ export interface StepInput {
   playerLocker?: number | null;
 }
 
+const FOUR = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+
+/** Update 0.9.7 — the corridor cell nearest `p` by walking (a room's doorway, from inside the room). */
+export function nearestCorridorCell(level: Level, p: Vec2): Cell {
+  const start = worldToCell(p);
+  const open = (c: Cell) => !isSolid(level, c.col, c.row);
+  // A noise on a wall (a panel) starts from the floor beside it.
+  const queue: Cell[] = open(start) ? [start] : FOUR.map(([dc, dr]) => ({ col: start.col + dc, row: start.row + dr })).filter(open);
+  const seen = new Set<number>();
+  for (let i = 0; i < queue.length; i++) {
+    const c = queue[i];
+    const k = c.row * level.cols + c.col;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    if (isCorridor(level, c)) return c;
+    for (const [dc, dr] of FOUR) {
+      const n = { col: c.col + dc, row: c.row + dr };
+      if (open(n)) queue.push(n);
+    }
+  }
+  return start;
+}
+
+/** Update 0.9.7 — a path along the corridor ceilings only. */
+function goToCorridor(level: Level, e: EnemyState, cell: Cell) {
+  e.path = findPath(level, worldToCell(e.pos), cell, level.corridor);
+  e.pathIndex = e.path.length > 1 ? 1 : 0;
+  e.goal = e.path.length ? cellCenter(cell) : null;
+  e.repath = ENEMY.repathSeconds;
+}
+
+function startCrawl(e: EnemyState, rng: Rng) {
+  setMode(e, 'crawl');
+  e.crawl = { phase: 'up', t: 0, left: CRAWL.minSeconds + rng() * (CRAWL.maxSeconds - CRAWL.minSeconds), then: 'patrol', noise: null };
+  e.path = [];
+  e.goal = null;
+  e.idle = 0;
+}
+
+/**
+ * Update 0.9.7 — the generator came on while it's on the ceiling: it drops first, then the usual summon
+ * (vanish to a corner, scream, sprint for the generator). False if it isn't up there.
+ */
+export function dropFromCeiling(e: EnemyState): boolean {
+  if (!e.crawl) return false;
+  e.crawl.then = 'generator';
+  return true;
+}
+
+/** Update 0.9.7 — one frame up on the ceiling. `seen`: it spotted you (as it would on the floor). */
+function stepCrawl(level: Level, e: EnemyState, input: StepInput, seen: boolean, events: EnemyEvent[], rng: Rng) {
+  const c = e.crawl!;
+  const { dt, player, noise } = input;
+  c.t += dt;
+  const urgent = c.then === 'chase' || c.then === 'generator';
+  // You: it sees you, or hears your footsteps → down, and after you. (Going up it's committed: it acts
+  // on it once it's up there.)
+  if (seen || (noise?.step && heardNoise(level, e, noise))) {
+    if (!urgent) {
+      c.then = 'chase';
+      events.push('spotted');
+    }
+    if (c.then === 'chase') e.lastKnown = seen ? { ...player.pos } : { ...noise!.pos };
+  } else if (noise && !noise.step && c.then === 'patrol' && heardNoise(level, e, noise)) {
+    // Something you did: crawl over to it first. (The first one counts; it doesn't turn aside after.)
+    c.then = 'noise';
+    c.noise = { ...noise, pos: { ...noise.pos } };
+    events.push('heard');
+    if (c.phase === 'on') goToCorridor(level, e, nearestCorridorCell(level, noise.pos));
+  }
+
+  switch (c.phase) {
+    case 'up':
+      if (c.t >= crawlUpSeconds) {
+        c.t = 0;
+        if (c.then === 'chase' || c.then === 'generator') c.phase = 'down';
+        else {
+          c.phase = 'on';
+          if (c.noise) goToCorridor(level, e, nearestCorridorCell(level, c.noise.pos));
+          else startRoute(level, e, rng);
+        }
+      }
+      break;
+    case 'on': {
+      if (c.then === 'chase' || c.then === 'generator') {
+        c.phase = 'down';
+        c.t = 0;
+        break;
+      }
+      const speed = enemySpeed(e);
+      if (c.noise) {
+        if (followPath(level, e, speed, dt)) {
+          c.phase = 'down';
+          c.t = 0;
+        }
+        break;
+      }
+      c.left -= dt;
+      // Its time is up, or (just in case) the route ran out: down it comes.
+      if (c.left <= 0 || followPath(level, e, speed, dt)) {
+        c.phase = 'down';
+        c.t = 0;
+      }
+      break;
+    }
+    case 'down':
+      if (c.t >= crawlDownSeconds) land(level, e, input, events, rng);
+      break;
+  }
+}
+
+/**
+ * Update 0.9.7 — its whole route for this crawl, worked out the moment it's up there: from where it is,
+ * always on along the corridors to the nearest stretch it hasn't crawled yet (a random way at a fork), for
+ * `metres`. So in the time it has it sweeps as many different corridors as it can, and all of them if
+ * there's time, rather than wandering back and forth. (Once every corridor is done, it goes round again.)
+ */
+export function planCrawlRoute(level: Level, from: Cell, metres: number, rng: Rng): Cell[] {
+  const key = (c: Cell) => c.row * level.cols + c.col;
+  const cellOf = (k: number) => ({ col: k % level.cols, row: Math.floor(k / level.cols) });
+  const total = level.corridor.filter(Boolean).length;
+  const cells = Math.ceil(metres / TILE) + 1;
+  const route: Cell[] = [from];
+  const crawled = new Set([key(from)]);
+  while (route.length < cells) {
+    const here = route[route.length - 1];
+    if (crawled.size >= total) crawled.clear();
+    // Along the corridors to the nearest cell it hasn't crawled.
+    const back = new Map([[key(here), -1]]);
+    const queue = [here];
+    let found = -1;
+    for (let i = 0; i < queue.length && found < 0; i++) {
+      const ways = [...FOUR].sort(() => rng() - 0.5);
+      for (const [dc, dr] of ways) {
+        const n = { col: queue[i].col + dc, row: queue[i].row + dr };
+        const k = key(n);
+        if (!isCorridor(level, n) || back.has(k)) continue;
+        back.set(k, key(queue[i]));
+        if (!crawled.has(k)) {
+          found = k;
+          break;
+        }
+        queue.push(n);
+      }
+    }
+    if (found < 0) break; // a corridor with nowhere to go
+    const leg: Cell[] = [];
+    for (let k = found; k !== key(here); k = back.get(k)!) leg.push(cellOf(k));
+    for (const c of leg.reverse()) {
+      route.push(c);
+      crawled.add(key(c));
+    }
+  }
+  return route.slice(0, cells);
+}
+
+/** Update 0.9.7 — up on the ceiling: its route for all the crawling time it has left. */
+function startRoute(level: Level, e: EnemyState, rng: Rng) {
+  const c = e.crawl!;
+  // A cell or two more than the time allows: the clock, not the route, says when it drops.
+  e.path = planCrawlRoute(level, worldToCell(e.pos), c.left * enemySpeed(e) + 2 * TILE, rng);
+  e.pathIndex = e.path.length > 1 ? 1 : 0;
+  e.goal = cellCenter(e.path[e.path.length - 1]);
+  e.repath = ENEMY.repathSeconds;
+}
+
+/** Update 0.9.7 — back on the floor: patrol, chase you, run to the noise, or the generator summon. */
+function land(level: Level, e: EnemyState, input: StepInput, events: EnemyEvent[], rng: Rng) {
+  const c = e.crawl!;
+  e.crawl = null;
+  e.crawlCooldown = CRAWL.cooldownMin + rng() * (CRAWL.cooldownMax - CRAWL.cooldownMin);
+  e.path = [];
+  e.goal = null;
+  e.windup = 0;
+  events.push('landed');
+  if (c.then === 'generator') {
+    summonToGenerator(level, e, input.player.pos, rng);
+  } else if (c.then === 'chase') {
+    setMode(e, 'chase'); // the drop was your head start: no scream before it runs
+    e.alert = 1;
+    e.lastKnown = e.lastKnown ?? { ...input.player.pos };
+  } else if (c.then === 'noise' && c.noise) {
+    setMode(e, 'investigate');
+    goTo(level, e, c.noise.pos);
+    e.rush = true; // it runs there, whether it sees you or not
+    e.lure = !!c.noise.lure;
+  } else {
+    setMode(e, 'patrol');
+    e.idle = 0.5;
+  }
+}
+
 /**
  * Update 0.9.6.2 — how fast it moves. The fuses you've found (`rage`) only speed up the chase: at 7% on
  * every mode, four fuses put its chase past your sprint and its patrol past your walk. Rushing somewhere
@@ -503,6 +751,13 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
     e.alert = Math.max(0, e.alert - ENEMY.alertDecay * dt);
     e.sinceSeen += dt;
   }
+
+  // Update 0.9.7 — up on the ceiling: its own rules. It can't catch you from there.
+  if (e.crawl) {
+    stepCrawl(level, e, input, e.alert >= 1 || close, events, rng);
+    return events;
+  }
+  e.crawlCooldown = Math.max(0, e.crawlCooldown - dt);
 
   // Perception → mode changes.
   if (e.mode !== 'chase' && (e.alert >= 1 || close)) {
@@ -621,6 +876,12 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
       break;
     }
     case 'patrol': {
+      // Update 0.9.7 — now and then, patrolling a corridor, it screams and goes up on the ceiling.
+      if (e.crawlCooldown <= 0 && isCorridor(level, worldToCell(e.pos)) && rng() < CRAWL.chancePerSecond * dt) {
+        startCrawl(e, rng);
+        events.push('crawlUp');
+        break;
+      }
       if (e.idle > 0) {
         e.idle -= dt;
         break;

@@ -4,12 +4,13 @@ A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
 You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find four fuses, bring four electrical panels back to life, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 0.9.6.2. The full patch history is in `HANDOVER.md`.
+Current version: 0.9.7. The full patch history is in `HANDOVER.md`.
 
 ## How the game works
 
 - **The Patient** hunts you by sight and sound. It sees further when your flashlight is on or you run, and less well when you crouch. Shine your flashlight on it and it knows where you are at once. Walking makes some noise and running makes a lot; crouching is silent. When it spots you it screams, then charges. While it chases you, adrenaline lets you sprint for longer, and you can still outrun it however many fuses you've found (each one makes its chase a little faster).
 - **It moves around.** It starts in one corner of the map and patrols that area. If it goes 35 seconds without spotting you, it disappears and turns up at another corner.
+- **It climbs onto the ceiling.** Now and then it screams in a corridor, jumps, and crawls upside down along the corridor ceilings, very fast, for 15 to 20 seconds. Up there it can't enter a room or catch you. If it sees you or hears your footsteps, it drops and chases you. If you make any other noise, it crawls to the doorway nearest it, drops and runs in. Hide in a room and keep quiet.
 - **You have two lives.** The first time it catches you, it picks you up and throws you across the room. You black out, get up injured (red at the edges of the screen, grunting now and then) and it vanishes somewhere else. The second time is the end.
 - **Fuses, batteries and notes** are shuffled across the tables every run. Batteries recharge the flashlight, which starts switched off. Notes are left by people who were here before you, and reading one pauses the game.
 - **Electrical panels** are spread across the ward, one in each quarter. Fit a fuse, hold to repair the panel, then throw its switch. While you repair, skill checks come up: a circle with a needle sweeping round it. Press Space while the needle is in the marked zone (the white slice at its start is a perfect hit). Miss and the panel blows, loud enough for The Patient to hear.
@@ -116,7 +117,7 @@ Note texts, the notes pinned to walls, the intro text and any changes to how The
 
 Raw files go in `ASSETS/` and are converted into `game/public/` with the scripts in `game/tools/`:
 
-- **Characters:** Mixamo FBX files go through `node tools/convert-character.mjs`, which produces one `.glb` per character with all animations merged.
+- **Characters:** Mixamo FBX files go through `node tools/convert-character.mjs`, which produces one `.glb` per character with all animations merged. `--add` adds new clips to a `.glb` that's already converted.
 - **Props:** Sketchfab models in `ASSETS/models/props/` and `ASSETS/models/electrical/` go through `node tools/prepare-props.mjs ../ASSETS/models public/models/props`. It cuts out the parts the game uses, scales them to metres and shrinks their textures. Where each prop stands is set in the level file. The locker has its own script, `node tools/prepare-locker.mjs ../ASSETS/models/locker/locker.glb public/models/props/locker.glb`, which also cuts its door free so it can swing.
 - **Sound:** `python tools/prepare-audio.py ../ASSETS/audio public/audio` (needs Python with numpy and scipy, plus ffmpeg).
 - **Control icons:** `tools/prepare-input-icons.ts` recolours the Kenney input prompts to match the game. The whole Kenney pack sits in `ASSETS/UI - inputs/`, but `.gitignore` only uploads its licence and the 89 icons the game uses.

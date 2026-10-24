@@ -98,8 +98,10 @@ export function limitBodyBack(
   return excess > 0 ? { x: root.x + forward.x * excess, z: root.z + forward.z * excess } : root;
 }
 
-/** Update 0.4.1 — the walk looked rushed; it plays at half the matched speed. */
-export const WALK_ANIM_SLOWDOWN = 0.5;
+/** Update 0.4.1 — the walk looked rushed; it played at half the matched speed.
+ *  Update 0.9.7 — that left your feet covering under half the ground you move over (they slid), so the
+ *  walk (and strafe, injured walk) plays matched again: the clip's 0.8 m step at your 3 m/s walk. */
+export const WALK_ANIM_SLOWDOWN = 1;
 /** Update 0.4.3 — same for the new run clip. */
 export const RUN_ANIM_SLOWDOWN = 0.5;
 
@@ -108,7 +110,7 @@ export function playerClipTimeScale(clip: PlayerClip, speed: number): number {
   const ref = PLAYER_CLIP_SPEED[clip];
   if (!ref) return 1;
   if (speed < 0.2) return clip === 'crouch' ? 0 : 1;
-  const matched = Math.min(1.7, Math.max(0.6, speed / ref));
+  const matched = Math.min(2, Math.max(0.6, speed / ref)); // 0.9.7: 2 (1.7 cut the 3 m/s walk short: it slid)
   if (clip === 'walk' || clip === 'strafeLeft' || clip === 'strafeRight' || clip === 'injuredWalk') return matched * WALK_ANIM_SLOWDOWN;
   if (clip === 'run' || clip === 'injuredRun') return matched * RUN_ANIM_SLOWDOWN;
   return matched;

@@ -1,16 +1,18 @@
 // A* on the tile grid. 8-way moves; diagonals only when both side cells are open
 // (no corner cutting, so the enemy never clips through a wall corner).
-import { Cell, Level, isSolid, portalAt } from './level';
+import { Cell, Level, isSolid as isWall, portalAt } from './level';
 
 const DIRS = [
   [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
   [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2],
 ] as const;
 
-/** Path from start to goal, inclusive of both. Empty if unreachable. */
-export function findPath(level: Level, start: Cell, goal: Cell): Cell[] {
-  if (isSolid(level, goal.col, goal.row) || isSolid(level, start.col, start.row)) return [];
+/** Path from start to goal, inclusive of both. Empty if unreachable.
+ *  Update 0.9.7 — `only`: walk only cells marked true (the corridors, for crawling on the ceiling). */
+export function findPath(level: Level, start: Cell, goal: Cell, only?: boolean[]): Cell[] {
   const cols = level.cols;
+  const isSolid = only ? (c: number, r: number) => isWall(level, c, r) || !only[r * cols + c] : (c: number, r: number) => isWall(level, c, r);
+  if (isSolid(goal.col, goal.row) || isSolid(start.col, start.row)) return [];
   const key = (c: number, r: number) => r * cols + c;
   const startK = key(start.col, start.row);
   const goalK = key(goal.col, goal.row);
@@ -37,8 +39,8 @@ export function findPath(level: Level, start: Cell, goal: Cell): Cell[] {
     for (const [dc, dr, cost] of DIRS) {
       let nc = c + dc;
       let nr = r + dr;
-      if (isSolid(level, nc, nr)) continue;
-      if (dc !== 0 && dr !== 0 && (isSolid(level, c + dc, r) || isSolid(level, c, r + dr))) continue;
+      if (isSolid(nc, nr)) continue;
+      if (dc !== 0 && dr !== 0 && (isSolid(c + dc, r) || isSolid(c, r + dr))) continue;
       // Update 0.7 — stepping into a stair portal lands on the other floor: the path jumps there.
       if (level.portals.length) {
         const portal = portalAt(level, { col: nc, row: nr });
@@ -76,7 +78,7 @@ export function reachable(level: Level, start: Cell): Set<number> {
   const stack = [start];
   while (stack.length) {
     const { col, row } = stack.pop()!;
-    if (isSolid(level, col, row)) continue;
+    if (isWall(level, col, row)) continue;
     const k = row * level.cols + col;
     if (seen.has(k)) continue;
     seen.add(k);

@@ -1,11 +1,11 @@
 // Update 0.6 — two lives: grab → throw → get up injured; the second catch kills.
 import { check, section } from './harness';
 import { CAUGHT, LIVES, THROWN_CLIP, caughtStage, caughtTimes, cuesBetween, flightProgress, injuredTint, nextGruntDelay, thrownClipTime } from '../src/state/caughtSequence';
-import { throwLanding, THROW } from '../src/world/throwLanding';
+import { throwLanding, throwPlan, THROW } from '../src/world/throwLanding';
 import { cornerCells, spawnAtCorner, teleportAway } from '../src/world/enemyAI';
 import { overlapsWall, clearLine } from '../src/world/collision';
 import { LEVEL_01 } from '../src/world/content/level01';
-import { TILE, Vec2, cellCenter, dist, floorCells, parseLevel, sameCell } from '../src/world/level';
+import { TILE, Vec2, cellCenter, dist, floorCells, isCorridor, parseLevel, sameCell } from '../src/world/level';
 import { lineOfSight } from '../src/world/lineOfSight';
 import { createRng } from '../src/world/rng';
 
@@ -57,20 +57,81 @@ section('Thrown until a wall (0.6.1)');
     const r = throwLanding(level, from, facing);
     n++;
     if (overlapsWall(level, r.at, THROW.bodyRadius) || !clearLine(level, from, r.at, THROW.bodyRadius - 0.01)) bad++;
-    if (Math.abs(r.dir.x + facing.x) > 1e-9 || Math.abs(r.dir.z + facing.z) > 1e-9) notBehind++;
-    // Stopped by a wall: one more step would touch it (unless the 10 m cap stopped it).
-    const next = { x: r.at.x + r.dir.x * 0.1, z: r.at.z + r.dir.z * 0.1 };
+    if (Math.abs(r.dir.x - facing.x) > 1e-9 || Math.abs(r.dir.z - facing.z) > 1e-9) notBehind++;
+    // Stopped by a wall: one more step would touch it (unless the 10 m cap stopped it). (0.9.7: exactly one
+    // step: grazing a wall corner, two steps on can already be clear of it again.)
+    const next = { x: r.at.x + r.dir.x * THROW.step, z: r.at.z + r.dir.z * THROW.step };
     if (r.distance < THROW.maxDistance - 0.06 && !overlapsWall(level, next, THROW.bodyRadius)) notStopped++;
   }
-  check('always straight out behind it (exactly 180° from where it looks)', notBehind === 0, `${notBehind}/${n}`);
+  check('0.9.7: always straight out the way it throws (forward, not back over its shoulder)', notBehind === 0, `${notBehind}/${n}`);
   check('flies until a wall stops it (300 random throws)', notStopped === 0, `${notStopped}/${n}`);
   check('never ends inside a wall or passes through one', bad === 0, `${bad}/${n}`);
   // Long corridor (row 11) facing along it: capped at 10 m.
   const open = cellCenter({ col: 4, row: 11 });
   const far = throwLanding(level, open, { x: -1, z: 0 });
   check('a long empty corridor is capped at 10 m', Math.abs(far.distance - THROW.maxDistance) < 0.06, `${far.distance.toFixed(2)} m`);
-  const short = throwLanding(level, cellCenter({ col: 1, row: 11 }), { x: 1, z: 0 }); // wall right behind it
+  const short = throwLanding(level, cellCenter({ col: 1, row: 11 }), { x: -1, z: 0 }); // wall right there
   check('a wall right there stops you short', short.distance < 1.2, `${short.distance.toFixed(2)} m`);
+}
+
+section('Which way it throws you (0.9.7)');
+{
+  const rng = createRng(17);
+  const cells = floorCells(level);
+  // In a corridor: straight down the hall, from its middle, the way closest to where it looked.
+  let offAxis = 0;
+  let offMiddle = 0;
+  let notClosest = 0;
+  let tooClose = 0;
+  let n = 0;
+  for (const c of cells.filter((x) => isCorridor(level, x))) {
+    for (let k = 0; k < 4; k++) {
+      const mid = cellCenter(c);
+      const at = { x: mid.x + (rng() - 0.5) * 1.2, z: mid.z + (rng() - 0.5) * 1.2 };
+      const a = rng() * Math.PI * 2;
+      const facing = { x: Math.sin(a), z: Math.cos(a) };
+      const p = throwPlan(level, at, facing);
+      n++;
+      const axis = Math.abs(p.dir.x) === 1 || Math.abs(p.dir.z) === 1;
+      if (!axis || !isCorridor(level, { col: c.col + Math.round(p.dir.x), row: c.row + Math.round(p.dir.z) })) offAxis++;
+      if ((p.dir.x !== 0 && Math.abs(p.from.z - mid.z) > 1e-9) || (p.dir.z !== 0 && Math.abs(p.from.x - mid.x) > 1e-9)) offMiddle++;
+      const room = throwLanding(level, p.from, p.dir).distance;
+      // Any other way down the hall with room that's closer to where it looked?
+      const better = [{ x: 1, z: 0 }, { x: -1, z: 0 }, { x: 0, z: 1 }, { x: 0, z: -1 }].some((d) => {
+        if (!isCorridor(level, { col: c.col + d.x, row: c.row + d.z })) return false;
+        const from = d.x !== 0 ? { x: at.x + d.x * THROW.hands, z: mid.z } : { x: mid.x, z: at.z + d.z * THROW.hands };
+        return throwLanding(level, from, d).distance >= THROW.minClear && d.x * facing.x + d.z * facing.z > p.dir.x * facing.x + p.dir.z * facing.z + 1e-9;
+      });
+      if (better) notClosest++;
+      if (room < THROW.minClear) tooClose++;
+    }
+  }
+  check('in a corridor: straight down the hall, never into its side walls', offAxis === 0, `${offAxis}/${n}`);
+  check('…from the middle of the hall', offMiddle === 0, `${offMiddle}/${n}`);
+  check('…toward the end closest to where it was looking', notClosest === 0, `${notClosest}/${n}`);
+  check('…with at least 2 m to fly', tooClose === 0, `${tooClose}/${n}`);
+  // In a room: at least 2 m of room, the way closest to where it looked; straight ahead if that's open.
+  let cramped = 0;
+  let turned = 0;
+  let m = 0;
+  for (const c of cells.filter((x) => !isCorridor(level, x))) {
+    const at = cellCenter(c);
+    for (let k = 0; k < 4; k++) {
+      const a = rng() * Math.PI * 2;
+      const facing = { x: Math.sin(a), z: Math.cos(a) };
+      const p = throwPlan(level, at, facing);
+      m++;
+      if (throwLanding(level, p.from, p.dir).distance < THROW.minClear) cramped++;
+      const ahead = { x: at.x + facing.x * THROW.hands, z: at.z + facing.z * THROW.hands };
+      if (Math.abs(a / (Math.PI / 8) - Math.round(a / (Math.PI / 8))) < 1e-9 && throwLanding(level, ahead, facing).distance >= THROW.minClear && p.dir.x * facing.x + p.dir.z * facing.z < 0.999) turned++;
+    }
+  }
+  check('in a room: it always throws you a way with at least 2 m of room (no more clipping into a wall right there)', cramped === 0, `${cramped}/${m}`);
+  check('…straight ahead when that way is open', turned === 0, `${turned}/${m}`);
+  // Facing a wall a step away (the spawn room's back wall): it turns, never throws you into it.
+  const wallAhead = throwPlan(level, cellCenter({ col: 3, row: 1 }), { x: 0, z: -1 });
+  const flight = throwLanding(level, wallAhead.from, wallAhead.dir).distance;
+  check('facing a wall right there: it turns and throws you a way with room, not into the wall', wallAhead.dir.z > -0.9 && flight >= THROW.minClear, `${wallAhead.dir.x.toFixed(2)},${wallAhead.dir.z.toFixed(2)}, ${flight.toFixed(1)} m`);
 }
 
 section('Vanishes after the throw (0.6)');

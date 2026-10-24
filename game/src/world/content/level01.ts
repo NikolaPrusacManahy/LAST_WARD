@@ -48,6 +48,19 @@ export const LEVEL_01: LevelDef = {
     { kind: 'brick', cell: { col: 20, row: 17 }, at: [-0.6, -1.15] },
   ],
   brickRooms: [{ from: { col: 9, row: 7 }, to: { col: 15, row: 9 } }],
+  // Update 0.9.7 — the corridors: The Patient crawls along their ceilings, never into a room (doorways
+  // aren't corridor). A ring round the ward, the middle hall, and four short halls between them.
+  corridors: [
+    { from: { col: 1, row: 5 }, to: { col: 23, row: 5 } }, // top hall
+    { from: { col: 1, row: 11 }, to: { col: 23, row: 11 } }, // middle hall
+    { from: { col: 1, row: 17 }, to: { col: 23, row: 17 } }, // bottom hall
+    { from: { col: 1, row: 6 }, to: { col: 1, row: 16 } }, // west hall
+    { from: { col: 23, row: 6 }, to: { col: 23, row: 16 } }, // east hall
+    { from: { col: 7, row: 6 }, to: { col: 7, row: 10 } }, // top → middle, left
+    { from: { col: 17, row: 6 }, to: { col: 17, row: 10 } }, // top → middle, right
+    { from: { col: 6, row: 12 }, to: { col: 6, row: 16 } }, // middle → bottom, left
+    { from: { col: 18, row: 12 }, to: { col: 18, row: 16 } }, // middle → bottom, right
+  ],
   props: [
     // The room you wake up in: the bed, its screen, cabinets, the medicine shelf, pictures.
     { kind: 'hospital_bed', cell: { col: 3, row: 1 }, wall: 'north' },

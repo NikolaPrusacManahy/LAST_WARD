@@ -26,16 +26,16 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 
 | Module | Owns | Pure? |
 |---|---|---|
-| `world/level.ts` | Level type, ASCII legend + parser, `TILE`, cell ↔ world maths, `itemPos` (where an item's table stands). 0.9: `brickRooms`; 0.9.6: `throwables` spawns. 0.7: floors stacked in one logic grid (gap rows between), stairs + portals, `crossPortal`, `stairRise`, `floorOffset` | yes |
-| `world/pathfinding.ts` | A* (8-way, no corner cutting), flood-fill `reachable`; both go through stair portals (0.7) | yes |
+| `world/level.ts` | Level type, ASCII legend + parser, `TILE`, cell ↔ world maths, `itemPos` (where an item's table stands). 0.9: `brickRooms`; 0.9.6: `throwables` spawns; 0.9.7: `corridors` → `level.corridor`, `isCorridor`. 0.7: floors stacked in one logic grid (gap rows between), stairs + portals, `crossPortal`, `stairRise`, `floorOffset` | yes |
+| `world/pathfinding.ts` | A* (8-way, no corner cutting), flood-fill `reachable`; both go through stair portals (0.7); `findPath(…, only)` walks only the cells in a mask (the corridors, 0.9.7) | yes |
 | `world/lineOfSight.ts` | Grid line-of-sight (`level.opaque`: stairwells are see-through, 0.7) | yes |
-| `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4). 0.9.6: `litByBeam` (your beam on it = spotted), lures from throws, locker checks (`check`), `onTask` (no teleport mid-task), `turnToward` by angle. 0.9.6.2: `enemySpeed` (the fuses only speed up the chase) | yes |
+| `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4). 0.9.6: `litByBeam` (your beam on it = spotted), lures from throws, locker checks (`check`), `onTask` (no teleport mid-task), `turnToward` by angle. 0.9.6.2: `enemySpeed` (the fuses only speed up the chase). 0.9.7: the ceiling crawl (`CRAWL`, `stepCrawl`, mode `crawl` with `e.crawl` up / on / down, `planCrawlRoute`, `nearestCorridorCell`, `dropFromCeiling`) | yes |
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2), `nearestFree` (out of any overlap, 0.9.6) | yes |
 | `world/interact.ts` | What's in reach and in front of the player (0.9: also the four electrical panels; 0.9.1: their switches, and what you aim at wins over what's closer) | yes |
 | `world/props.ts` | Real props: sizes, which way each faces, `placeProp` (cell + wall it backs onto), collision circles, `findProp` (0.8); `panelSpots` / `panelSwitches` (panel i and its switch, level order) and `brickLining` (brick on every wall of `brickRooms`) (0.9); `lockerSpots`, `propFront` (0.9.5), `ITEM_TABLE_SCALE` (0.9.6) | yes |
 | `world/soundPath.ts` | How The Patient's sound reaches you: walls through, the way round (length, bends), the corner it comes from (0.9.4) | yes |
 | `world/rng.ts` | Seeded RNG | yes |
-| `world/content/level01.ts` | Ward 13 map, notes, wall notes, every prop (panels, lockers, furniture), the brick room, bricks and bottles | data |
+| `world/content/level01.ts` | Ward 13 map, notes, wall notes, every prop (panels, lockers, furniture), the brick room, bricks and bottles, the corridors (0.9.7) | data |
 | `world/content/levels.ts` | Play order of the levels (0.7) | data |
 | `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve; adrenaline while chased (`status.chased`, 0.9.6.2) | yes |
 | `state/objectives.ts` | Fuses → four panels (fit, repair, switch on) → generator → exit (0.9), objective text + detail line | yes |
@@ -51,13 +51,13 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/propsView.ts` | Loads and places the prop models, swaps in the fluorescent fixtures and the real generator, panel doors, switch levers, sparks light (0.8–0.9), locker doors (0.9.5), the item tables (0.9.6) | no |
 | `engine/buildLevel.ts` | Walls (instanced), floor, ceiling, lamps, items (+ grey stand-in cabinets until the tables load), stand-in generator, exit door; 0.7: every floor at its real height, steps, stairwell railings | no |
 | `engine/enemyView.ts` | `EnemyView` contract (`update`, `pose` for fixed poses like the menu, `lunge`) + the primitive fallback figure (shown until the GLB loads, or if it fails) | no |
-| `engine/enemyModel.ts` | Rigged Patient (`public/models/patient.glb`): GLTFLoader + AnimationMixer, crossfades, jumpscare attack clip | no |
+| `engine/enemyModel.ts` | Rigged Patient (`public/models/patient.glb`): GLTFLoader + AnimationMixer, crossfades, jumpscare attack clip; 0.9.7: turns over about its middle (`spin`) onto the ceiling, the jump clip set to the AI's time | no |
 | `engine/playerBody.ts` | First-person body (`public/models/player.glb`): placed behind the camera, head hidden, arms shrink away while sprinting | no |
 | `state/cameraBob.ts` | `BOB` amplitudes per gait (dip, sway, roll, nod, FOV) + `bobOffset`; 0.9.1: `INJURED` heavier bob and limp | yes |
-| `engine/playerAnim.ts` | Player clip per gait (+ strafe left / right from local velocity, 0.5.3) + playback speed, body placement | yes |
+| `engine/playerAnim.ts` | Player clip per gait (+ strafe left / right from local velocity, 0.5.3) + playback speed, body placement; 0.9.7: the walk matches your feet to the ground again (the run is still half speed) | yes |
 | `engine/debugView.ts` | F2 view: sun/sky lights, enemy marker through walls, path line | no |
 | `state/debugInfo.ts` | F2 panel text | yes |
-| `engine/enemyAnim.ts` | Which clip to play for an AI mode/speed (runs above 4.0 m/s in any mode; 3.4 before 0.9.6), and playback speed so feet match the ground (clamped at 2.2×) | yes |
+| `engine/enemyAnim.ts` | Which clip to play for an AI mode/speed (runs above 4.0 m/s in any mode; 3.4 before 0.9.6), and playback speed so feet match the ground (clamped at 2.2×); 0.9.7: `crawlPose` (how high, how far turned over, which clip at what time) | yes |
 | `engine/lighting.ts` | Lamp flicker before power, steady after; item spin; only your floor's lamps light up (0.7) | no |
 | `state/lightLevels.ts` | Every light level (flashlight, fill, fog, eye glow) + `atmosphereFor(powered, debug, nightVision)`; 0.9.3: `FLASHLIGHT_BEAM` (1.5× reach), `flashlightFog`, `NIGHT_VISION`, `blendAtmosphere` | yes |
 | `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades, night vision green (0.9.3) | no |
@@ -68,7 +68,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/prompts.ts` | Crosshair prompt words (`promptFor`: collect / read / fit a fuse / repair / switch on / start / hide / pick up / what's missing) + controls-card timer | yes |
 | `audio/menuAmbience.ts` + `state/menuAudio.ts` | Ambience under the credit screen + main menu (own AudioContext, starts on the first gesture) | no / yes |
 | `state/caughtSequence.ts` | Lives (2; Hard gives 1, see `state/difficulty.ts`), caught timeline + cues, flight curve, thrown clip timing, dazed blink, injured tint, grunt delay (0.6) | yes |
-| `world/throwLanding.ts` | Where you land: behind the enemy, up to 10 m, never through a wall or (0.9.6) into furniture | yes |
+| `world/throwLanding.ts` | Where you land: up to 10 m, never through a wall or (0.9.6) into furniture. 0.9.7: `throwPlan`, forward the way it turns to (down the middle of a corridor; in a room the way nearest its view with ≥ 2 m of room), not behind it | yes |
 | `engine/caughtScene.ts` | Films the caught sequence: camera in its hands, then your body's eyes (`PlayerBody.cinematic` / `eyes`) | no |
 | `state/wakeSequence.ts` | Start-of-run wake-up timeline: intro text fade, eyelids, 1 s wait, get-up, dim torch (0.6.3); `WAKE_SOUND`, the wake-up recording that plays over it all (0.9.6.1) | yes |
 | `engine/wakeScene.ts` | Films the wake-up from your body's eyes (get-up clip held, then played) | no |
@@ -88,7 +88,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 
 - **Coordinates:** world `x` = map column direction, world `z` = map row direction (down the ASCII map). 1 cell = `TILE` = 3 m. three.js uses the same x/z, with y up.
 - **Yaw:** `forward = (-sin yaw, -cos yaw)`. `yaw = 0` looks up the map (−z), `yaw = π` looks down it (+z).
-- **Enemy:** `stepEnemy(level, enemy, { dt, player, noise, fuses, lockers, playerLocker }, rng)` mutates `enemy` and returns events. Noise is one-shot per frame: `{ pos, radius, run?, lure? }` (a footstep; `run`: a panel blowing, heard anywhere; `lure`: a thrown thing). It hears `radius × ENEMY.hearingMul` (2). `player.hidden` = in a locker it didn't see you get into.
+- **Enemy:** `stepEnemy(level, enemy, { dt, player, noise, fuses, lockers, playerLocker }, rng)` mutates `enemy` and returns events. Noise is one-shot per frame: `{ pos, radius, run?, lure?, step? }` (`run`: a panel blowing, heard anywhere; `lure`: a thrown thing; `step`: your footsteps, 0.9.7). On the ceiling (`e.crawl`) it never catches you; events `crawlUp` / `landed` (0.9.7). It hears `radius × ENEMY.hearingMul` (2). `player.hidden` = in a locker it didn't see you get into.
 - **Game → React:** only through `GameCallbacks` (`onEnd`, `onPause`) and the HUD store. React → Game only through `GameHandle` (`resume`, `setSettings`) and `begin()` from the intro click.
 - **Pointer lock:** losing lock while playing = pause. Death and escape release it on purpose and never trigger pause.
 - **Saves:** a new saved field needs a default in `defaultSave()` **and** a line in `hydrateSave()`, or it is wiped on load.
@@ -106,6 +106,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | Lose it | `ENEMY.memorySeconds`, `searchSeconds` | tracks you 1.2 s after losing sight, searches 7 s (and checks a locker within 9 m) |
 | Scream head start | `ENEMY.windupSeconds` | screams in place 1.0 s after spotting you, then charges |
 | Corner teleport | `ENEMY.teleportAfter`, `teleportMinDist`, `homeRadiusTiles` | 35 s without spotting you → another corner, ≥ 14 m from you and out of sight (never mid-task); patrols within 12 tiles of its corner |
+| Ceiling crawl | `CRAWL`, `ENEMY.speed.crawl` | from a corridor patrol, never in the first 60 s, then 40–70 s apart (8% a second); 2.6 s up, 15–20 s at 8.6 m/s along a route planned up front, 1.6 s down |
 | Throws | `THROW` (state/throwables.ts) | 11 m/s + lift; brick noise 20 m (2 throws), bottle 16 m (1 throw); lure: you within 5 m of the landing → chase |
 | Panel repair | `SKILL` (state/skillCheck.ts) | 14 s of holding, checks every 2.6–4.6 s, miss = −12%, bang heard everywhere |
 | Look back | `LOOK_BACK` (state/lookBack.ts) | 0.18 s swing, 0.4× time for 0.5 s, 3 s cooldown |
@@ -115,5 +116,5 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 
 - Pipeline: Mixamo FBX in `ASSETS/models/<name>/` → `node tools/convert-character.mjs` (see its header) → `public/models/<name>.glb` with named clips, root motion stripped, 1024 px WebP textures. Patient: 15.7 MB of FBX → 1.3 MB GLB.
 - three.js strips `:` from node names, so Mixamo bones are `mixamorigHips`, `mixamorigHead`, …
-- Player clips: `idle walk run crouch` (bones `mixamorig9…`). Authored speeds: walk 1.6, run ≈3.2, crouch 1.25 m/s.
-- Patient clips: `idle walk run search scream attack stare` (`stare` is menu-only). AI → clip mapping lives in `enemyAnim.ts` (tested). Authored ground speeds: walk 1.47 m/s, run ≈2.6 m/s.
+- Player clips: `idle walk run crouch` (bones `mixamorig9…`). 0.9.7: `getUp` keeps its sideways hip movement (`--keep-root=getUp`), so the hands stay planted; the game follows where it ends up. Authored speeds: walk 1.6, run ≈3.2, crouch 1.25 m/s.
+- Patient clips: `idle walk run search scream attack stare grab throw crawl jumpUp` (`stare` is menu-only; `crawl` / `jumpUp` added with `--add` in 0.9.7). AI → clip mapping lives in `enemyAnim.ts` (tested). Authored ground speeds: walk 1.47 m/s, run ≈2.6 m/s.

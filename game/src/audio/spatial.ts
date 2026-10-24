@@ -17,6 +17,8 @@ export const PANEL_SFX_GAIN = 0.4;
 export const NIGHT_VISION_SFX_GAIN = 0.2;
 /** Update 0.9.6.1 — your breathing while you sprint, at half the recording's volume. */
 export const RUN_BREATH_GAIN = 0.5;
+/** Update 0.9.7 — its hands and feet scuttling on the ceiling: lighter than its steps. */
+export const CRAWL_STEP_GAIN = 0.6;
 
 export interface EnemyMix {
   /** Low-pass cutoff in Hz. */
