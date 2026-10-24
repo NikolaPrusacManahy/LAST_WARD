@@ -260,28 +260,36 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + 133 rule tests) and `npm run verify` (adds the production build).
+From `game/`: `npm run verify:quick` (typecheck + rule tests, 554 at 0.9.6) and `npm run verify` (adds the production build). Run `verify` before every commit.
 
 ## How to publish
-`npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready).
+`npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready). The public build has the debug tools (F2, F3, `?debug`, `?level=N`, the tester level picker) switched off.
+
+## Working on this project
+- **Quality, not quantity:** level 1 (Ward 13) only. Level 2 was removed in 0.7.2; the floors / stairs engine is kept and tested for later.
+- **Commits:** one line, nothing else, e.g. `0.9.6: throwable bricks and bottles, The Patient checks lockers, faster and sharper hunter`. Fixes asked for "in the same patch" go into that version's commit and notes, not a new number. Nikola commits in GitHub Desktop.
+- **Each update:** bump the version in `game/src/state/version.ts` **and** `game/package.json` (a test checks they match), add a section at the top of this file, keep `DEVELOPMENT.md` and `README.md` current, add tests for the new rules.
+- **No `CLAUDE.md`** in this project (removed from the repo and its history on purpose). Conventions live here.
+- **Assets:** raw files in `ASSETS/` (not shipped), converted by the scripts in `game/tools/` into `game/public/`. Every outside asset needs a line in `game/src/state/credits.ts`.
+- **Leftover files to delete** (from earlier versions, no longer used): `game/src/state/panelRepair.ts`, `game/src/world/content/level02.ts`, `game/tests/test-mansion.ts`, and a stray `story/Horror-Game` folder if it's still there.
 
 ## Verified vs unverified
-- ✅ Typecheck, 133 rule tests and the production build pass.
-- ✅ A headless browser test (software rendering, in Claude's cloud workspace) ran the full loop: menu → intro → all items → generator → exit, plus a caught → death screen run. Screenshots looked right.
-- ⚠️ **Not verified:** real-GPU frame rate, how the audio actually sounds, mouse feel under pointer lock, and Pause → Resume (the headless test ran without pointer lock). Check these first.
-- ⚠️ Difficulty is tuned on paper only. Expect to adjust `ENEMY` / `PLAYER` numbers after playing.
+- ✅ Typecheck, 554 rule tests and the production build pass (0.9.6).
+- ✅ Headless browser checks (software rendering, ~1–2 fps) of each feature as it was added: panels and skill checks, banner, difficulty picker and night vision, lockers and peeking, throwing, locker checks, the furnished generator room.
+- ⚠️ **Not verified by playing:** real-GPU frame rate, how it sounds (volumes, the hearing model), mouse feel, timing of skill checks, chases after throws. Tuned on paper; adjust `ENEMY` / `PLAYER` / `THROW` / `SKILL` after playing.
 
 ## Known limits / ideas for next
-- Hiding spots (lockers, under beds) would give the player an answer to a chase besides running.
+- Panel repair animation: the first-person hands working on the panel (a Mixamo clip for the player rig, played while you hold repair, plus camera framing on the panel).
+- Level 0: the apartment prologue before you're taken (waiting on the apartment model).
+- Brightness calibration screen on first launch (the game is very dark).
+- Lamps and your flashlight flicker when The Patient is near.
+- Hospital signs on the walls ("Generator", "Exit", arrows).
+- Best time per difficulty (Easy currently counts towards the same best time).
 - Doors that open and close (and make noise).
-- Real texture assets to replace the canvas ones. Optional extra sounds: stinger, chase music, distant clanks.
-- More levels, and a level-select or chapter flow.
-- A small bundle-size warning from Vite (three.js is about 730 kB). Harmless for now.
-
-## Open questions for you
-- Keep the name "Last Ward" and the hospital setting?
-- Should death restart the level, or add checkpoints after each fuse?
-- Is a single scripted jumpscare at death enough, or do you want scripted scares mid-level (lights cutting out, a figure at the end of a hall)?
+- The bottle's smash (16 m) is quieter than a brick's thud (20 m); raise it to match if wanted.
+- Credits: the locker's link is a Sketchfab search until the model page link is filled in; sound effects aren't credited (their sources aren't recorded).
+- Getting caught on a flight of stairs plays the throw at floor height; sounds from other floors are only treated as far away (no multi-floor level in the game right now).
+- Vite warns about bundle size (three.js ~730 kB). Harmless.
 
 ## Key code map
-See `DEVELOPMENT.md`. Start with `game/src/engine/Game.ts` (wiring), `game/src/world/enemyAI.ts` (the monster) and `game/src/world/content/level01.ts` (the map).
+See `DEVELOPMENT.md`. Start with `game/src/engine/Game.ts` (wiring), `game/src/world/enemyAI.ts` (the monster) and `game/src/world/content/level01.ts` (the map and every prop in it).
