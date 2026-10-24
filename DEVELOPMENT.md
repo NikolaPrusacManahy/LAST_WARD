@@ -40,6 +40,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/throwables.ts` + `engine/throwablesView.ts` | Bricks and bottles: spawns, held position, throw arc, landing, noise (0.9.6) | yes / no |
 | `state/hiding.ts` | Lockers: getting in / out, peeking (Space + W, 60° max), seen-getting-in = exposed, look limits (0.9.5) | yes |
 | `state/difficulty.ts` + `screens/DifficultyPanel.tsx` | Easy / Normal / Hard rules (lives, battery drain, night vision) and the picker after Begin (0.9.3) | yes / no |
+| `state/version.ts` | The version on the main menu (keep `package.json` the same; tested) | yes |
 | `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time; `mixVolumes` master × SFX / BGM (0.9.2) | yes (+ localStorage I/O) |
 | `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`), wiring | no |
 | `engine/playerController.ts` | Camera, head bob, footsteps, flashlight rig | no |

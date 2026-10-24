@@ -17,7 +17,12 @@ const lockers = lockerSpots(level);
 
 section('Lockers in Ward 13 (0.9.5)');
 {
-  check('seven lockers', lockers.length === 7);
+  check('thirteen lockers (0.9.6: four more in the corridors, two in the generator room)', lockers.length === 13);
+  const corridor = (l: { x: number; z: number }) => {
+    const c = worldToCell(l);
+    return c.row === 5 || c.row === 11 || c.row === 17 || c.col === 1 || c.col === 23;
+  };
+  check('at least five of them in the corridors', lockers.filter(corridor).length >= 5, `${lockers.filter(corridor).length}`);
   const quarters = new Set(lockers.map((l) => `${l.x < (level.cols * 3) / 2 ? 'W' : 'E'}${l.z < (level.rows * 3) / 2 ? 'N' : 'S'}`));
   check('spread over every quarter of the map', quarters.size === 4);
   lockers.forEach((l, i) => {

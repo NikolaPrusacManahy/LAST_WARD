@@ -32,7 +32,7 @@ import { AudioEngine } from '../audio/audio';
 import { EnemyMix, enemyHearing } from '../audio/spatial';
 import { SoundPath, soundPath } from '../world/soundPath';
 import { lineOfSight } from '../world/lineOfSight';
-import { freeBehind } from '../world/collision';
+import { freeBehind, nearestFree } from '../world/collision';
 import { BODY_RADIUS } from './playerAnim';
 import { buildLevel, LevelView } from './buildLevel';
 import { createEnemyView, EnemyView } from './enemyView';
@@ -528,6 +528,9 @@ export class Game {
     this.playTime += dt;
     const { input, player, status } = this;
     player.look(input, this.settings);
+    // Update 0.9.6 — if anything ever leaves you inside furniture, step out of it (you'd be stuck: no
+    // move is allowed out of an overlap).
+    if (!this.hide) player.pos = nearestFree(this.level, player.pos, PLAYER.radius, player.obstacles);
     // Update 0.9.5 — in a locker you don't walk: you're placed in it, and can peek or get out.
     const step = this.hide ? this.stepHiding(dt) : player.step(this.level, input, status, dt);
     // Update 0.7 — walked onto / off the stairs' portal: you're on the other floor now.
@@ -990,6 +993,7 @@ export class Game {
       playerPos: { ...this.player.pos },
       eyeHeight: this.camera.position.y,
       enemyPos: { ...this.enemy.pos },
+      blockers: this.player.obstacles,
     });
   }
 
@@ -1026,7 +1030,8 @@ export class Game {
   private endCaught(scene: CaughtScene) {
     const view = scene.lastView();
     this.fx.set({ lids: 0 });
-    this.player.pos = crossPortal(this.level, scene.endPos).pos;
+    // Update 0.9.6 — never left standing inside furniture after the throw.
+    this.player.pos = nearestFree(this.level, crossPortal(this.level, scene.endPos).pos, PLAYER.radius, this.player.obstacles);
     this.syncFloor();
     this.player.yaw = scene.bodyYaw;
     this.player.pitch = 0;

@@ -10,6 +10,13 @@
 - **It walks twice as fast:** patrol 1.5 → 3.0 m/s (as fast as you walk). Searching 3.0 and going to look at a noise 3.2, still a walk; the chase is unchanged (4.3). Its walk animation plays faster to match (the run clip now starts at 4 m/s).
 - **It hears twice as far** (every noise radius ×2: walking 12 m, running 30 m).
 - **Your flashlight on its body gives you away at once,** whichever way it faces (within 30 m, nothing in the way). The night vision goggles don't count.
+- **No teleporting in the middle of a task.** Its tasks are checking a locker and running to something you threw. If its 35 s teleport clock runs out during one, it finishes the task first, then teleports.
+- **Fixed: stuck running.** If it teleported while sprinting to a noise, it kept its sprint flag and ran everywhere for the rest of the game. A teleport now clears it, and the sprint is switched off whenever it isn't on its way somewhere.
+- **Version on the main menu**, bottom right: "v0.9.6" with "Game in development" under it (`state/version.ts`; `package.json` now carries the same version, a test checks they match). Bump both with each update.
+- **Fixed: stuck in a table after being thrown.** The throw only stopped at walls, so landing next to an item table put you inside it, and you couldn't move out of the overlap. Furniture (tables, lockers, every solid prop) now stops the throw too, and if anything ever leaves you inside furniture you're moved to the nearest open floor (`world/collision.ts` `nearestFree`).
+- **Real tables under the items:** the grey boxes the fuses, batteries and notes sat on are now the hospital room's table, bare and shrunk to a small side table (`item_table`, from "Horror Hospital Room"). The boxes stay as stand-ins until it loads.
+- **Six more lockers (13 in all):** four in the corridors (top corridor, middle corridor, east corridor, bottom corridor) and two in the generator room.
+- **The generator room is furnished:** pipes and boxes on the east and west walls too, a supply shelf, a work table, more drums and a radiator, all against the walls with the middle clear. A test checks no two pieces of furniture (or an item table) stand in each other.
 - **Fixed: walking backwards.** Its turning blended the old and new facing, which cancel out when the new way is straight behind it: after a teleport or a U-turn it could walk backwards down a corridor. It now turns by angle and always turns round.
 
 ## 0.9.5.1

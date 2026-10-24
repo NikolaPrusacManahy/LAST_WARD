@@ -101,3 +101,45 @@ section('Checking lockers (0.9.6)');
   const found = go(0);
   check('you were in it: found', found.events.includes('foundYou'));
 }
+
+section('Tasks before teleports (0.9.6)');
+{
+  // Running to a thrown brick when the 35 s teleport clock runs out: it gets there first.
+  const e = createEnemy(level);
+  e.pos = at(2, 5);
+  const youFar = { pos: at(23, 17), flashlightOn: false, crouching: true };
+  const rng = createRng(11);
+  stepEnemy(level, e, { dt: 1 / 60, player: youFar, noise: { pos: at(22, 5), radius: 30, lure: true }, fuses: 0 }, rng);
+  e.sinceSpotted = ENEMY.teleportAfter + 1; // the clock has run out
+  let teleportedOnTheWay = false;
+  let arrived = false;
+  for (let i = 0; i < 20 * 60 && !arrived; i++) {
+    const ev = stepEnemy(level, e, { dt: 1 / 60, player: youFar, noise: null, fuses: 0 }, rng);
+    if (ev.includes('teleported')) teleportedOnTheWay = true;
+    arrived = e.mode === 'search';
+  }
+  check('running to a throw: no teleport until it gets there', arrived && !teleportedOnTheWay);
+  let teleported = false;
+  for (let i = 0; i < 5 * 60 && !teleported; i++) teleported = stepEnemy(level, e, { dt: 1 / 60, player: youFar, noise: null, fuses: 0 }, rng).includes('teleported');
+  check('…then it teleports', teleported);
+  check('…and walks again: not stuck running (the bug)', !e.rush && e.mode === 'patrol');
+  let v = 0;
+  const p0 = { ...e.pos };
+  for (let i = 0; i < 4 * 60; i++) stepEnemy(level, e, { dt: 1 / 60, player: youFar, noise: null, fuses: 0 }, rng);
+  v = dist(p0, e.pos) / 4;
+  check('…at walking speed', v <= ENEMY.speed.patrol + 0.05, `${v.toFixed(2)} m/s`);
+  // Checking a locker: no teleport mid-check either.
+  const e2 = createEnemy(level);
+  e2.pos = lockers[0].stand;
+  e2.mode = 'search';
+  e2.check = { locker: 0, phase: 'open', t: 0 };
+  e2.sinceSpotted = ENEMY.teleportAfter + 1;
+  const ev2 = stepEnemy(level, e2, { dt: 1 / 60, player: youFar, noise: null, fuses: 0, lockers }, createRng(12));
+  check('checking a locker: no teleport mid-check', !ev2.includes('teleported') && !!e2.check);
+  // Sprinting left on outside a sprint: switched off.
+  const e3 = createEnemy(level);
+  e3.rush = true;
+  e3.mode = 'patrol';
+  stepEnemy(level, e3, { dt: 1 / 60, player: youFar, noise: null, fuses: 0 }, createRng(13));
+  check('it never stays in a sprint outside going somewhere', !e3.rush);
+}

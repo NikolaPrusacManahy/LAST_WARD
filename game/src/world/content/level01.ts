@@ -91,5 +91,23 @@ export const LEVEL_01: LevelDef = {
     { kind: 'locker', cell: { col: 8, row: 15 }, wall: 'west' },
     { kind: 'locker', cell: { col: 16, row: 15 }, wall: 'east' },
     { kind: 'locker', cell: { col: 14, row: 17 }, wall: 'south' },
+    // Update 0.9.6 — more lockers in the corridors (somewhere to go when it's on you) and two in the
+    // generator room.
+    { kind: 'locker', cell: { col: 6, row: 5 }, wall: 'north' },
+    { kind: 'locker', cell: { col: 21, row: 11 }, wall: 'north' },
+    { kind: 'locker', cell: { col: 23, row: 7 }, wall: 'east' },
+    { kind: 'locker', cell: { col: 4, row: 17 }, wall: 'south' },
+    { kind: 'locker', cell: { col: 9, row: 7 }, wall: 'west', along: -0.5 },
+    { kind: 'locker', cell: { col: 15, row: 7 }, wall: 'east', along: -0.5 },
+    // Update 0.9.6 — the generator room was bare: a store room now. Pipes and boxes on the walls, drums,
+    // a supply shelf, a work table, a radiator (all against the walls, the middle kept clear).
+    { kind: 'electrical_wall', cell: { col: 9, row: 8 }, wall: 'west', y: 1.57 },
+    { kind: 'electrical_wall', cell: { col: 15, row: 8 }, wall: 'east', y: 1.57 },
+    { kind: 'medicine_shelf', cell: { col: 10, row: 7 }, wall: 'north' },
+    { kind: 'side_table', cell: { col: 14, row: 7 }, wall: 'north' },
+    { kind: 'barrel', cell: { col: 9, row: 9 }, wall: 'south', along: 0.7 },
+    { kind: 'barrel', cell: { col: 10, row: 9 }, wall: 'south', along: -0.6 },
+    { kind: 'barrel_lying', cell: { col: 14, row: 9 }, wall: 'south', along: 0.5 },
+    { kind: 'radiator', cell: { col: 11, row: 9 }, wall: 'south' },
   ],
 };

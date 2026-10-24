@@ -5,7 +5,7 @@ import { Cell, FACE_DIR, Level, TILE, Vec2, WALL_HEIGHT, WallFace, cellCenter, i
 export type PropKind =
   | 'hospital_bed' | 'privacy_screen' | 'bedside_flowers' | 'bedside_drawing' | 'bedside_meds' | 'side_table'
   | 'medicine_shelf' | 'portrait' | 'child_drawing' | 'generator' | 'electrical_wall' | 'brick_wall' | 'breaker_box'
-  | 'power_switch' | 'radiator' | 'barrel' | 'barrel_lying' | 'toilet' | 'fluorescent' | 'locker';
+  | 'power_switch' | 'radiator' | 'barrel' | 'barrel_lying' | 'toilet' | 'fluorescent' | 'locker' | 'item_table';
 
 /** Local axis a model's front points along. */
 type Front = 'x' | '-x' | 'z' | '-z';
@@ -39,6 +39,7 @@ export const PROPS: Record<PropKind, PropSpec> = {
   toilet: { size: [0.45, 0.8, 0.59], front: 'z', blocks: true },
   fluorescent: { size: [1.52, 0.22, 0.66], front: 'z', blocks: false },
   locker: { size: [0.68, 2.0, 0.75], front: 'z', blocks: true }, // 0.9.5: you can hide in it (state/hiding.ts)
+  item_table: { size: [1.18, 0.69, 0.92], front: 'z', blocks: false }, // 0.9.6: what items lie on (drawn at ITEM_TABLE_SCALE; collision is the item's own)
 };
 
 /** How a level places a prop. `wall`: the side of the cell it backs onto (it faces away from it).
@@ -129,6 +130,10 @@ export function panelSpots(level: Level): PlacedProp[] {
 export function panelSwitches(level: Level): PlacedProp[] {
   return level.props.filter((x) => x.kind === 'power_switch').map(placeProp);
 }
+
+/** Update 0.9.6 — the item tables: the hospital room's table, shrunk to a small side table about the
+ *  size of the old grey cabinet (0.71 × 0.79 × 0.6 m), its top just under the items. */
+export const ITEM_TABLE_SCALE: [number, number, number] = [0.6, 1.15, 0.65];
 
 /** Update 0.9.5 — the hiding lockers, in level order. */
 export function lockerSpots(level: Level): PlacedProp[] {

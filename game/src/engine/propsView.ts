@@ -4,8 +4,8 @@
 // panel's door and the power switch's lever.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { Level, floorAt, floorOffset } from '../world/level';
-import { PlacedProp, PropKind, brickLining, panelSpots, placedProps } from '../world/props';
+import { Level, floorAt, floorOffset, itemPos } from '../world/level';
+import { ITEM_TABLE_SCALE, PlacedProp, PropKind, brickLining, panelSpots, placedProps } from '../world/props';
 import type { LevelView } from './buildLevel';
 
 export const PROP_URL = (kind: PropKind) => `/models/props/${kind}.glb`;
@@ -103,6 +103,25 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
         }
       })
       .catch((err) => console.warn(`Prop ${p.kind} failed to load.`, err));
+  }
+
+  // Update 0.9.6 — a real table under every item (fuses, batteries, notes), replacing the grey boxes.
+  if (level.items.length) {
+    load('item_table')
+      .then((scene) => {
+        if (disposed) return;
+        for (const item of level.items) {
+          const p = itemPos(level, item.cell);
+          const obj = scene.clone(true);
+          const at = lift(p.x, p.z);
+          obj.position.set(p.x, at.y, at.z);
+          obj.rotation.y = Math.atan2(p.face.x, p.face.z);
+          obj.scale.set(...ITEM_TABLE_SCALE);
+          root.add(obj);
+        }
+        view.itemCabinets.forEach((c) => (c.visible = false));
+      })
+      .catch((err) => console.warn('Item tables failed to load.', err));
   }
 
   // Fluorescent fixtures at every ceiling lamp: the housing glows with the lamp's flicker.

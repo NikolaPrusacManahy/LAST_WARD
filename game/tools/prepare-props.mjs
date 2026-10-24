@@ -39,6 +39,8 @@ export const PLAN = [
   { out: 'bedside_drawing', src: ROOM, keep: ['bedside_shelf2', 'drawing_2'], scale: 24 },
   { out: 'bedside_meds', src: ROOM, keep: ['bedside_shelf3', 'medicine1', 'pCylinder40'], scale: 24 },
   { out: 'side_table', src: ROOM, keep: ['table:pCube2', 'beaker2:pCylinder1', 'pCylinder1'], scale: 24 },
+  // Update 0.9.6 — the same table, bare: fuses, batteries and notes lie on these (was a grey box).
+  { out: 'item_table', src: ROOM, keep: ['table:pCube2'], scale: 24 },
   { out: 'medicine_shelf', src: ROOM, keep: ['shelf3', 'books', 'medicine'], scale: 24, simplify: 0.35 },
   { out: 'portrait', src: ROOM, keep: ['portrait2:pCube5'], scale: 24, anchor: 'center' },
   { out: 'child_drawing', src: ROOM, keep: ['drawing_1'], scale: 24, anchor: 'center' },

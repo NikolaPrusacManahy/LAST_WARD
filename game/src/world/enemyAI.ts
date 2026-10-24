@@ -246,9 +246,17 @@ export function summonToGenerator(level: Level, e: EnemyState, player: Vec2, rng
   return to;
 }
 
+/** Update 0.9.6 — busy with something it has to finish before it may teleport. */
+export function onTask(e: EnemyState): boolean {
+  return !!e.check || (e.lure && e.mode === 'investigate');
+}
+
 /** Update 0.5.4 — after a minute without finding you, move to another corner you can't see. */
 function tryTeleport(level: Level, e: EnemyState, player: Vec2, rng: Rng): boolean {
   if (e.mode === 'chase' || e.sinceSpotted < ENEMY.teleportAfter) return false;
+  // Update 0.9.6 — never in the middle of a task: checking a locker, or running to something you threw.
+  // It finishes the task first, then teleports.
+  if (onTask(e)) return false;
   if (dist(e.pos, player) < ENEMY.teleportMinDist || !outOfSight(level, e.pos, player)) return false;
   const options = cornerCells(level).filter(
     (c) => !sameCell(c, e.home) && dist(cellCenter(c), player) >= ENEMY.teleportMinDist && outOfSight(level, cellCenter(c), player),
@@ -265,6 +273,7 @@ function tryTeleport(level: Level, e: EnemyState, player: Vec2, rng: Rng): boole
   e.alert = 0;
   e.idle = 1;
   e.sinceSpotted = 0;
+  e.rush = false; // Update 0.9.6 — fix: it used to keep running (rush) the whole game after teleporting mid-sprint
   e.lure = false;
   e.check = null;
   return true;
@@ -464,6 +473,8 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
   e.rage = input.fuses * ENEMY.ragePerFuse;
   e.modeTime += dt;
   e.clock += dt;
+  // Update 0.9.6 — running flat out is only ever for getting somewhere (investigate); never left on.
+  if (e.mode !== 'investigate') e.rush = false;
 
   // Update 0.5.4 — a minute without finding you: teleport to another corner (only when unseen).
   e.sinceSpotted = e.mode === 'chase' ? 0 : e.sinceSpotted + dt;

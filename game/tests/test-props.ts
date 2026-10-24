@@ -195,3 +195,28 @@ section('Credits (0.8)');
   check('every CC BY credit has title, author and a source link', CREDITS.filter((c) => c.licence.startsWith('CC BY')).every((c) => c.title && c.author && c.source?.startsWith('https://')));
   check('the hospital room credit names its author (KarolinaGlad)', CREDITS.some((c) => c.title === 'Horror Hospital Room' && c.author === 'KarolinaGlad'));
 }
+
+section('Furniture (0.9.6)');
+{
+  // No two pieces of furniture standing in each other.
+  const solid = placedProps(level).filter((p) => p.y < 0.5 && p.kind !== 'generator');
+  const clash: string[] = [];
+  for (let i = 0; i < solid.length; i++)
+    for (let j = i + 1; j < solid.length; j++) {
+      const a = solid[i];
+      const b = solid[j];
+      if (Math.abs(a.x - b.x) < a.hx + b.hx - 0.02 && Math.abs(a.z - b.z) < a.hz + b.hz - 0.02) clash.push(`${a.kind}/${b.kind}@${worldToCell(a).col},${worldToCell(a).row}`);
+    }
+  check('no two pieces of furniture overlap', clash.length === 0, clash.join(' '));
+  const genRoom = placedProps(level).filter((p) => {
+    const c = worldToCell(p);
+    return c.col >= 9 && c.col <= 15 && c.row >= 7 && c.row <= 9;
+  });
+  check('the generator room is furnished (10+ pieces besides the brick)', genRoom.length >= 10, `${genRoom.length}`);
+}
+{
+  const tables = level.items.map((it) => itemPos(level, it.cell));
+  const solid = placedProps(level).filter((p) => p.y < 0.5 && p.kind !== 'generator');
+  const hit = tables.filter((t) => solid.some((p) => Math.abs(t.x - p.x) < p.hx + 0.38 && Math.abs(t.z - p.z) < p.hz + 0.38));
+  check('item tables don\'t stand in other furniture', hit.length === 0, hit.map((t) => `${worldToCell(t).col},${worldToCell(t).row}`).join(' '));
+}

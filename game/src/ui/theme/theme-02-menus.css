@@ -54,3 +54,11 @@
   0%, 100% { transform: translate(0); } 25% { transform: translate(-4px, 2px); }
   50% { transform: translate(3px, -3px); } 75% { transform: translate(-2px, -1px); }
 }
+
+/* Version, bottom right of the main menu. */
+.lw-menu-version {
+  position: absolute; right: 32px; bottom: 28px; z-index: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  font-family: var(--lw-mono); color: var(--lw-bone-dim); pointer-events: none;
+}
+.lw-menu-version span:first-child { font-size: 13px; letter-spacing: 0.14em; color: var(--lw-bone); opacity: 0.75; }
+.lw-menu-version span:last-child { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; opacity: 0.6; }

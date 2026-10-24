@@ -26,6 +26,8 @@ export interface LevelView {
   generatorLamp: THREE.MeshStandardMaterial;
   /** Update 0.8 — the stand-in generator (hidden once the model is in) and its status light. */
   generatorStandIn: THREE.Object3D[];
+  /** Update 0.9.6 — the grey item cabinets: stand-ins until the real tables load (engine/propsView.ts). */
+  itemCabinets: THREE.Object3D[];
   generatorBulb: THREE.Mesh;
   /** Where the generator really is (world, all floors). */
   generatorPos: THREE.Vector3;
@@ -194,6 +196,7 @@ export function buildLevel(level: Level): LevelView {
 
   // --- Items on bedside cabinets.
   const items = new Map<string, THREE.Object3D>();
+  const itemCabinets: THREE.Object3D[] = [];
   const spinners: THREE.Object3D[] = [];
   const cabinetGeo = track(new THREE.BoxGeometry(0.6, 0.8, 0.5));
   const cabinetMat = track(new THREE.MeshStandardMaterial({ color: 0x5c574d, roughness: 0.8, metalness: 0.2 }));
@@ -215,6 +218,7 @@ export function buildLevel(level: Level): LevelView {
     cab.rotation.y = Math.atan2(p.face.x, p.face.z);
     cab.castShadow = cab.receiveShadow = true;
     root.add(cab);
+    itemCabinets.push(cab);
     if (item.kind === 'fuse') {
       const f = new THREE.Mesh(fuseGeo, fuseMat);
       const c1 = new THREE.Mesh(capGeo, capMat);
@@ -301,6 +305,7 @@ export function buildLevel(level: Level): LevelView {
     spinners,
     generatorLamp,
     generatorStandIn: [body, pipes, slots],
+    itemCabinets,
     generatorBulb: lampBulb,
     generatorPos: atCell(level.generator, 1),
     exitSign,

@@ -66,4 +66,21 @@ export function freeBehind(level: Level, pos: Vec2, forward: Vec2, max: number, 
   return d;
 }
 
+/**
+ * Update 0.9.6 — somewhere you're actually standing in the open: `p` if it's free, else the nearest free
+ * point (rings out to 2.5 m). Anything that puts you somewhere (a throw, a teleport) goes through this
+ * so you never end up stuck inside a table or a locker.
+ */
+export function nearestFree(level: Level, p: Vec2, r: number, blockers: Blocker[] = []): Vec2 {
+  if (!overlapsWall(level, p, r, blockers)) return { ...p };
+  for (let d = 0.1; d <= 2.5; d += 0.1) {
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      const q = { x: p.x + Math.cos(a) * d, z: p.z + Math.sin(a) * d };
+      if (!overlapsWall(level, q, r, blockers)) return q;
+    }
+  }
+  return { ...p };
+}
+
 export { overlapsWall };

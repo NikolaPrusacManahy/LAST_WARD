@@ -54,6 +54,10 @@ export class PlayerController {
   private readonly tmpQ = new THREE.Quaternion();
 
   private blockers: Blocker[] = [];
+  /** Update 0.9.6 — the furniture you collide with (for landings and un-sticking). */
+  get obstacles(): Blocker[] {
+    return this.blockers;
+  }
   /** Update 0.7 — how high up a flight of stairs you are (the camera rises with it). */
   rise = 0;
 

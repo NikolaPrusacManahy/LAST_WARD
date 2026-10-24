@@ -2,6 +2,7 @@ import { SaveData, formatTime } from '../state/settings';
 import { MenuScene } from './MenuScene';
 import { TesterLevelPicker } from './TesterLevelPicker';
 import { LEVELS } from '../world/content/levels';
+import { GAME_STAGE, GAME_VERSION } from '../state/version';
 
 interface Props {
   save: SaveData;
@@ -33,6 +34,10 @@ export function MainMenu({ save, onStart, onSettings, onCredits, startLevel, onP
           <div><dt>Best</dt><dd>{save.bestTime === null ? '—' : formatTime(save.bestTime)}</dd></div>
         </dl>
         <p className="lw-menu-hint">Headphones recommended. It hunts by sound.</p>
+      </div>
+      <div className="lw-menu-version">
+        <span>v{GAME_VERSION}</span>
+        <span>{GAME_STAGE}</span>
       </div>
     </div>
   );

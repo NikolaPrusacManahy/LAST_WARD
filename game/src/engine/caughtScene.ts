@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import type { Level, Vec2 } from '../world/level';
 import { throwLanding } from '../world/throwLanding';
 import { ENEMY_THROW_SPEED, caughtTimes, cuesBetween, flightProgress, THROWN_CLIP, CaughtCue } from '../state/caughtSequence';
-import { overlapsWall } from '../world/collision';
+import { Blocker, overlapsWall } from '../world/collision';
 import type { EnemyView } from './enemyView';
 import type { PlayerBody } from './playerBody';
 
@@ -38,6 +38,8 @@ export interface CaughtSceneInput {
   camera: THREE.PerspectiveCamera;
   enemyView: EnemyView;
   body: () => PlayerBody | null;
+  /** Update 0.9.6 — furniture you can't land in. */
+  blockers?: Blocker[];
   playerPos: Vec2;
   eyeHeight: number;
   enemyPos: Vec2;
@@ -50,7 +52,7 @@ export function createCaughtScene(i: CaughtSceneInput) {
   const len = Math.hypot(toPlayer.x, toPlayer.z) || 1;
   const facing = { x: toPlayer.x / len, z: toPlayer.z / len }; // it faces you
   const enemyYaw = Math.atan2(facing.x, facing.z);
-  const landing = throwLanding(i.level, i.playerPos, facing);
+  const landing = throwLanding(i.level, i.playerPos, facing, i.blockers ?? []);
   const bodyYaw = bodyYawForThrow(landing.dir);
 
   const startEye = new THREE.Vector3(i.playerPos.x, i.eyeHeight, i.playerPos.z);
@@ -129,7 +131,7 @@ export function createCaughtScene(i: CaughtSceneInput) {
         // Hard cut while your eyes are shut: a blend from on-your-back to face-down sank the head into the floor.
         else body.cinematic({ clip: 'getUp', startAt: 0, fade: 0, pos: at, yaw: bodyYaw, dt });
         body.eyes(eyePos, eyeQ);
-        if (wallPush < 1.2 && overlapsWall(i.level, { x: eyePos.x, z: eyePos.z }, 0.15)) wallPush += 0.04;
+        if (wallPush < 1.2 && overlapsWall(i.level, { x: eyePos.x, z: eyePos.z }, 0.15, i.blockers ?? [])) wallPush += 0.04;
         endAt = at;
         cam.position.copy(eyePos);
         cam.position.y = Math.max(0.1, cam.position.y); // never below the floor

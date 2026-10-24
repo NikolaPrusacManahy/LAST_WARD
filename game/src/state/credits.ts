@@ -54,6 +54,7 @@ export const PROP_CREDIT: Record<PropKind, string> = {
   barrel: 'barrel',
   barrel_lying: 'barrel',
   toilet: 'toilet',
+  item_table: 'hospital_room',
   fluorescent: 'fluorescent',
   locker: 'locker',
 };

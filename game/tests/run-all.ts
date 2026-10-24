@@ -23,5 +23,7 @@ import './test-hearing';
 import './test-hiding';
 import './test-patient096';
 import './test-throwables';
+import './test-version';
+import './test-stuck096';
 
 process.exit(summary() > 0 ? 1 : 0);
