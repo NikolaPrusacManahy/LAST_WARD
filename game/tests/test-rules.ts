@@ -6,6 +6,7 @@ import { findTarget } from '../src/world/interact';
 import { guardLeave } from '../src/state/session';
 import { LEVEL_01 } from '../src/world/content/level01';
 import { cellCenter, itemPos, parseLevel } from '../src/world/level';
+import { ENEMY, enemySpeed } from '../src/world/enemyAI';
 
 section('Stamina');
 {
@@ -17,6 +18,23 @@ section('Stamina');
   check('recovers after rest', !s.exhausted && s.stamina > PLAYER.staminaUnlock);
   check('crouch beats sprint', chooseGait(true, true, true, s) === 'crouch');
   check('idle when not moving', chooseGait(false, true, false, s) === 'idle');
+  // Update 0.9.6.2 — adrenaline: while it chases you, your sprint lasts longer.
+  const sprintFor = (chased: boolean) => {
+    const a = createPlayerStatus();
+    a.chased = chased;
+    let t = 0;
+    while (!a.exhausted && t < 30) {
+      tickStatus(a, 'sprint', 0.05);
+      t += 0.05;
+    }
+    return t;
+  };
+  check('0.9.6.2: a full sprint lasts 5.5 s', Math.abs(sprintFor(false) - 5.5) < 0.06, sprintFor(false).toFixed(2));
+  check('0.9.6.2: while it chases you it drains 40% slower (~9.2 s)', PLAYER.adrenalineDrain === 0.6 && Math.abs(sprintFor(true) - 5.5 / 0.6) < 0.06, sprintFor(true).toFixed(2));
+  // Its scream is your head start, then you pull away for the rest of the sprint (it was ~5 m before 0.9.6.2).
+  const chase = enemySpeed({ mode: 'chase', rush: false, rage: FUSES_NEEDED * ENEMY.ragePerFuse });
+  const lead = PLAYER.speed.sprint * ENEMY.windupSeconds + (PLAYER.speed.sprint - chase) * (sprintFor(true) - ENEMY.windupSeconds);
+  check('0.9.6.2: every fuse found, a full sprint from its scream still puts 8 m between you', lead >= 8, `${lead.toFixed(1)} m`);
 }
 
 section('Battery');

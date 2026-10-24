@@ -73,7 +73,7 @@ section('Generator on: it screams at a corner, then sprints for the generator (0
   check('screams in place, then runs a real path to the generator (noise does not distract it)', okPath);
   const minT = Math.min(...times);
   check('you get a few seconds to leave the room (≥ 4 s before it arrives)', minT >= 4, `fastest ${minT.toFixed(1)} s, slowest ${Math.max(...times).toFixed(1)} s`);
-  // Sprint speed is the chase speed (with all three fuses' rage).
+  // Sprint speed is the chase speed (0.9.6.2: the fuses' rage is only for chasing you, not this rush).
   const rng = createRng(9);
   const e = spawnAtCorner(level, rng, start);
   summonToGenerator(level, e, gen, rng);
@@ -81,7 +81,7 @@ section('Generator on: it screams at a corner, then sprints for the generator (0
   const a = { ...e.pos };
   for (let i = 0; i < 30; i++) step(e, rng);
   const v = dist(a, e.pos) / 0.5;
-  check('it sprints at chase speed', Math.abs(v - ENEMY.speed.chase * (1 + 3 * ENEMY.ragePerFuse)) < 0.3, `${v.toFixed(2)} m/s`);
+  check('it sprints at chase speed', Math.abs(v - ENEMY.speed.chase) < 0.3, `${v.toFixed(2)} m/s`);
   check('…and plays its run, not a fast walk', chooseEnemyClip('investigate', v, false) === 'run' && chooseEnemyClip('investigate', ENEMY.speed.investigate * 1.21, false) === 'walk' && RUN_THRESHOLD > ENEMY.speed.investigate * 1.21);
   // Seeing you on the way still means a chase.
   const e2 = spawnAtCorner(level, createRng(3), start);

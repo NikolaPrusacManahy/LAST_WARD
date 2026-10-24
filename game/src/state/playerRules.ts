@@ -8,6 +8,9 @@ export const PLAYER = {
   staminaMax: 5.5, // seconds of sprint
   staminaRegen: 0.9, // per second while not sprinting
   staminaRegenDelay: 0.8,
+  /** Update 0.9.6.2 — adrenaline: while The Patient chases you, sprinting drains stamina this much as fast
+   *  (40% slower: 5.5 s of sprint becomes ~9 s). */
+  adrenalineDrain: 0.6,
   /** Sprinting is locked out until stamina refills to this after running dry. */
   staminaUnlock: 1.5,
   batteryMax: 100,
@@ -28,10 +31,12 @@ export interface PlayerStatus {
   /** Update 0.9.3 — Hard drains it faster (state/difficulty.ts). */
   batteryDrainMul: number;
   flashlightOn: boolean;
+  /** Update 0.9.6.2 — The Patient is chasing you (adrenaline: `PLAYER.adrenalineDrain`). Set by Game each frame. */
+  chased: boolean;
 }
 
 export function createPlayerStatus(batteryDrainMul = 1): PlayerStatus {
-  return { stamina: PLAYER.staminaMax, exhausted: false, regenWait: 0, battery: PLAYER.batteryMax, batteryDrainMul, flashlightOn: false }; // 0.9.1: you start in the dark
+  return { stamina: PLAYER.staminaMax, exhausted: false, regenWait: 0, battery: PLAYER.batteryMax, batteryDrainMul, flashlightOn: false, chased: false }; // 0.9.1: you start in the dark
 }
 
 export function chooseGait(moving: boolean, wantSprint: boolean, wantCrouch: boolean, s: PlayerStatus): Gait {
@@ -62,7 +67,7 @@ export function gaitNoise(g: Gait): number {
 /** Mutates status for one frame. */
 export function tickStatus(s: PlayerStatus, gait: Gait, dt: number): void {
   if (gait === 'sprint') {
-    s.stamina = Math.max(0, s.stamina - dt);
+    s.stamina = Math.max(0, s.stamina - dt * (s.chased ? PLAYER.adrenalineDrain : 1));
     s.regenWait = PLAYER.staminaRegenDelay;
     if (s.stamina === 0) s.exhausted = true;
   } else if (s.regenWait > 0) {

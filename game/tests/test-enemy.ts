@@ -1,7 +1,9 @@
 import { check, section } from './harness';
 import { LEVEL_01 } from '../src/world/content/level01';
 import { cellCenter, isSolid, parseLevel, TILE, worldToCell, dist } from '../src/world/level';
-import { createEnemy, stepEnemy, visibility, heardNoise, ENEMY, EnemyEvent } from '../src/world/enemyAI';
+import { createEnemy, stepEnemy, visibility, heardNoise, ENEMY, EnemyEvent, enemySpeed } from '../src/world/enemyAI';
+import { PLAYER, gaitNoise } from '../src/state/playerRules';
+import { FUSES_NEEDED } from '../src/state/objectives';
 import { overlapsWall } from '../src/world/collision';
 import { createRng } from '../src/world/rng';
 
@@ -55,6 +57,10 @@ section('Enemy — perception');
   check('walls block sight', visibility(level, e, wallP) === 0);
   check('hears a sprint nearby', heardNoise(level, e, { pos: { x: e.pos.x + 3, z: e.pos.z }, radius: 15 }));
   check('silent crouch not heard', !heardNoise(level, e, { pos: { x: e.pos.x + 3, z: e.pos.z }, radius: 0 }));
+  // 0.9.6.2 — crouching makes no footstep noise at all (Game only sends a noise when it's above 0), so it
+  // can't hear you crouch-walk anywhere, through a wall or not. Walking is heard 12 m out, ~7 m through a wall.
+  check('0.9.6.2: crouch-walking makes no noise at all', gaitNoise('crouch') === 0 && PLAYER.noise.crouch === 0);
+  check('0.9.6.2: walking is heard through a wall only up close', PLAYER.noise.walk * ENEMY.hearingMul * ENEMY.muffledNoiseMul < 7.5);
 }
 
 section('Enemy — chase and catch');
@@ -95,11 +101,17 @@ section('Enemy — noise lures it');
   check('walks to the noise', dist(e.pos, noisePos) < TILE * 3.5, `${dist(e.pos, noisePos).toFixed(1)} m`);
 }
 
-section('Enemy — rage');
+section('Enemy — rage (0.9.6.2: 4% per fuse, chase only)');
 {
   const e = createEnemy(level);
-  stepEnemy(level, e, { dt: 0.01, player: farPlayer, noise: null, fuses: 3 }, createRng(1));
-  const chase = ENEMY.speed.chase * (1 + e.rage);
-  check('3 fuses → chase still slower than sprint', chase < 5.4, chase.toFixed(2));
-  check('3 fuses → chase faster than walking', chase > 3.0);
+  stepEnemy(level, e, { dt: 0.01, player: farPlayer, noise: null, fuses: FUSES_NEEDED }, createRng(1));
+  const chase = enemySpeed({ ...e, mode: 'chase', rush: false });
+  check('every fuse found → chase still slower than your sprint', chase < PLAYER.speed.sprint, chase.toFixed(2));
+  check('…and faster than you walk', chase > PLAYER.speed.walk);
+  check('4% per fuse', ENEMY.ragePerFuse === 0.04 && Math.abs(chase - ENEMY.speed.chase * (1 + FUSES_NEEDED * 0.04)) < 1e-9);
+  check('patrol, search and investigate ignore the fuses (its patrol never outpaces your walk)',
+    (['patrol', 'search', 'investigate'] as const).every((m) => enemySpeed({ ...e, mode: m, rush: false }) === ENEMY.speed[m]) &&
+      enemySpeed({ ...e, mode: 'patrol', rush: false }) <= PLAYER.speed.walk);
+  check('rushing somewhere is plain chase speed', enemySpeed({ ...e, mode: 'investigate', rush: true }) === ENEMY.speed.chase);
+  check('outside a chase it walks slower than you (patrol, search, to a noise)', (['patrol', 'search', 'investigate'] as const).every((m) => enemySpeed({ ...e, mode: m, rush: false }) < PLAYER.speed.walk));
 }

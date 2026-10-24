@@ -535,6 +535,7 @@ export class Game {
     // Update 0.9.6 — if anything ever leaves you inside furniture, step out of it (you'd be stuck: no
     // move is allowed out of an overlap).
     if (!this.hide) player.pos = nearestFree(this.level, player.pos, PLAYER.radius, player.obstacles);
+    status.chased = this.enemy.mode === 'chase'; // Update 0.9.6.2 — adrenaline: your sprint lasts longer
     // Update 0.9.5 — in a locker you don't walk: you're placed in it, and can peek or get out.
     const step = this.hide ? this.stepHiding(dt) : player.step(this.level, input, status, dt);
     // Update 0.7 — walked onto / off the stairs' portal: you're on the other floor now.

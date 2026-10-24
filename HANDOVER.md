@@ -1,6 +1,17 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.6.1
+## Current version: 0.9.6.2
+
+Escaping The Patient was too hard. Each fuse made it 7% faster in every mode, which was tuned for three fuses: with all four, its chase (5.5 m/s) was faster than your sprint (5.4) and its patrol (3.84) faster than your walk (3.0).
+
+- **Fuses only speed up the chase, by 4% each** (`ENEMY.ragePerFuse` 0.07 → 0.04, `enemySpeed` in `world/enemyAI.ts`). With all four its chase tops out at 4.99 m/s, still under your sprint. Patrol, search and investigating stay at their base speeds whatever you've found.
+- **Its walk is back to before 0.9.6:** patrol 1.5 m/s (was 3.0, as fast as you walk), searching 2.1 (was 3.0), going to check a noise 2.6 (was 3.2). Outside a chase it's always slower than you walk. The chase (4.3) and its rushes are unchanged, and its walk animation plays at its own pace again.
+- **Crouching is silent (checked, unchanged):** crouch-walking makes no noise at all, so it can't hear you anywhere, through a wall or not. It can still see you (crouching cuts how far by 30%), and repairing a panel still makes noise. Walking is heard 12 m away in the open and about 7 m through a wall, which is how it heard you in the next room. Tests now check this directly.
+- **Adrenaline:** while it's chasing you (from its scream on), sprinting drains stamina 40% slower (`PLAYER.adrenalineDrain` 0.6), so a full sprint lasts ~9.2 s instead of 5.5 s. Out of a chase nothing changes. Game sets `status.chased` each frame.
+- **What that does to a chase**, from its scream to the end of a full sprint: you get 14.4 m away with no fuses (was 10.4) and 8.8 m with all four (was 4.9, and shrinking).
+- **Side effect:** its rush to the generator when the power comes on (and to a blown panel or something you threw) is plain chase speed now, not chase + the fuses. The generator run takes 16.6–18.9 s instead of 13.2–15.0 s, so you have about 3.5 s more to leave the room. To get the old timing back, give `rush` the rage in `enemySpeed`.
+
+## 0.9.6.1
 
 - **You breathe hard while you run** (`ASSETS/audio/player_running_breathing.mp3` → `run_breath`, a 1.8 s loop). It fades in as you start sprinting and out when you stop, run out of breath, hide, pause or get caught. It plays at half the recording's volume (`RUN_BREATH_GAIN` = 0.5 in `audio/spatial.ts`).
 - **New wake-up sound:** the intro scene plays `player_intro_wakingUp.mp3` (→ `wake_up`, 6.9 s) instead of the 1 s grunt as you got up. It starts on the click: its gasp (0.83 s in) comes as your eyelids crack open (0.9 s), then you stir and push yourself up, and it's over before you can move (8.3 s). Esc stops it; resuming picks it up where the scene is (`WAKE_SOUND` in `state/wakeSequence.ts`).
@@ -267,7 +278,7 @@ A complete, playable vertical slice of one level.
 Double-click `START_GAME.bat`. The first run installs packages (needs Node.js; 24 is pinned). It opens http://localhost:5173.
 
 ## How to check
-From `game/`: `npm run verify:quick` (typecheck + rule tests, 557 at 0.9.6.1) and `npm run verify` (adds the production build). Run `verify` before every commit.
+From `game/`: `npm run verify:quick` (typecheck + rule tests, 566 at 0.9.6.2) and `npm run verify` (adds the production build). Run `verify` before every commit.
 
 ## How to publish
 `npm run build` in `game/`, then deploy `game/dist` to Netlify (`netlify.toml` is ready). The public build has the debug tools (F2, F3, `?debug`, `?level=N`, the tester level picker) switched off.
@@ -280,9 +291,9 @@ From `game/`: `npm run verify:quick` (typecheck + rule tests, 557 at 0.9.6.1) an
 - **Assets:** raw files in `ASSETS/` (not shipped), converted by the scripts in `game/tools/` into `game/public/`. Every outside asset needs a line in `game/src/state/credits.ts`.
 
 ## Verified vs unverified
-- ✅ Typecheck, 557 rule tests and the production build pass (0.9.6.1).
+- ✅ Typecheck, 566 rule tests and the production build pass (0.9.6.2).
 - ✅ Headless browser checks (software rendering, ~1–2 fps) of each feature as it was added: panels and skill checks, banner, difficulty picker and night vision, lockers and peeking, throwing, locker checks, the furnished generator room.
-- ⚠️ **Not verified by playing:** real-GPU frame rate, how it sounds (volumes, the hearing model; 0.9.6.1: the running breath's level and loop seam, the wake-up sound against the scene), mouse feel, timing of skill checks, chases after throws. Tuned on paper; adjust `ENEMY` / `PLAYER` / `THROW` / `SKILL` after playing.
+- ⚠️ **Not verified by playing:** real-GPU frame rate, how it sounds (volumes, the hearing model; 0.9.6.1: the running breath's level and loop seam, the wake-up sound against the scene), mouse feel, timing of skill checks, chases after throws, how escapable a chase feels after 0.9.6.2 (the next knob if it's still too hard: `ENEMY.windupSeconds`, its scream, 1.0 → 1.5 s). Tuned on paper; adjust `ENEMY` / `PLAYER` / `THROW` / `SKILL` after playing.
 
 ## Known limits / ideas for next
 - Panel repair animation: the first-person hands working on the panel (a Mixamo clip for the player rig, played while you hold repair, plus camera framing on the panel).

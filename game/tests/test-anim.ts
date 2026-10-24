@@ -9,7 +9,7 @@ check('patrol moving → walk', chooseEnemyClip('patrol', 1.5, false) === 'walk'
 check('patrol standing → idle', chooseEnemyClip('patrol', 0, false) === 'idle');
 check('search standing → search', chooseEnemyClip('search', 0, false) === 'search');
 check('investigate moving → walk', chooseEnemyClip('investigate', 2.6, false) === 'walk');
-check('0.9.6: the twice-as-fast patrol walk plays the walk clip sped up, within the clamp', clipTimeScale('walk', ENEMY.speed.patrol) > 1.9 && clipTimeScale('walk', ENEMY.speed.patrol) <= 2.2 && chooseEnemyClip('patrol', ENEMY.speed.patrol, false) === 'walk');
+check('0.9.6.2: its patrol walk plays the walk clip at about its own pace again', Math.abs(clipTimeScale('walk', ENEMY.speed.patrol) - 1) < 0.1 && chooseEnemyClip('patrol', ENEMY.speed.patrol, false) === 'walk');
 check('fastest chase stays under the clamp', clipTimeScale('run', ENEMY.speed.chase * 1.21) <= 2.2);
 check('idle ignores speed', clipTimeScale('idle', 3) === 1);
 

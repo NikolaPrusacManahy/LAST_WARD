@@ -29,7 +29,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/level.ts` | Level type, ASCII legend + parser, `TILE`, cell ↔ world maths, `itemPos` (where an item's table stands). 0.9: `brickRooms`; 0.9.6: `throwables` spawns. 0.7: floors stacked in one logic grid (gap rows between), stairs + portals, `crossPortal`, `stairRise`, `floorOffset` | yes |
 | `world/pathfinding.ts` | A* (8-way, no corner cutting), flood-fill `reachable`; both go through stair portals (0.7) | yes |
 | `world/lineOfSight.ts` | Grid line-of-sight (`level.opaque`: stairwells are see-through, 0.7) | yes |
-| `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4). 0.9.6: `litByBeam` (your beam on it = spotted), lures from throws, locker checks (`check`), `onTask` (no teleport mid-task), `turnToward` by angle | yes |
+| `world/enemyAI.ts` | The Patient's brain: `ENEMY` tuning, `createEnemy`, `stepEnemy`, `visibility`, `heardNoise`; corners / teleports, long patrol legs, `summonToGenerator` (0.6.4). 0.9.6: `litByBeam` (your beam on it = spotted), lures from throws, locker checks (`check`), `onTask` (no teleport mid-task), `turnToward` by angle. 0.9.6.2: `enemySpeed` (the fuses only speed up the chase) | yes |
 | `world/collision.ts` | Circle-vs-grid `moveWithCollision` (wall sliding, round prop blockers), `overlapsWall`, `clearLine` (can a body travel a → b, 0.5.2), `freeBehind` (room behind the camera for the body, 0.5.2), `nearestFree` (out of any overlap, 0.9.6) | yes |
 | `world/interact.ts` | What's in reach and in front of the player (0.9: also the four electrical panels; 0.9.1: their switches, and what you aim at wins over what's closer) | yes |
 | `world/props.ts` | Real props: sizes, which way each faces, `placeProp` (cell + wall it backs onto), collision circles, `findProp` (0.8); `panelSpots` / `panelSwitches` (panel i and its switch, level order) and `brickLining` (brick on every wall of `brickRooms`) (0.9); `lockerSpots`, `propFront` (0.9.5), `ITEM_TABLE_SCALE` (0.9.6) | yes |
@@ -37,7 +37,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `world/rng.ts` | Seeded RNG | yes |
 | `world/content/level01.ts` | Ward 13 map, notes, wall notes, every prop (panels, lockers, furniture), the brick room, bricks and bottles | data |
 | `world/content/levels.ts` | Play order of the levels (0.7) | data |
-| `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve | yes |
+| `state/playerRules.ts` | `PLAYER` tuning: speeds, stamina, battery, noise radii, fear curve; adrenaline while chased (`status.chased`, 0.9.6.2) | yes |
 | `state/objectives.ts` | Fuses → four panels (fit, repair, switch on) → generator → exit (0.9), objective text + detail line | yes |
 | `state/skillCheck.ts` + `screens/SkillCheck.tsx` | Panel repair with Dead by Daylight skill checks: timing, judging, misses (0.9). The circle is drawn from the same clock it's judged on | yes / no |
 | `state/credits.ts` | Credits for every outside asset; which credit each prop comes under (0.8) | yes |
@@ -98,10 +98,10 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | What | Where | Now |
 |---|---|---|
 | Walk / sprint / crouch speed | `PLAYER.speed` | 3.0 / 5.4 / 1.6 m/s |
-| Sprint time | `PLAYER.staminaMax` | 4.5 s |
+| Sprint time | `PLAYER.staminaMax`, `adrenalineDrain` | 5.5 s; ~9.2 s while it chases you (drain × 0.6, 0.9.6.2) |
 | Flashlight battery | `PLAYER.batteryDrainPerSec` | ~90 s per full battery, +45% per pickup (Hard: drains 1/0.6× as fast) |
 | Footstep noise radius | `PLAYER.noise` | walk 6 m, sprint 15 m, crouch silent (it hears ×2: 12 / 30 m) |
-| Enemy speed | `ENEMY.speed` | patrol 3.0, search 3.0, investigate 3.2, chase 4.3 m/s (+7% per fuse) |
+| Enemy speed | `ENEMY.speed`, `ragePerFuse` | patrol 1.5, search 2.1, investigate 2.6, chase 4.3 m/s (0.9.6.2: walks back from 3.0 / 3.0 / 3.2); +4% per fuse found, chase only (4.99 with all four, `enemySpeed`) |
 | Enemy sight | `ENEMY.viewDistLight / Dark` | 20.8 m with your flashlight on, 10.4 m off (×0.7 crouched, ×1.3 running), 130° cone; your beam on its body = spotted at once (30 m) |
 | Lose it | `ENEMY.memorySeconds`, `searchSeconds` | tracks you 1.2 s after losing sight, searches 7 s (and checks a locker within 9 m) |
 | Scream head start | `ENEMY.windupSeconds` | screams in place 1.0 s after spotting you, then charges |

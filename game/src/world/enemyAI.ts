@@ -13,9 +13,10 @@ export type EnemyEvent = 'spotted' | 'lost' | 'heard' | 'caught' | 'teleported'
   | 'lockerOpen' | 'lockerClose' | 'foundYou';
 
 export const ENEMY = {
-  /** Update 0.9.6 — it walks twice as fast (patrol 1.5 → 3.0, as fast as you walk); searching and
-   *  going to look at a noise keep up with it, still a walk. The chase is unchanged. */
-  speed: { patrol: 3.0, investigate: 3.2, chase: 4.3, search: 3.0 } as Record<EnemyMode, number>,
+  /** Update 0.9.6 — it walked twice as fast (patrol 1.5 → 3.0, as fast as you walk), searching and going
+   *  to look at a noise too. Update 0.9.6.2 — back to its old walk (it was too hard to get away from).
+   *  The chase is unchanged. */
+  speed: { patrol: 1.5, investigate: 2.6, chase: 4.3, search: 2.1 } as Record<EnemyMode, number>,
   /** Update 0.9.6 — it hears everything twice as far. */
   hearingMul: 2,
   /** Update 0.9.6 — your flashlight on its body: it knows where you are at once, whichever way it faces.
@@ -29,8 +30,9 @@ export const ENEMY = {
   lockerCheckRadius: 9,
   lockerRecheck: 25,
   lockerCheckSeconds: 1,
-  /** Each fuse collected makes it this much faster (it knows what you're doing). */
-  ragePerFuse: 0.07,
+  /** Each fuse collected makes it this much faster (it knows what you're doing).
+   *  Update 0.9.6.2 — 7% → 4%, and only while it chases you (`enemySpeed`). */
+  ragePerFuse: 0.04,
   catchRadius: 1.1,
   /** Update 0.5.2 — collision size of its body (was 0.35, its shoulders went into walls). */
   bodyRadius: 0.55,
@@ -465,6 +467,15 @@ export interface StepInput {
   playerLocker?: number | null;
 }
 
+/**
+ * Update 0.9.6.2 — how fast it moves. The fuses you've found (`rage`) only speed up the chase: at 7% on
+ * every mode, four fuses put its chase past your sprint and its patrol past your walk. Rushing somewhere
+ * (the generator, a blown panel, a thrown thing) is plain chase speed.
+ */
+export function enemySpeed(e: Pick<EnemyState, 'mode' | 'rush' | 'rage'>): number {
+  return ENEMY.speed[e.rush ? 'chase' : e.mode] * (e.mode === 'chase' ? 1 + e.rage : 1);
+}
+
 /** Advances the enemy one frame. Mutates `e`, returns what happened. */
 export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rng): EnemyEvent[] {
   const { dt, player, noise } = input;
@@ -513,7 +524,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
   if (e.mode === 'chase' && e.sinceSeen <= tune.memorySeconds) e.lastKnown = { ...player.pos };
 
   // Update 0.6.4 — rushing to the generator (0.9.1: or to a panel that blew): chase speed.
-  const speed = ENEMY.speed[e.rush ? 'chase' : e.mode] * (1 + e.rage);
+  const speed = enemySpeed(e); // Update 0.9.6.2 — the fuses only speed up the chase
 
   switch (e.mode) {
     case 'chase': {

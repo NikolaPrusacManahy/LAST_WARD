@@ -17,7 +17,7 @@ const hidden = { pos: { x: -100, z: -100 }, flashlightOn: false, crouching: true
 
 section('Faster, sharper (0.9.6)');
 {
-  check('it walks twice as fast (patrol 1.5 → 3.0 m/s)', ENEMY.speed.patrol === 3.0);
+  check('0.9.6.2: back to its old walk (patrol 1.5, search 2.1, to a noise 2.6 m/s; 0.9.6 had 3.0 / 3.0 / 3.2)', ENEMY.speed.patrol === 1.5 && ENEMY.speed.search === 2.1 && ENEMY.speed.investigate === 2.6);
   check('searching / checking a noise is still a walk, slower than the chase', ENEMY.speed.search < ENEMY.speed.chase && ENEMY.speed.investigate < ENEMY.speed.chase);
   const e = createEnemy(level);
   e.pos = at(10, 5);

@@ -4,11 +4,11 @@ A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
 You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find four fuses, bring four electrical panels back to life, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 0.9.6.1. The full patch history is in `HANDOVER.md`.
+Current version: 0.9.6.2. The full patch history is in `HANDOVER.md`.
 
 ## How the game works
 
-- **The Patient** hunts you by sight and sound. It sees further when your flashlight is on or you run, and less well when you crouch. Shine your flashlight on it and it knows where you are at once. Walking makes some noise and running makes a lot; crouching is silent. When it spots you it screams, then charges.
+- **The Patient** hunts you by sight and sound. It sees further when your flashlight is on or you run, and less well when you crouch. Shine your flashlight on it and it knows where you are at once. Walking makes some noise and running makes a lot; crouching is silent. When it spots you it screams, then charges. While it chases you, adrenaline lets you sprint for longer, and you can still outrun it however many fuses you've found (each one makes its chase a little faster).
 - **It moves around.** It starts in one corner of the map and patrols that area. If it goes 35 seconds without spotting you, it disappears and turns up at another corner.
 - **You have two lives.** The first time it catches you, it picks you up and throws you across the room. You black out, get up injured (red at the edges of the screen, grunting now and then) and it vanishes somewhere else. The second time is the end.
 - **Fuses, batteries and notes** are shuffled across the tables every run. Batteries recharge the flashlight, which starts switched off. Notes are left by people who were here before you, and reading one pauses the game.
