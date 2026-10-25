@@ -82,6 +82,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `state/lightLevels.ts` | Every light level (flashlight, fill, fog, eye glow) + `atmosphereFor(powered, debug, nightVision)`; 0.9.3: `FLASHLIGHT_BEAM` (1.5× reach), `flashlightFog`, `NIGHT_VISION`, `blendAtmosphere` | yes |
 | `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades, night vision green (0.9.3) | no |
 | `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, wall notes, signs, flashlight cookie) | no |
+| `engine/noteLayout.ts` | 0.9.9: a wall note's line fits its page: one line, two, or smaller (`layoutNoteText`, `splitInTwo`) | yes |
 | `engine/input.ts` | Keys by `code`, mouse buttons as `Mouse0..4`, mouse deltas under pointer lock; `action(a)` / `actionPressed(a)` read `Settings.bindings` | no |
 | `state/bindings.ts` | Actions, `DEFAULT_BINDINGS` (left click interact, right click flashlight), `rebind` (clash = swap), reserved keys (0.9.8: + 1–3, the slot keys), `hydrateBindings`; Space = "Skill check / drop" (one action: they never clash) | yes |
 | `state/inputIcons.ts` | Code → Kenney icon name + label (`glyphFor`), the icon list `tools/prepare-input-icons.ts` ships | yes |

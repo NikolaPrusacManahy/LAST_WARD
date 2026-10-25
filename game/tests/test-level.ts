@@ -38,3 +38,18 @@ try {
   threw = true;
 }
 check('unknown tile throws', threw);
+
+section('Wall notes: the line fits the page (0.9.9)');
+{
+  const { layoutNoteText, splitInTwo } = await import('../src/engine/noteLayout');
+  // A typewriter face: every letter 0.6 of the size wide.
+  const mono = (t: string, size: number) => t.length * size * 0.6;
+  const page = 326;
+  const short = layoutNoteText('RUN', page, mono);
+  check('a short line: one line, full size', short.lines.length === 1 && short.size === 54);
+  const it = layoutNoteText('It can hear you...', page, mono);
+  check('"It can hear you..." (ran off both edges): two lines, nearly full size, inside the page', it.lines.length === 2 && it.size >= 44 && it.lines.every((l) => mono(l, it.size) <= page), `${it.lines.join(' / ')} at ${it.size}px`);
+  const texts = ['It can hear you...', 'Do not trust the voices you hear in the dark', 'Antidisestablishmentarianism', 'Hide', 'The exit is on the second floor'];
+  check('any line: every part inside the page (smaller if it must be)', texts.every((t) => { const f = layoutNoteText(t, page, mono); return f.lines.every((l) => mono(l, f.size) <= page) || f.size === 24; }));
+  check('broken at the space nearest the middle; one word stays whole', JSON.stringify(splitInTwo('It can hear you...')) === JSON.stringify(['It can hear', 'you...']) && splitInTwo('Hide') === null);
+}

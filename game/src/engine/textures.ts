@@ -2,6 +2,7 @@
 // Swap these for real art later, keeping the same function names.
 import * as THREE from 'three';
 import { createRng } from '../world/rng';
+import { layoutNoteText } from './noteLayout';
 
 function canvas(size: number) {
   const c = document.createElement('canvas');
@@ -168,12 +169,15 @@ export function noteTexture(): THREE.CanvasTexture {
   return toTexture(c);
 }
 
-/** Update 0.6.3 — a torn page pinned to a wall, a short line scrawled on it (Special Elite, redrawn once the font loads). */
+/** Update 0.6.3 — a torn page pinned to a wall, a short line scrawled on it (Special Elite, redrawn once the font loads).
+ *  Update 0.9.9 — the line always fits the page: on two lines, smaller if need be (`layoutNoteText`), and
+ *  nothing is drawn past the paper's edge ("It can hear you..." ran off both sides). */
 export function wallNoteTexture(text: string): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 384;
   c.height = 256;
   const ctx = c.getContext('2d')!;
+  const font = (size: number) => `${size}px "Special Elite", "Courier New", monospace`;
   const draw = () => {
     ctx.clearRect(0, 0, c.width, c.height);
     // Paper with a ragged bottom edge.
@@ -186,22 +190,30 @@ export function wallNoteTexture(text: string): THREE.CanvasTexture {
     ctx.lineTo(10, 240);
     ctx.closePath();
     ctx.fill();
-    // Grime and a pin.
+    ctx.save();
+    ctx.clip();
+    // Grime.
     ctx.fillStyle = 'rgba(70,55,30,0.18)';
     ctx.fillRect(10, 160, 362, 70);
     ctx.fillStyle = 'rgba(110,12,12,0.55)';
     ctx.beginPath(); ctx.arc(300, 200, 18, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#5a5a5a';
-    ctx.beginPath(); ctx.arc(192, 22, 7, 0, Math.PI * 2); ctx.fill();
+    // The line, as big as fits the page (18 px in from each edge), on two lines if it's long.
+    const fit = layoutNoteText(text, 326, (s, size) => {
+      ctx.font = font(size);
+      return ctx.measureText(s).width;
+    });
     ctx.fillStyle = '#2a1410';
-    ctx.font = '54px "Special Elite", "Courier New", monospace';
+    ctx.font = font(fit.size);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.save();
-    ctx.translate(192, 124);
+    ctx.translate(192, 120);
     ctx.rotate(-0.05);
-    ctx.fillText(text, 0, 0);
+    const lead = fit.size * 1.1;
+    fit.lines.forEach((line, i) => ctx.fillText(line, 0, (i - (fit.lines.length - 1) / 2) * lead));
     ctx.restore();
+    // A pin.
+    ctx.fillStyle = '#5a5a5a';
+    ctx.beginPath(); ctx.arc(192, 22, 7, 0, Math.PI * 2); ctx.fill();
   };
   draw();
   const t = new THREE.CanvasTexture(c);
