@@ -188,7 +188,7 @@ function Lobby({ client, room, me, local, busy }: { client: CoopClient; room: Ro
           <label className="lw-opt">
             <input type="checkbox" checked={room.voice} disabled={!host || room.status !== 'lobby'} onChange={(e) => void client.setOptions({ voice: e.target.checked })} />
             <span className="lw-opt-name">Proximity chat</span>
-            <span className="lw-opt-blurb">Talk to whoever is near you. Walls muffle it; far away, nothing.</span>
+            <span className="lw-opt-blurb">Talk to whoever is near you: the further, the quieter; far away, nothing.</span>
           </label>
           <label className={`lw-opt ${room.voice ? '' : 'lw-opt-off'}`}>
             <input type="checkbox" checked={room.hear} disabled={!host || !room.voice || room.status !== 'lobby'} onChange={(e) => void client.setOptions({ hear: e.target.checked })} />

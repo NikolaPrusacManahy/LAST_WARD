@@ -103,15 +103,14 @@ section('Enemy — noise lures it');
   check('walks to the noise', dist(e.pos, noisePos) < TILE * 3.5, `${dist(e.pos, noisePos).toFixed(1)} m`);
 }
 
-section('Enemy — rage (0.9.6.2: chase only; 0.9.9: 2% per fuse)');
+section('Enemy — rage (0.9.6.2: 4% per fuse, chase only)');
 {
   const e = createEnemy(level);
   stepEnemy(level, e, { dt: 0.01, player: farPlayer, noise: null, fuses: FUSES_NEEDED }, createRng(1));
   const chase = enemySpeed({ ...e, mode: 'chase', rush: false });
   check('every fuse found → chase still slower than your sprint', chase < PLAYER.speed.sprint, chase.toFixed(2));
   check('…and faster than you walk', chase > PLAYER.speed.walk);
-  check('2% per fuse (0.9.9, was 4%)', ENEMY.ragePerFuse === 0.02 && Math.abs(chase - ENEMY.speed.chase * (1 + FUSES_NEEDED * 0.02)) < 1e-9);
-  check('every fuse found: your sprint still gains on it by 0.7 m/s or more (it was 0.4)', PLAYER.speed.sprint - chase >= 0.7, (PLAYER.speed.sprint - chase).toFixed(2));
+  check('4% per fuse (0.9.9 tried 2%: back to 4%, Nikola)', ENEMY.ragePerFuse === 0.04 && Math.abs(chase - ENEMY.speed.chase * (1 + FUSES_NEEDED * 0.04)) < 1e-9);
   check('patrol, search and investigate ignore the fuses (its patrol never outpaces your walk)',
     (['patrol', 'search', 'investigate'] as const).every((m) => enemySpeed({ ...e, mode: m, rush: false }) === ENEMY.speed[m]) &&
       enemySpeed({ ...e, mode: 'patrol', rush: false }) <= PLAYER.speed.walk);

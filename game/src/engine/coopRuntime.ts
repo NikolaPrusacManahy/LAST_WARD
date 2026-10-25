@@ -555,13 +555,14 @@ export class CoopRuntime {
     m.lastLight = s.light;
     m.lastHold = s.hold;
     m.lastLife = s.life;
-    // Proximity chat: louder the closer, through walls muffled; the living don't hear the out.
+    // Proximity chat: louder the closer, by distance alone (Update 0.9.9 — walls no longer muffle it,
+    // Nikola); the living don't hear the out.
     if (m.voice) {
       const ok = hears(myLife, s.life);
       const spatial = IN_PLAY.includes(s.life);
       const d = dist(s.pos, listener);
-      const g = !ok ? 0 : spatial ? voiceDistanceGain(d) * Math.max(0.15, m.mix.gain) : 1;
-      m.voice.set(this.headOf(m), g, spatial ? m.mix.cutoff : 16000, spatial);
+      const g = !ok ? 0 : spatial ? voiceDistanceGain(d) : 1;
+      m.voice.set(this.headOf(m), g, 16000, spatial);
       if (ok && m.voice.level() > -45) {
         m.talkUntil = performance.now() / 1000 + 0.3;
         this.talked.add(m.id);

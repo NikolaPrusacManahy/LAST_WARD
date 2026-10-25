@@ -1,7 +1,7 @@
 // Update 0.9.9 — co-op: one Patient, up to three of you. The brain (enemyAI.ts) thinks about one player
 // at a time; each frame the host picks which one (`pickTarget`), and checks every one of you for a catch
 // (`catchable`). Pure (tested).
-import { ENEMY, EnemyState, PlayerSense, litByBeam, visibility } from './enemyAI';
+import { ENEMY, EnemyState, PlayerSense, chaseSees, litByBeam, visibility } from './enemyAI';
 import { Level, Vec2, dist } from './level';
 
 export interface Hunted {
@@ -28,7 +28,8 @@ export function pickTarget(level: Level, e: EnemyState, hunted: Hunted[], curren
   const scored = hunted.map((h) => ({ h, n: notice(level, e, h), d: dist(e.pos, h.sense.pos) }));
   const cur = scored.find((s) => s.h.id === current);
   const seen = scored.filter((s) => s.n > 0);
-  if (cur && e.mode === 'chase' && (cur.n > 0 || !seen.length)) return cur.h;
+  // (Update 0.9.9 — the one it chases it sees anywhere in its line of sight: see `chaseSees`.)
+  if (cur && e.mode === 'chase' && (cur.n > 0 || chaseSees(level, e, cur.h.sense) || !seen.length)) return cur.h;
   const pool = seen.length ? seen : scored;
   pool.sort((a, b) => b.n - a.n || a.d - b.d);
   return pool[0].h;

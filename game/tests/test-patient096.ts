@@ -5,7 +5,9 @@ import { LEVEL_01 } from '../src/world/content/level01';
 import { cellCenter, dist, parseLevel } from '../src/world/level';
 import { lockerSpots, propFront } from '../src/world/props';
 import { LOCKER, seesYouGetIn } from '../src/state/hiding';
-import { ENEMY, EnemyEvent, LockerSpot, createEnemy, heardNoise, litByBeam, stepEnemy, turnToward } from '../src/world/enemyAI';
+import { ENEMY, EnemyEvent, LockerSpot, chaseSees, createEnemy, heardNoise, litByBeam, stepEnemy, turnToward, visibility } from '../src/world/enemyAI';
+import { lineOfSight } from '../src/world/lineOfSight';
+import { floorCells } from '../src/world/level';
 import { createRng } from '../src/world/rng';
 
 const level = parseLevel(LEVEL_01);
@@ -220,4 +222,21 @@ section('Getting away mid-chase (0.9.9, after Nikola\'s co-op test)');
   Object.assign(later, { deaf: ENEMY.deafAfterLost, crawlCooldown: 1e9 });
   for (let i = 0; i < (ENEMY.deafAfterLost + 0.2) * 60; i++) stepEnemy(level, later, { dt, player: hidden, noise: null, fuses: 0 }, r2);
   check('…and after those 8 s your footsteps count again', stepEnemy(level, later, { dt, player: hidden, noise: run(later.pos), fuses: 0 }, r2).includes('heard'));
+}
+
+section('In a chase it sees you anywhere in its line of sight (0.9.9, Nikola)');
+{
+  // Down the hall, 18 m off, in the dark, crouched: it would never notice you like that on patrol.
+  const e = createEnemy(level);
+  e.pos = at(10, 5);
+  e.dir = { x: 1, z: 0 };
+  const far = { pos: at(16, 5), flashlightOn: false, crouching: true };
+  check('(on patrol it doesn\'t see you there)', visibility(level, e, far) === 0);
+  Object.assign(e, { mode: 'chase', alert: 1, windup: 0, sinceSeen: 3, crawlCooldown: 1e9 });
+  stepEnemy(level, e, { dt: 1 / 60, player: far, noise: null, fuses: 0 }, createRng(9));
+  check('chasing you: it does, at any distance, dark or not', e.sinceSeen === 0 && dist(e.lastKnown!, far.pos) < 0.01);
+  const out = floorCells(level).map((c) => cellCenter(c)).find((p) => dist(p, e.pos) > 6 && dist(p, e.pos) < 15 && !lineOfSight(level, e.pos, p))!;
+  check('…but out of its line of sight (round a corner, through a wall): not', !!out && !chaseSees(level, e, { pos: out, flashlightOn: true, crouching: false }));
+  check('…nor in a locker it didn\'t see you get into', !chaseSees(level, e, { ...far, hidden: true }));
+  check('getting into a locker in its sight mid-chase: it sees you, from any distance', seesYouGetIn(false, 15, true) && !seesYouGetIn(false, 15, false) && !seesYouGetIn(true, 15));
 }

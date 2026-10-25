@@ -30,9 +30,11 @@ export const LOCKER = {
   seenWithin: 6,
 };
 
-/** Update 0.9.9 — does it see you get in? `visible`: in its view with nothing in between; `distance`: m. */
-export function seesYouGetIn(visible: boolean, distance: number): boolean {
-  return visible && distance <= LOCKER.seenWithin;
+/** Update 0.9.9 — does it see you get in? `visible`: in its view with nothing in between; `distance`: m.
+ *  `chasing`: it's chasing you and has you in its line of sight: then from any distance (it only loses you
+ *  out of its sight). */
+export function seesYouGetIn(visible: boolean, distance: number, chasing = false): boolean {
+  return chasing || (visible && distance <= LOCKER.seenWithin);
 }
 
 /** Update 0.9.5.1 — how far your head leans out for a peek of `peek` (0..1): eases in so the first

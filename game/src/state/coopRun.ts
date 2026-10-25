@@ -361,7 +361,7 @@ export function voiceNoiseRadius(db: number): number {
 }
 
 /** Proximity: full voice up close, fading out between `fadeFrom` and `fadeTo` m (on top of the 3D
- *  falloff and the walls in between). */
+ *  falloff). Update 0.9.9 — walls in between don't change it: distance only. */
 export function voiceDistanceGain(d: number): number {
   if (d <= VOICE.fadeFrom) return 1;
   return Math.max(0, 1 - (d - VOICE.fadeFrom) / (VOICE.fadeTo - VOICE.fadeFrom));

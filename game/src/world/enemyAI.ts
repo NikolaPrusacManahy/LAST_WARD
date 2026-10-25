@@ -33,9 +33,9 @@ export const ENEMY = {
    *  checks lockers by itself (it always found you in the nearest one): `check` is never started now. */
   lockerCheckSeconds: 1,
   /** Each fuse collected makes it this much faster (it knows what you're doing).
-   *  Update 0.9.6.2 — 7% → 4%, and only while it chases you (`enemySpeed`). Update 0.9.9 — 2%: with four
-   *  fuses it ran 5.0 m/s against your 5.4, and nobody got away (Nikola's co-op test). */
-  ragePerFuse: 0.02,
+   *  Update 0.9.6.2 — 7% → 4%, and only while it chases you (`enemySpeed`). (0.9.9 tried 2%; back to 4%,
+   *  Nikola: not fast enough, it gets you.) */
+  ragePerFuse: 0.04,
   catchRadius: 1.1,
   /** Update 0.5.2 — collision size of its body (was 0.35, its shoulders went into walls). */
   bodyRadius: 0.55,
@@ -371,6 +371,19 @@ export function visibility(level: Level, e: EnemyState, p: PlayerSense): number 
   }
   if (!lineOfSight(level, e.pos, p.pos)) return 0;
   return Math.min(1, (1 - d / view) * 1.6 + 0.2);
+}
+
+/**
+ * Update 0.9.9 — chasing you, it sees you wherever there's a clear line to you on your floor: any distance,
+ * dark or not, crouched or not (Nikola: running down a hallway it lost you as if it couldn't see in the
+ * dark). It loses you only once you're out of its sight: round a corner, through a door, up the stairs, in a
+ * locker it didn't see you get into.
+ */
+export function chaseSees(level: Level, e: EnemyState, p: PlayerSense): boolean {
+  if (p.hidden) return false;
+  const a = worldToCell(e.pos);
+  const b = worldToCell(p.pos);
+  return floorOfRow(level, a.row) === floorOfRow(level, b.row) && lineOfSight(level, e.pos, p.pos);
 }
 
 export function heardNoise(level: Level, e: EnemyState, n: Noise): boolean {
@@ -755,7 +768,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
 
   // Update 0.9.6 — your beam on its body gives you away at once, even from behind.
   const lit = litByBeam(level, e, player);
-  const vis = lit ? 1 : visibility(level, e, player);
+  const vis = lit || (e.mode === 'chase' && chaseSees(level, e, player)) ? 1 : visibility(level, e, player);
   const close = lit || (vis > 0 && dist(e.pos, player.pos) <= ENEMY.senseRadius);
   const sawLastFrame = e.sinceSeen === 0;
   if (vis > 0) {

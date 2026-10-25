@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { LEVELS } from '../world/content/levels';
 import { Level, Vec2, WALL_HEIGHT, cellCenter, crossPortal, dist, floorAt, floorOffset, floorStride, itemPos, parseLevel, stairRise, worldToCell } from '../world/level';
-import { ENEMY, EnemyState, Noise, dropFromCeiling, spawnAtCorner, stepEnemy, summonToGenerator, teleportAway, visibility } from '../world/enemyAI';
+import { ENEMY, EnemyState, Noise, PlayerSense, chaseSees, dropFromCeiling, spawnAtCorner, stepEnemy, summonToGenerator, teleportAway, visibility } from '../world/enemyAI';
 import { CRAWL_LIFT, crawlPose } from './enemyAnim';
 import { CAUGHT, ENEMY_THROW_SPEED, LIVES, caughtTimes, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
 import { CaughtScene, createCaughtScene } from './caughtScene';
@@ -985,6 +985,12 @@ export class Game {
     }, held, this.t);
   }
 
+  /** Update 0.9.5 — does it see you get into a locker? (0.9.9: chasing you, anywhere in its line of sight.) */
+  private seesYouGetIn(you: PlayerSense): boolean {
+    const e = this.enemy;
+    return seesYouGetIn(visibility(this.level, e, you) > 0, dist(e.pos, you.pos), e.mode === 'chase' && !e.crawl && chaseSees(this.level, e, you));
+  }
+
   /** Update 0.9.5 — one frame in a locker: getting in / out, peeking, the camera and the door. */
   private stepHiding(dt: number) {
     const h = this.hide!;
@@ -992,7 +998,7 @@ export class Game {
     const f = propFront(l);
     const { input, player } = this;
     // Getting in while it can see you gives you away.
-    const seen = h.phase === 'entering' && seesYouGetIn(visibility(this.level, this.enemy, { pos: player.pos, flashlightOn: false, crouching: false }) > 0, dist(this.enemy.pos, player.pos));
+    const seen = h.phase === 'entering' && this.seesYouGetIn({ pos: player.pos, flashlightOn: false, crouching: false });
     const r = stepHide(h, { dt, peekHeld: input.action('skillCheck') && input.action('forward'), seen });
     this.hide = r.state;
     if (r.events.includes('peekStart')) this.audio.lockerPeek(this.lockerSound());
@@ -1046,7 +1052,7 @@ export class Game {
         }
       });
     }
-    const seen = seesYouGetIn(visibility(this.level, this.enemy, { pos: this.player.pos, flashlightOn: this.lightShows(), crouching: this.player.crouching }) > 0, dist(this.enemy.pos, this.player.pos));
+    const seen = this.seesYouGetIn({ pos: this.player.pos, flashlightOn: this.lightShows(), crouching: this.player.crouching });
     this.hide = startHide(i, seen, this.status.flashlightOn);
     this.hideFromYaw = this.player.yaw;
     this.status.flashlightOn = false;
