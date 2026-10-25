@@ -9,6 +9,10 @@
   --lw-sick: #7fae8f;
   --lw-type: 'Special Elite', 'Courier New', monospace;
   --lw-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* Update 0.9.9 — how big the menu panels are drawn (not the title screen): up to twice the size
+     (Nikola), as big as fits the window (ui/uiScale.ts sets it). Every panel fits 900 × 540 at 1×: none
+     ever scrolls. Inside a panel vw / vh are scaled too, so the panels divide them by this. */
+  --lw-ui: 1;
 }
 
 * { box-sizing: border-box; }
@@ -32,9 +36,11 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   animation: lw-grain 0.6s steps(4) infinite;
 }
 
-.lw-panel { position: relative; min-width: 380px; padding: 40px 48px; }
+.lw-panel { position: relative; min-width: 380px; padding: 40px 48px; zoom: var(--lw-ui); }
 .lw-panel-title { font-family: var(--lw-type); font-size: 44px; font-weight: 400; margin: 0 0 6px; letter-spacing: 0.06em; }
 .lw-panel-sub { margin: 0 0 32px; color: var(--lw-bone-dim); font-size: 14px; }
+/* Update 0.9.9 — most panels lost their explaining line under the title: a little room under it instead. */
+.lw-panel > .lw-panel-title + :not(.lw-panel-sub) { margin-top: 22px; }
 
 .lw-menu-nav { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .lw-menu-btn {

@@ -7,9 +7,9 @@ import { NAME_MAX } from './coop';
 /** Update 0.9.9 — graphics quality. Low draws at 0.75× your screen's resolution (stretched to fill it) with
  *  no shadows: the two things that cost most. High: up to 1.5× on sharp screens, the flashlight's shadows. */
 export type Graphics = 'high' | 'low';
-export const GRAPHICS: Record<Graphics, { label: string; blurb: string }> = {
-  high: { label: 'High', blurb: 'Sharp, with shadows from your flashlight.' },
-  low: { label: 'Low', blurb: 'For slower computers: a softer picture and no shadows, so it runs smoothly.' },
+export const GRAPHICS: Record<Graphics, { label: string }> = {
+  high: { label: 'High' },
+  low: { label: 'Low' },
 };
 
 /** How many pixels to draw per screen pixel. */

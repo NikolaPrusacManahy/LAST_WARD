@@ -1,5 +1,6 @@
 // Update 0.9.9 — settings in three tabs ("folders"): Video (graphics quality, field of view, grain),
-// Audio (the four volumes) and Controls (mouse, then every key). It was two long columns.
+// Audio (the four volumes) and Controls (mouse, then every key in two columns). It was two long columns.
+// The tabs sit beside the title and every page is the same height: it fits the screen, no scrolling.
 import { useState } from 'react';
 import { FOV_MAX, FOV_MIN, GRAPHICS, Graphics, Settings } from '../state/settings';
 import { KeyBindings } from './KeyBindings';
@@ -31,13 +32,15 @@ export function SettingsPanel({ settings: s, onChange, onClose }: Props) {
   return (
     <div className="lw-overlay">
       <div className="lw-panel lw-settings">
-        <h2 className="lw-panel-title">Settings</h2>
-        <div className="lw-set-tabs" role="tablist">
-          {TABS.map(([id, label]) => (
-            <button key={id} role="tab" aria-selected={tab === id} className={`lw-set-tab ${tab === id ? 'lw-set-tab-on' : ''}`} onClick={() => setTab(id)}>
-              {label}
-            </button>
-          ))}
+        <div className="lw-set-head">
+          <h2 className="lw-panel-title">Settings</h2>
+          <div className="lw-set-tabs" role="tablist">
+            {TABS.map(([id, label]) => (
+              <button key={id} role="tab" aria-selected={tab === id} className={`lw-set-tab ${tab === id ? 'lw-set-tab-on' : ''}`} onClick={() => setTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="lw-set-page" role="tabpanel">
@@ -53,7 +56,6 @@ export function SettingsPanel({ settings: s, onChange, onClose }: Props) {
                   ))}
                 </div>
               </div>
-              <p className="lw-set-hint">{GRAPHICS[s.graphics].blurb}</p>
               <label className="lw-set-row">
                 <span>Field of view</span>
                 <input type="range" min={FOV_MIN} max={FOV_MAX} step={1} value={s.fov} onChange={(e) => set('fov', +e.target.value)} />
@@ -75,37 +77,36 @@ export function SettingsPanel({ settings: s, onChange, onClose }: Props) {
                   <output>{Math.round(s[key] * 100)}%</output>
                 </label>
               ))}
-              {/* Update 0.9.9 — test build only: try the mimic on your own. */}
+              {/* Update 0.9.9 — test build only: try the mimic on your own (solo runs use your microphone). */}
               {import.meta.env.DEV && (
-                <>
-                  <label className="lw-set-row lw-set-check">
-                    <span>Solo: it mimics you (test build)</span>
-                    <input
-                      type="checkbox"
-                      checked={s.soloMimic}
-                      onChange={(e) => {
-                        if (e.target.checked) void askMic(); // asked here, never mid-run
-                        set('soloMimic', e.target.checked);
-                      }}
-                    />
-                  </label>
-                  <p className="lw-set-hint lw-set-hint-wide">Solo runs use your microphone. Say a few things; 15–25 s in, it starts calling out in your voice (then every 20–40 s, while it prowls).</p>
-                </>
+                <label className="lw-set-row lw-set-check">
+                  <span>Solo mimic (test)</span>
+                  <input
+                    type="checkbox"
+                    checked={s.soloMimic}
+                    onChange={(e) => {
+                      if (e.target.checked) void askMic(); // asked here, never mid-run
+                      set('soloMimic', e.target.checked);
+                    }}
+                  />
+                </label>
               )}
             </>
           )}
 
           {tab === 'controls' && (
             <>
-              <label className="lw-set-row">
-                <span>Mouse sensitivity</span>
-                <input type="range" min={0.2} max={3} step={0.05} value={s.sensitivity} onChange={(e) => set('sensitivity', +e.target.value)} />
-                <output>{s.sensitivity.toFixed(2)}</output>
-              </label>
-              <label className="lw-set-row lw-set-check">
-                <span>Invert mouse Y</span>
-                <input type="checkbox" checked={s.invertY} onChange={(e) => set('invertY', e.target.checked)} />
-              </label>
+              <div className="lw-set-mouse">
+                <label className="lw-set-row">
+                  <span>Mouse sensitivity</span>
+                  <input type="range" min={0.2} max={3} step={0.05} value={s.sensitivity} onChange={(e) => set('sensitivity', +e.target.value)} />
+                  <output>{s.sensitivity.toFixed(2)}</output>
+                </label>
+                <label className="lw-set-row lw-set-check">
+                  <span>Invert mouse Y</span>
+                  <input type="checkbox" checked={s.invertY} onChange={(e) => set('invertY', e.target.checked)} />
+                </label>
+              </div>
               <div className="lw-set-keys">
                 <KeyBindings bindings={s.bindings} onChange={(b) => set('bindings', b)} />
               </div>

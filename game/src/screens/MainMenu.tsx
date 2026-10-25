@@ -54,9 +54,7 @@ export function MainMenu({ save, onStart, onCoop, rejoin, rejoinError, onRejoin,
           <div><dt>Taken</dt><dd>{save.deaths}</dd></div>
           <div><dt>Best</dt><dd>{save.bestTime === null ? '—' : formatTime(save.bestTime)}</dd></div>
         </dl>
-        <p className="lw-menu-hint">Headphones recommended. It hunts by sound.</p>
-        {mic === 'asking' && <p className="lw-menu-mic">Allow the microphone: co-op voice chat uses it.</p>}
-        {mic === 'no' && <p className="lw-menu-mic">No microphone: in co-op, the others won't hear you.</p>}
+        {mic === 'asking' && <p className="lw-menu-mic">Microphone: for co-op voice chat.</p>}
       </div>
       <div className="lw-menu-version">
         <span>v{GAME_VERSION}</span>

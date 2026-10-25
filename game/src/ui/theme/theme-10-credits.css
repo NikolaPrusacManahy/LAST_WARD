@@ -1,14 +1,17 @@
-/* theme-10 — Update 0.8: Credits panel (main menu). Scrolls inside, no visible scrollbar. */
-.lw-credits { width: 640px; max-height: 84vh; display: flex; flex-direction: column; }
-.lw-credits-studio { margin: 0 0 18px; font-family: var(--lw-type); font-size: 18px; color: var(--lw-bone); }
+/* theme-10 — Update 0.8: Credits panel (main menu). Update 0.9.9: a grid of three columns, so it fits the
+   screen with nothing to scroll; each asset's title links to where it's from. */
+.lw-credits { width: min(900px, calc(96vw / var(--lw-ui))); }
+.lw-credits-head { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.lw-credits-head .lw-panel-title { margin: 0; }
+.lw-credits-studio { margin: 0; font-family: var(--lw-type); font-size: 16px; color: var(--lw-bone-dim); }
 .lw-credits-list {
-  list-style: none; margin: 0; padding: 0; overflow-y: auto; scrollbar-width: none;
-  display: flex; flex-direction: column; gap: 14px;
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 28px;
 }
-.lw-credits-list::-webkit-scrollbar { display: none; }
-.lw-credits-item { display: flex; flex-direction: column; gap: 2px; padding-bottom: 12px; border-bottom: 1px solid rgba(216, 210, 188, 0.08); }
-.lw-credits-what { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--lw-bone-dim); }
-.lw-credits-line { font-size: 14px; color: var(--lw-bone); }
-.lw-credits-src { font-size: 11px; color: var(--lw-sick); opacity: 0.8; text-decoration: none; word-break: break-all; }
-.lw-credits-src:hover { opacity: 1; text-decoration: underline; }
-.lw-credits .lw-menu-nav { margin-top: 20px; }
+.lw-credits-item { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding-bottom: 4px; border-bottom: 1px solid rgba(216, 210, 188, 0.08); }
+/* (The asset's title, author and licence are shown in full: they wrap. The label stays on one line.) */
+.lw-credits-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--lw-bone-dim); }
+.lw-credits-line { font-size: 13px; color: var(--lw-bone); text-decoration: none; }
+a.lw-credits-line:hover, a.lw-credits-line:focus-visible { color: var(--lw-sick); text-decoration: underline; outline: none; }
+.lw-credits-by { font-size: 11px; color: var(--lw-bone-dim); }
+.lw-credits .lw-menu-nav { margin-top: 18px; }

@@ -54,7 +54,6 @@ export function CoopPanel({ client, name, onName, onStart, onBack }: Props) {
     <div className="lw-overlay">
       <div className="lw-panel lw-coop">
         <h2 className="lw-panel-title">Co-op</h2>
-        <p className="lw-panel-sub">Up to three of you, one ward. One of you makes a room; the others join with its code.</p>
         <label className="lw-coop-field">
           <span>Your name</span>
           <input
@@ -142,6 +141,10 @@ function Lobby({ client, room, me, local, busy }: { client: CoopClient; room: Ro
     <div className="lw-overlay">
       <div className="lw-panel lw-coop lw-lobby">
         <h2 className="lw-panel-title">Lobby</h2>
+        {/* Update 0.9.9 — two columns, so it fits the screen with no scrolling (Nikola): who's in on the
+            left, the host's choices on the right. */}
+        <div className="lw-lobby-cols">
+        <div className="lw-lobby-col">
         <div className="lw-room-code">
           <span className="lw-coop-label">Room code</span>
           <span className="lw-room-code-value">{room.code}</span>
@@ -172,15 +175,19 @@ function Lobby({ client, room, me, local, busy }: { client: CoopClient; room: Ro
             );
           })}
         </ol>
+        </div>
 
+        <div className="lw-lobby-col">
         <div className="lw-lobby-diff">
           <span className="lw-coop-label">Difficulty{host ? '' : ' · the host picks'}</span>
-          {COOP_DIFFICULTIES.map((d) => (
-            <button key={d} className={`lw-diff ${room.difficulty === d ? 'lw-diff-current' : ''}`} disabled={!host || room.status !== 'lobby'} onClick={() => pick(d)}>
-              <span className="lw-diff-name">{COOP_DIFFICULTY[d].label}</span>
-              <span className="lw-diff-blurb">{COOP_DIFFICULTY[d].blurb}</span>
-            </button>
-          ))}
+          <div className="lw-set-seg" role="radiogroup" aria-label="Difficulty">
+            {COOP_DIFFICULTIES.map((d) => (
+              <button key={d} role="radio" aria-checked={room.difficulty === d} className={`lw-set-seg-btn ${room.difficulty === d ? 'lw-set-seg-on' : ''}`} disabled={!host || room.status !== 'lobby'} onClick={() => pick(d)}>
+                {COOP_DIFFICULTY[d].label}
+              </button>
+            ))}
+          </div>
+          <span className="lw-lobby-diff-blurb">{COOP_DIFFICULTY[room.difficulty].blurb}</span>
         </div>
 
         <div className="lw-lobby-opts">
@@ -188,39 +195,41 @@ function Lobby({ client, room, me, local, busy }: { client: CoopClient; room: Ro
           <label className="lw-opt">
             <input type="checkbox" checked={room.voice} disabled={!host || room.status !== 'lobby'} onChange={(e) => void client.setOptions({ voice: e.target.checked })} />
             <span className="lw-opt-name">Proximity chat</span>
-            <span className="lw-opt-blurb">Talk to whoever is near you: the further, the quieter; far away, nothing.</span>
           </label>
           <label className={`lw-opt ${room.voice ? '' : 'lw-opt-off'}`}>
             <input type="checkbox" checked={room.hear} disabled={!host || !room.voice || room.status !== 'lobby'} onChange={(e) => void client.setOptions({ hear: e.target.checked })} />
             <span className="lw-opt-name">Enemy can hear you talk</span>
-            <span className="lw-opt-blurb">Whisper and you're safe. Talk out loud near it and it comes for you.</span>
           </label>
           <label className={`lw-opt ${room.voice ? '' : 'lw-opt-off'}`}>
             <input type="checkbox" checked={room.mimic} disabled={!host || !room.voice || room.status !== 'lobby'} onChange={(e) => void client.setOptions({ mimic: e.target.checked })} />
             <span className="lw-opt-name">It mimics your voices</span>
-            <span className="lw-opt-blurb">It learns what you say, and calls out in your voices from the dark. Don't trust everything you hear.</span>
           </label>
           {room.voice && (
             <p className="lw-lobby-privacy">
-              Privacy: voices go straight between your computers, so the others in this room can see your IP address (as in any voice chat).
-              {room.mimic ? ' For the mimic, each game keeps a few of your lines in memory during the run, and plays them back only to this room.' : ''} Nothing is uploaded or kept after the run.
+              Voice is peer-to-peer: players in this room can see your IP.{room.mimic ? ' Mimic clips stay in memory, this run only.' : ''}
             </p>
           )}
           {room.voice && (
             <p className={`lw-lobby-mic lw-lobby-mic-${mic}`}>
-              {mic === 'on' ? 'Your microphone is on. In the game, V mutes it.' : mic === 'off' ? "No microphone: you'll hear the others, they won't hear you." : "You'll be asked for your microphone when you press Ready."}
+              {mic === 'on' ? 'Mic on · V mutes' : mic === 'off' ? 'No mic' : 'Mic: asked on Ready'}
             </p>
           )}
         </div>
+        </div>
+        </div>
 
-        <p className="lw-lobby-hint">{lobbyHint(room)}</p>
-        <nav className="lw-menu-nav">
-          <button className="lw-menu-btn" disabled={busy || asking || room.status === 'playing'} onClick={() => void ready()}>
-            {asking ? 'Allow the microphone…' : mine?.ready ? 'Not ready' : 'Ready'}
-          </button>
-          <button className="lw-menu-btn" disabled={busy} onClick={() => void client.leave()}>{host ? 'Close room' : 'Leave room'}</button>
-        </nav>
-        {local && <p className="lw-coop-local">Test mode (?coop=local): rooms only reach other tabs of this browser.</p>}
+        <div className="lw-lobby-foot">
+          <p className="lw-lobby-hint">
+            {lobbyHint(room)}
+            {local && <span className="lw-coop-local">Test mode (?coop=local): this browser's tabs only.</span>}
+          </p>
+          <nav className="lw-menu-nav lw-lobby-nav">
+            <button className="lw-menu-btn" disabled={busy || asking || room.status === 'playing'} onClick={() => void ready()}>
+              {asking ? 'Allow the microphone…' : mine?.ready ? 'Not ready' : 'Ready'}
+            </button>
+            <button className="lw-menu-btn" disabled={busy} onClick={() => void client.leave()}>{host ? 'Close room' : 'Leave room'}</button>
+          </nav>
+        </div>
       </div>
       {left !== null && (
         <div className="lw-countdown" key={left}>

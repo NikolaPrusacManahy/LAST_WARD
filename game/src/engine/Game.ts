@@ -12,7 +12,7 @@ import { HIT, hitBlack, hitLids, hitTimes } from '../state/hitSequence';
 import { WakeScene, createWakeScene } from './wakeScene';
 import { wakeEyelids, wakeLight, wakeTextOpacity } from '../state/wakeSequence';
 import { shuffleItems } from '../world/itemShuffle';
-import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackTimeScale, lookBackYaw, stepLookBack } from '../state/lookBack';
+import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackYaw, stepLookBack } from '../state/lookBack';
 import { createRng } from '../world/rng';
 import { findTarget, Target } from '../world/interact';
 import { PING, PingMark, inCrosshair, pingRay, snapPing } from '../world/ping';
@@ -122,9 +122,9 @@ export class Game {
   private toast: { text: string; until: number } | null = null;
   private note: { text: string } | null = null;
   private lastPrompt: Prompt | null = null;
-  /** Update 0.5.4 — look over your shoulder on the run + slow-motion burst. */
+  /** Update 0.5.4 — look over your shoulder on the run (0.9.9: no slow motion any more). */
   private lookBack: LookBack = createLookBack();
-  /** World clock: runs slower during the look-back slow motion (this.t stays real time). */
+  /** World clock: stops while a note is open (this.t stays real time). */
   private worldT = 0;
   private realDt = 0;
   /** Update 0.9.5 — hiding in a locker (null when not), and the way you were facing as you got in. */
@@ -594,12 +594,11 @@ export class Game {
       this.speed = 0;
     }
 
-    // Update 0.5.4 — Q while running: camera swings round, time slows for a moment.
-    let wdt = dt * worldTimeScale(this.phase, !!this.rt); // Update 0.6.4 — 0 while a note is open
+    // Update 0.5.4 — Q while running: the camera swings round. (Update 0.9.9 — time no longer slows down
+    // for a moment, solo either: Nikola, just looking back is fine.)
+    const wdt = dt * worldTimeScale(this.phase, !!this.rt); // Update 0.6.4 — 0 while a note is open
     if (this.phase === 'playing') {
       this.lookBack = stepLookBack(this.lookBack, dt, this.input.action('lookBack'), this.gait === 'sprint');
-      // Update 0.9.9 — no slow motion in co-op (it's everyone's clock): just the look over your shoulder.
-      wdt = dt * (this.rt ? 1 : lookBackTimeScale(this.lookBack));
     } else if (this.lookBack.amount > 0 || this.lookBack.active) {
       this.lookBack = createLookBack();
     }
@@ -759,7 +758,7 @@ export class Game {
 
     const targetFear = fearLevel(dist(this.enemy.pos, player.pos), chasing);
     this.fear += (targetFear - this.fear) * (1 - Math.exp(-dt * 3));
-    // Camera + flashlight follow in real time, so the look-back swing isn't slowed by its own slow motion.
+    // Camera + flashlight follow in real time.
     player.injured = this.injured; // Update 0.9.1 — heavier bob and a limp
     // Update 0.9.5 — shut in a locker it's nearly black: only a trace of the glow around your eyes.
     player.updateView(this.realDt, step.gait, status, this.t, 0, this.hide ? 0.1 + Math.max(0.9 * (1 - insideness(this.hide)), 0.5 * (peekLean(this.hide.peek).forward / LOCKER.leanForward)) : 1); // (0.9.5.1: head out, some of the glow back)

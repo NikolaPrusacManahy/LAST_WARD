@@ -60,7 +60,7 @@ section('Co-op: the host starts the countdown (0.9.9)');
   check('alone, even ready: no countdown (co-op needs two)', !canStart(one) && hostStep(one, 0) === null);
   const two = room({ players: [{ id: 'a', name: 'Ann', ready: true, slot: 0 }, { id: 'b', name: 'Bo', ready: false, slot: 1 }] });
   check('one not ready: no countdown', hostStep(two, 0) === null);
-  check('the hint says who it waits for', lobbyHint(two) === 'Waiting for one player to be ready.' && lobbyHint(one).includes('at least two'));
+  check('the hint says who it waits for', lobbyHint(two) === 'Waiting for 1 player.' && lobbyHint(one) === 'Share the code. 2 players minimum.');
   two.players[1].ready = true;
   const go = hostStep(two, 1000);
   check(`everyone ready → the countdown starts (${COUNTDOWN_MS / 1000} s)`, go?.status === 'starting' && go.startAt === 1000 + COUNTDOWN_MS);

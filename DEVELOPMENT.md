@@ -61,8 +61,9 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `net/voice.ts` | 0.9.9: proximity chat over WebRTC (`VoiceChat`, a mesh; the handshake under `rooms/{code}/rtc`), `getMic` (opens and keeps it: Ready), `askMic` / `askMicOnce` (the main menu: asks, lets go; the browser remembers), `micIfAllowed` (a run: never a prompt) | no (the mic rules tested with a stand-in browser) |
 | `engine/coopRuntime.ts` | 0.9.9: a co-op run beside the Game: teammates (smoothed, drawn, heard, bodies to bump into), the host's Patient (targets, noise queue, catches, holding, events to everyone) and everyone else's copy of it, voice nodes and the mic meter, revives (`revivingWho`: who a teammate is getting up), the team list (`CoopSide` is what the Game does) | no |
 | `engine/teammateView.ts` | 0.9.9: a teammate's body (player.glb with its head), clips from their gait, name tag (talking mark), their flashlight (`createTeamLight`: made at the start, never added mid-run), the revive marker over a downed one (through walls, fixed size on screen), on one knee at their side while getting someone up (clip `revive`) | no |
-| `screens/CoopPanel.tsx` | 0.9.9: Co-op from the main menu: name, Create room / Join with code, the lobby, the countdown, the voice options (chat, it hears you, the mimic) and the privacy note; styles in `theme-14-coop.css` | no |
-| `screens/SettingsPanel.tsx` | 0.9.9: Settings in three tabs (Video: Graphics High / Low, field of view, grain; Audio: the volumes; Controls: mouse, keys); styles in `theme-16-settings.css`. `GRAPHICS` / `pixelRatioFor` in `state/settings.ts` | no |
+| `screens/CoopPanel.tsx` | 0.9.9: Co-op from the main menu: name, Create room / Join with code, the lobby (two columns: who's in left, the host's choices right, so it fits the screen), the countdown, the voice options (chat, it hears you, the mimic) and the privacy note; styles in `theme-14-coop.css` | no |
+| `ui/uiScale.ts` | 0.9.9: how big the menu panels are drawn (`--lw-ui`, CSS `zoom` on `.lw-panel`): up to 2×, as big as fits the window; every panel is laid out to fit `PANEL_BOX` (900 × 540) at 1×, so none scrolls. Inside a panel vw / vh are zoomed too: divide them by `var(--lw-ui)` | yes |
+| `screens/SettingsPanel.tsx` | 0.9.9: Settings in three tabs beside the title, each page the same height (Video: Graphics High / Low, field of view, grain; Audio: the volumes; Controls: mouse, the keys in two columns); styles in `theme-16-settings.css`. `GRAPHICS` / `pixelRatioFor` in `state/settings.ts` | no |
 | `state/version.ts` | The version on the main menu (keep `package.json` the same; tested) | yes |
 | `state/settings.ts` | Save shape, defaults, `hydrateSave` (incl. `bindings` since 0.5), best time; `mixVolumes` master × SFX / BGM (0.9.2) | yes (+ localStorage I/O) |
 | `engine/Game.ts` | Renderer, scene, phases (`intro / playing / paused / dying / escaping / over`; 0.9.9: `down`, `spectating`), wiring; 0.9.9: a co-op run (`coop`) takes the room's difficulty and seed and wakes you on your slot's spot; the co-op block (`startCoop` … `endCoop`: your live state, the shared world in and out, catches, down / crawl / revive, watching, the end) and `coopFrame` every frame; solo's enemy step is `soloEnemy`, its drawing and sounds `enemyEffects` (both modes) | no |
@@ -91,16 +92,16 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/caughtScene.ts` | Films the caught sequence: camera in its hands, then your body's eyes (`PlayerBody.cinematic` / `eyes`) | no |
 | `state/wakeSequence.ts` | Start-of-run wake-up timeline: intro text fade, eyelids, 1 s wait, get-up, dim torch (0.6.3); `WAKE_SOUND`, the wake-up recording that plays over it all (0.9.6.1) | yes |
 | `engine/wakeScene.ts` | Films the wake-up from your body's eyes (get-up clip held, then played) | no |
-| `state/lookBack.ts` | Look back on the run: 180° camera swing, slow-mo burst + cooldown, body hide (0.5.4) | yes |
+| `state/lookBack.ts` | Look back on the run: 180° camera swing, body hide (0.5.4; 0.9.9: no more slow motion) | yes |
 | `world/itemShuffle.ts` | Shuffles fuses / batteries / notes across the item cabinets each run (0.5.4) | yes |
 | `state/creditIntro.ts` + `screens/CreditIntro.tsx` | Boot credit cards: studio GIF (3.2 s + 0.8 s fade), then the tips (3 s + 1 s fade); click → 0.5 s fade of the current card | yes / no |
-| `screens/CreditsPanel.tsx` | Credits screen from the main menu (0.8) | no |
+| `screens/CreditsPanel.tsx` | Credits screen from the main menu (0.8; 0.9.9: a grid of three columns, each title links to its source) | no |
 | `screens/InputIcon.tsx`, `ControlsCard.tsx`, `KeyBindings.tsx` | Icon (or text key cap), the 10 s controls box, the rebind list in Settings | no |
 | `engine/hudStore.ts` | External store between the engine and React | no |
 | `state/menuScare.ts` | Main-menu loop: lit (stare) → stutter out → dark (gone) → face strobe → dark (gone) → stutter in; pose swaps only in the dark | yes |
 | `engine/menuScene.ts` + `screens/MenuScene.tsx` | Main-menu 3D backdrop: Patient model (`EnemyView.pose`, `stare` clip), tube light, face-shot camera + strobe; disposed when leaving the menu | no |
 | `audio/spatial.ts` | `enemyHearing` (0.9.4: loudness / muffling through walls or round corners, from `world/soundPath.ts`), `falloff`, and every volume constant (steps, scream, panel, goggles, running breath) | yes |
-| `audio/uiSounds.ts` + `hooks/useUiSounds.ts` | Menu hover/click sounds (own AudioContext, document-level listener on `.lw-menu-btn`) | no (throttle `hoverAllowed` is tested) |
+| `audio/uiSounds.ts` + `hooks/useUiSounds.ts` | Menu hover/click sounds (own AudioContext, document-level listener on `.lw-menu-btn` and, 0.9.9, everything else you pick in a menu: difficulty cards, switches, tabs, lobby options, key buttons; greyed out = silent) | no (throttle `hoverAllowed` is tested) |
 | `audio/audio.ts` | Sound engine: loads `public/audio/manifest.json` samples, plays them (3D via PannerNode for enemy/generator), synth fallback per sound; synth tension, stinger, clanks | no |
 
 ## Contracts
@@ -131,7 +132,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | Ceiling crawl | `CRAWL`, `ENEMY.speed.crawl` | from a corridor patrol, never in the first 60 s, then 40–70 s apart (8% a second); 2.6 s up, 15–20 s at 8.6 m/s along a route planned up front, 1.6 s down |
 | Throws | `THROW` (state/throwables.ts) | 11 m/s + lift; brick noise 20 m (2 throws), bottle 16 m (1 throw); lure: you within 5 m of the landing → chase |
 | Panel repair | `SKILL` (state/skillCheck.ts) | 14 s of holding, checks every 2.6–4.6 s, miss = −12%, bang heard everywhere |
-| Look back | `LOOK_BACK` (state/lookBack.ts) | 0.18 s swing, 0.4× time for 0.5 s, 3 s cooldown |
+| Look back | `LOOK_BACK` (state/lookBack.ts) | 0.18 s swing (0.9.9: no slow motion) |
 | Ward brightness | `LIGHT` (state/lightLevels.ts) | flashlight 44.2 (34 × 1.3), reach 48 m; fill 0.6 dark / 0.9 powered, fog 0.065 / 0.05 (÷1.5 with the beam on), eye glow 1.1 |
 
 ## Character models

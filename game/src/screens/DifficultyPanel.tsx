@@ -12,7 +12,6 @@ export function DifficultyPanel({ current, onPick, onBack }: Props) {
     <div className="lw-overlay">
       <div className="lw-panel lw-difficulty">
         <h2 className="lw-panel-title">Difficulty</h2>
-        <p className="lw-panel-sub">How do you want to spend the night?</p>
         <div className="lw-diff-list">
           {DIFFICULTIES.map((d) => (
             <button key={d} className={`lw-diff ${d === current ? 'lw-diff-current' : ''}`} onClick={() => onPick(d)} autoFocus={d === current}>

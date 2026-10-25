@@ -51,7 +51,8 @@ export function KeyBindings({ bindings, onChange }: Props) {
 
   return (
     <section className="lw-keys">
-      <h3 className="lw-keys-title">Controls</h3>
+      {/* Update 0.9.9 — in two columns (the settings fit the screen, no scrolling). */}
+      <div className="lw-keys-grid">
       {ACTIONS.map(({ id, label }) => (
         <div className="lw-keys-row" key={id}>
           <span>{label}</span>
@@ -86,6 +87,7 @@ export function KeyBindings({ bindings, onChange }: Props) {
           <InputIcon code="Escape" />
           <span className="lw-keys-name">Esc</span>
         </span>
+      </div>
       </div>
       <button className="lw-keys-reset" onClick={() => onChange({ ...DEFAULT_BINDINGS })}>
         Reset controls

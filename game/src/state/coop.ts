@@ -25,8 +25,8 @@ export const CODE_LENGTH = 5;
 export type CoopDifficulty = 'normal' | 'hard';
 export const COOP_DIFFICULTIES: CoopDifficulty[] = ['normal', 'hard'];
 export const COOP_DIFFICULTY: Record<CoopDifficulty, { label: string; blurb: string }> = {
-  normal: { label: 'Normal', blurb: 'Two lives each. Caught on your last one, you go down: a friend can get you back up.' },
-  hard: { label: 'Hard', blurb: 'Batteries last 40% less, one life each, no getting back up. It climbs the ceilings more.' },
+  normal: { label: 'Normal', blurb: '2 lives. Revives.' },
+  hard: { label: 'Hard', blurb: '1 life. No revives. Less battery.' },
 };
 
 export type RoomStatus = 'lobby' | 'starting' | 'playing';
@@ -142,9 +142,9 @@ export function countdownLeft(room: Room, now: number): number | null {
 /** What the lobby says under the player list. */
 export function lobbyHint(room: Room): string {
   if (room.status === 'starting') return 'Get ready…';
-  if (room.players.length < MIN_PLAYERS) return 'Send the code to a friend. Co-op needs at least two of you.';
+  if (room.players.length < MIN_PLAYERS) return `Share the code. ${MIN_PLAYERS} players minimum.`;
   const waiting = room.players.filter((p) => !p.ready).length;
-  return waiting === 0 ? 'Everyone is ready.' : `Waiting for ${waiting === 1 ? 'one player' : `${waiting} players`} to be ready.`;
+  return waiting === 0 ? 'All ready.' : `Waiting for ${waiting} ${waiting === 1 ? 'player' : 'players'}.`;
 }
 
 const SPREAD = 1.6;

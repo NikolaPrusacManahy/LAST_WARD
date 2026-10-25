@@ -19,7 +19,7 @@ const SKETCHFAB = 'Sketchfab Standard';
 export const CREDITS: Credit[] = [
   { id: 'hospital_room', what: 'Hospital room furniture', title: 'Horror Hospital Room', author: 'KarolinaGlad', licence: CC_BY, source: 'https://sketchfab.com/3d-models/horror-hospital-room-56c9c40933644254b939ae2a22807d44' },
   { id: 'generator', what: 'Generator', title: 'Generator Stylized Sci-Fi Generator', author: 'Ghazi_3D', licence: CC_BY, source: 'https://sketchfab.com/3d-models/generator-stylized-sci-fi-generator-84577d2011644299bc150b045d2c5402' },
-  { id: 'electrical', what: 'Electrical wall and breaker panel', title: 'Simple electrical environment', author: 'trashbinkr', licence: SKETCHFAB, source: 'https://sketchfab.com/3d-models/simple-electrical-environment-8b2d0bc5b19a448da56a7bc00e04c6d9' },
+  { id: 'electrical', what: 'Electrical panels', title: 'Simple electrical environment', author: 'trashbinkr', licence: SKETCHFAB, source: 'https://sketchfab.com/3d-models/simple-electrical-environment-8b2d0bc5b19a448da56a7bc00e04c6d9' },
   { id: 'switch', what: 'Power switch', title: 'Simple Industrial ON/OFF Switch', author: 'trashbinkr', licence: SKETCHFAB, source: 'https://sketchfab.com/3d-models/simple-industrial-onoff-switch-7dac7f04ca474bf681b56fada14f5025' },
   { id: 'radiator', what: 'Radiators', title: 'Rusty Radiator', author: 'loxfear', licence: CC_BY, source: 'https://sketchfab.com/3d-models/rusty-radiator-37aedf976c6c4264a122f30562ca2aac' },
   { id: 'barrel', what: 'Barrels', title: 'Old tin barrel', author: '3dhdscan', licence: CC_BY, source: 'https://sketchfab.com/3d-models/old-tin-barrel-20f1ebee339a4b46b9e547782e2aaba9' },
@@ -31,7 +31,7 @@ export const CREDITS: Credit[] = [
   { id: 'bottle', what: 'Glass bottle', title: 'Beer Bottle', author: 'gelmi.com.br', licence: CC_BY, source: 'https://sketchfab.com/3d-models/beer-bottle-c3de7f8b092e4092aef14d4ffc9fac7f' },
   // Update 0.9.8 — the link is a search until the model page link is filled in (like the locker).
   { id: 'medkit', what: 'Med kit', title: 'Medkit_low', author: '3dmodelsst', licence: CC_BY, source: 'https://sketchfab.com/search?q=Medkit_low+3dmodelsst&type=models' },
-  { id: 'mixamo', what: 'The Patient and the player: characters and animations', title: 'Mixamo', author: 'Adobe', licence: 'Mixamo terms', source: 'https://www.mixamo.com' },
+  { id: 'mixamo', what: 'Characters and animations', title: 'Mixamo', author: 'Adobe', licence: 'Mixamo terms', source: 'https://www.mixamo.com' },
   { id: 'kenney', what: 'Control icons', title: 'Input Prompts', author: 'Kenney', licence: 'CC0', source: 'https://kenney.nl' },
   { id: 'fonts', what: 'Fonts', title: 'Special Elite, IBM Plex Mono', author: 'Astigmatic, IBM', licence: 'Apache 2.0, SIL OFL 1.1', source: 'https://fonts.google.com' },
 ];

@@ -4,6 +4,14 @@
 
 Co-op for up to three players, over Firebase: the lobby, and now the run itself. One shared ward, one Patient hunting all of you, going down and getting each other up, proximity voice chat. The version stays 0.9.9 until the game is ready to go public (Nikola's call).
 
+### Menus: less text, twice the size, no scrolling; look back without slow motion (0.9.9, seventh part)
+
+- **Less explaining** (Nikola: gamers get what they recognise). Gone: the line under Co-op ("Up to three of you…") and under Difficulty, the voice options' explanations, the Graphics explanation, the solo mimic paragraph, "Headphones recommended…" on the main menu (the intro card says it). Shorter: difficulty ("2 lives. Revives." / "1 life. No revives. Less battery."; solo "Night vision." / "2 lives." / "1 life. Less battery."), the mic lines ("Mic on · V mutes", "No mic"), the lobby's waiting line ("Share the code. 2 players minimum.", "Waiting for 1 player.", "All ready."). The privacy note stays, in one line.
+- **The menu panels are drawn up to twice the size** (everything but the title screen: Co-op, the lobby, Difficulty, Settings, Credits, and the pause and end screens). `ui/uiScale.ts` works out the size from the window: 2× on a full 1080p screen or bigger, 1.75× in a 1080p browser window, 1.3× at 1280 × 720.
+- **Nothing scrolls** (Nikola: no scrolling allowed). Every panel is laid out to fit 900 × 540 at 1×: **the lobby** is wide, in two columns (the room code and who's in on the left; difficulty as a Normal | Hard switch with its line under it, the voice options, the privacy line and the mic on the right; Ready and Close room side by side at the foot). **Settings**: the tabs beside the title, every page the same height, the keys in two columns. **Credits**: a grid of three columns, each asset's title linking to its source, with its author and licence in full. Checked in the browser at 1920 × 1080 (2×), 1920 × 950, 1280 × 720 and 1024 × 768: every panel inside the window, nothing scrolling.
+- **Click sounds everywhere you pick something**: the difficulty cards, the lobby's difficulty switch, voice options and Copy, the Graphics switch, the settings tabs, the key buttons (only the plain menu buttons had them). Greyed out (not the host): silent. Checked with real clicks.
+- **Looking back (Q on the run) no longer slows time** (Nikola): just the camera over your shoulder, and you can look again straight away (the 3 s wait was for the slow motion).
+
 ### After the first real co-op test (0.9.9, sixth part)
 
 Nikola hosted a Normal run with a friend over Firebase: no lag on the host, but the friend had snapping, lag and "net-code problems"; The Patient was nearly impossible to lose in a chase, which made lockers useless.

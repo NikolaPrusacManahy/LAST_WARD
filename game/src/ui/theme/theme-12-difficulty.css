@@ -1,5 +1,5 @@
 /* theme-12 — Update 0.9.3: the difficulty picker after Begin. 0.9.5: the locker hint. */
-.lw-difficulty { width: min(620px, 92vw); }
+.lw-difficulty { width: min(620px, calc(92vw / var(--lw-ui))); }
 .lw-diff-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
 .lw-diff {
   display: grid; grid-template-columns: 110px 1fr; align-items: baseline; gap: 18px; padding: 14px 18px;

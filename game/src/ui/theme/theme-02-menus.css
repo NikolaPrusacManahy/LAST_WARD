@@ -24,7 +24,6 @@
 .lw-menu-stats div { display: flex; flex-direction: column; gap: 4px; }
 .lw-menu-stats dt { font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--lw-bone-dim); }
 .lw-menu-stats dd { margin: 0; font-family: var(--lw-type); font-size: 26px; }
-.lw-menu-hint { margin: 28px 0 0; font-size: 12px; color: var(--lw-bone-dim); opacity: 0.7; }
 
 .lw-settings { width: 520px; }
 .lw-set-row {

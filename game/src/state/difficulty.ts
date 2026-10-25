@@ -16,9 +16,9 @@ export interface DifficultyRules {
 export const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
 
 export const DIFFICULTY: Record<Difficulty, DifficultyRules> = {
-  easy: { label: 'Easy', blurb: 'Night vision goggles. The ward in green, and you see it coming from far away.', lives: 2, batteryDrainMul: 1, nightVision: true },
-  normal: { label: 'Normal', blurb: 'The ward as it is. Two lives.', lives: 2, batteryDrainMul: 1, nightVision: false },
-  hard: { label: 'Hard', blurb: 'Your battery lasts 40% less. One life: if it catches you, it is over.', lives: 1, batteryDrainMul: 1 / 0.6, nightVision: false },
+  easy: { label: 'Easy', blurb: 'Night vision.', lives: 2, batteryDrainMul: 1, nightVision: true },
+  normal: { label: 'Normal', blurb: '2 lives.', lives: 2, batteryDrainMul: 1, nightVision: false },
+  hard: { label: 'Hard', blurb: '1 life. Less battery.', lives: 1, batteryDrainMul: 1 / 0.6, nightVision: false },
 };
 
 export const DEFAULT_DIFFICULTY: Difficulty = 'normal';
