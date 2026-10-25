@@ -4,6 +4,11 @@
 
 Co-op for up to three players, over Firebase: the lobby, and now the run itself. One shared ward, one Patient hunting all of you, going down and getting each other up, proximity voice chat. The version stays 0.9.9 until the game is ready to go public (Nikola's call).
 
+### A new Patient (0.9.9)
+
+- **Nikola's new model** (Mixamo "Ch30", `ASSETS/models/patient/Patient_Model.fbx`) replaces the old one, with **the same animations** (made on the old model). The converter now fits animations made on another body: it scales their hip movement by this body's hip height over theirs (here ×0.875; it would have stood 14 cm off the floor), and says so per clip (`tools/convert-character.mjs`). The poses are joint rotations, which fit any Mixamo body. Scaled 1.32× in the game (`SCALE`, `engine/enemyModel.ts`), about 2.33 m, as tall as before. `patient.glb` 1.8 → 2.9 MB (its 4K textures shrunk to 1024 px as always).
+- Checked in the browser: the title screen stare (feet on the floor), standing and running down a hall, the grab (its arms either side of you) and the throw over its shoulder, the hit on your last life (rearing up, fist raised), crawling upside down on the ceiling. The full re-convert command is in `ASSETS/models/patient/README.md`.
+
 ### Fixed: the camera spinning round on its own (0.9.9)
 
 - Nikola's friend (often) and Nikola (now and then): turning, the camera suddenly did a full turn, and you ended up facing The Patient. Not lag: a known browser glitch. With the mouse locked, Chrome on Windows now and then reports one mouse move hundreds or thousands of pixels too big (2,860 px is a full turn at sensitivity 1), and the game turned by all of it. Gaming mice (fast polling, high DPI) set it off more.

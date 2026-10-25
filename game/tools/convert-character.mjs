@@ -16,6 +16,9 @@
 //   node tools/convert-character.mjs --add public/models/patient.glb public/models/patient.glb ^
 //     crawl=../ASSETS/models/patient/Patient_crawl.fbx jumpUp=../ASSETS/models/patient/Patient_jump_to_changeMode.fbx
 // A clip that's already there under the same name is replaced.
+// Update 0.9.9 — animations made on another body (the Patient's model was swapped for a new Mixamo one and
+// its old animations kept) are fitted to this one: their hip movement is scaled by this body's hip height
+// over theirs (the poses are joint rotations, which fit any Mixamo body). Otherwise it floated or sank.
 // `--keep-root=getUp,…` keeps those clips' sideways hip movement (root motion): the player's get-up moves
 // the hips back over the feet, and pinning them made the hands slide along the floor:
 //   node tools/convert-character.mjs --keep-root=getUp --add public/models/player.glb public/models/player.glb ^
@@ -50,10 +53,16 @@ const root = doc.getRoot();
 if (!adding) root.listAnimations().forEach((a) => a.dispose()); // bind-pose dummy clip
 const byName = new Map(root.listNodes().map((n) => [n.getName(), n]));
 const buffer = root.listBuffers()[0];
+/** How high a rig's hips are at rest (its own units). */
+const hipsRest = (d) => d.getRoot().listNodes().find((n) => /Hips$/.test(n.getName()))?.getTranslation()[1];
+const modelHips = hipsRest(doc);
 
 for (const arg of clipArgs) {
   const [name, file] = arg.split('=');
-  const src = (await io.read(await toGlb(file, name))).getRoot().listAnimations()[0];
+  const srcDoc = await io.read(await toGlb(file, name));
+  const src = srcDoc.getRoot().listAnimations()[0];
+  const srcHips = hipsRest(srcDoc);
+  const fit = modelHips && srcHips && Math.abs(modelHips / srcHips - 1) > 0.01 ? modelHips / srcHips : 1;
   root.listAnimations().filter((a) => a.getName() === name).forEach((a) => a.dispose()); // replaced
   const anim = doc.createAnimation(name);
   for (const ch of src.listChannels()) {
@@ -61,7 +70,9 @@ for (const arg of clipArgs) {
     if (!node) continue;
     const s = ch.getSampler();
     const out = s.getOutput().getArray().slice();
-    if (/Hips$/.test(ch.getTargetNode().getName()) && ch.getTargetPath() === 'translation' && !keepRoot.has(name)) {
+    const hipsMove = /Hips$/.test(ch.getTargetNode().getName()) && ch.getTargetPath() === 'translation';
+    if (hipsMove && fit !== 1) for (let i = 0; i < out.length; i++) out[i] *= fit;
+    if (hipsMove && !keepRoot.has(name)) {
       // Keep the vertical bob; the game moves the character, so drop horizontal root motion.
       const x0 = out[0], z0 = out[2];
       for (let i = 0; i < out.length; i += 3) { out[i] = x0; out[i + 2] = z0; }
@@ -71,7 +82,7 @@ for (const arg of clipArgs) {
     const sampler = doc.createAnimationSampler().setInput(input).setOutput(output).setInterpolation(s.getInterpolation());
     anim.addSampler(sampler).addChannel(doc.createAnimationChannel().setTargetNode(node).setTargetPath(ch.getTargetPath()).setSampler(sampler));
   }
-  console.log(`clip ${name}: ${anim.listChannels().length} channels`);
+  console.log(`clip ${name}: ${anim.listChannels().length} channels${fit !== 1 ? `, hips ×${fit.toFixed(3)} (made on another body)` : ''}`);
 }
 
 if (adding) await doc.transform(resample(), dedup(), prune());

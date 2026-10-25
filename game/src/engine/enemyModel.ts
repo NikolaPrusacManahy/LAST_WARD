@@ -1,4 +1,5 @@
-// Update 0.2 — the rigged Patient (Mixamo "Parasite", converted to public/models/patient.glb).
+// Update 0.2 — the rigged Patient (Mixamo "Parasite", converted to public/models/patient.glb). Update 0.9.9 — a new
+// model (Nikola's, Mixamo "Ch30"), with the same animations (the converter fits them to its hips).
 // Same EnemyView contract as the primitive fallback in enemyView.ts.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -8,7 +9,7 @@ import { CRAWL_FLIP_PIVOT, EnemyClip, chooseEnemyClip, clipTimeScale } from './e
 import { CRAWL } from '../world/enemyAI';
 
 export const PATIENT_URL = '/models/patient.glb';
-const SCALE = 1.15; // ~2.25 m tall: a bit too big to be human
+const SCALE = 1.32; // ~2.33 m tall, as the old one was: a bit too big to be human (the model is 1.77 m)
 const FADE = 0.25;
 /** Attack clip: rears back at ~0.7 s, lunges at ~1.5 s. Start just before the rear-up. */
 const ATTACK_START = 0.55;

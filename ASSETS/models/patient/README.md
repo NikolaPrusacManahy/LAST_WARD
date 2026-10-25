@@ -21,3 +21,12 @@ Suggested names (one file per animation is fine):
 | `Patient_jump_to_changeMode.fbx` | Jumping up onto the ceiling, and backwards to drop down (clip `jumpUp`, 0.9.7) |
 
 Mixamo tips: tick **In Place** for walk/run; download extra animations **Without Skin**; 30 fps is fine.
+
+## 0.9.9: a new model
+
+`Patient_Model.fbx` is now Nikola's new Mixamo character ("Ch30", 1.77 m). The animations are still the ones made on the old model (Mixamo "Parasite"): the converter fits them to the new body (it scales their hip movement by the new hips' height over the old: ×0.875; the poses are joint rotations, which fit any Mixamo body). In the game it's scaled 1.32×, about 2.33 m, as tall as the old one (`SCALE` in `game/src/engine/enemyModel.ts`).
+
+Re-convert everything (from `game/`):
+node tools/convert-character.mjs ../ASSETS/models/patient/Patient_Model.fbx public/models/patient.glb idle=../ASSETS/models/patient/Patient_idle.fbx walk=../ASSETS/models/patient/Patient_walking.fbx run=../ASSETS/models/patient/Patient_Running.fbx search=../ASSETS/models/patient/Patient_Search.fbx scream=../ASSETS/models/patient/Patient_scream.fbx attack=../ASSETS/models/patient/Patient_attack.fbx stare=../ASSETS/models/patient/Patient_menu_stare.fbx grab=../ASSETS/models/patient/Patient_grab.fbx throw=../ASSETS/models/patient/Patient_throw.fbx crawl=../ASSETS/models/patient/Patient_crawl.fbx jumpUp=../ASSETS/models/patient/Patient_jump_to_changeMode.fbx
+
+A model of another height: change `SCALE` so it stands about 2.3 m. Animations re-downloaded on the new model fit best (no foot sliding); the old ones work as they are.
