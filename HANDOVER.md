@@ -1,6 +1,18 @@
 # HANDOVER.md: where things stand
 
-## Current version: 0.9.9
+## Current version: 1.0.0
+
+The first public release (Nikola's call, after the 0.9.9 co-op tests). The main menu shows **v1.0.0** and, under it, **Student Work** (it said "Game in development"). `package.json`, its lock file and `state/version.ts` say 1.0.0; `tests/test-version.ts` checks they match.
+
+What's in 1.0.0:
+- **Solo**: wake up in Ward 13, find four fuses, bring four electrical panels back to life (a skill check each), restart the generator and get out through the exit door. Easy (night vision goggles), Normal (two lives) or Hard (one life, a shorter battery).
+- **The Patient**: patrols, hears your steps (and what you throw), sees your flashlight, screams and chases; once it's after you it sees you anywhere in its line of sight, and only loses you out of it. It crawls the corridor ceilings now and then. Caught: thrown (your first life) or hit and sent flying (your last).
+- **Surviving**: run (stamina, an adrenaline boost while chased), crouch, hide in lockers (it pulls you out only if it saw you get in), three item slots (bricks and bottles to throw as lures, med kits, fuses, batteries), a flashlight with a battery, notes on the walls.
+- **Co-op for up to three** (Firebase): a lobby with a room code, ready up, the host picks Normal or Hard; one shared ward and one Patient hunting all of you; going down on your last life and getting each other up (kneeling beside them); proximity voice chat by distance, optionally heard by The Patient; pings (F); rejoining after a dropped connection (not the host).
+- **Menus**: up to twice the size and never scrolling, settings in tabs (Graphics High / Low, field of view, every key rebindable), click sounds on everything you pick.
+- **Known limits**: voice chat has no relay server, so on some strict networks two players can't hear each other; the host can't rejoin (the host's game runs The Patient); the mimic is switched off (`MIMIC.enabled`); Firebase's free plan allows 100 players connected at once.
+
+## 0.9.9
 
 Co-op for up to three players, over Firebase: the lobby, and now the run itself. One shared ward, one Patient hunting all of you, going down and getting each other up, proximity voice chat. The version stays 0.9.9 until the game is ready to go public (Nikola's call).
 

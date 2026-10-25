@@ -4,7 +4,7 @@ A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
 You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find four fuses, bring four electrical panels back to life, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 0.9.9. The full patch history is in `HANDOVER.md`.
+Current version: 1.0.0, the first public release. A student work. The full patch history is in `HANDOVER.md`.
 
 ## How the game works
 
