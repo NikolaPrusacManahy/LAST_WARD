@@ -33,8 +33,9 @@ export const ENEMY = {
    *  checks lockers by itself (it always found you in the nearest one): `check` is never started now. */
   lockerCheckSeconds: 1,
   /** Each fuse collected makes it this much faster (it knows what you're doing).
-   *  Update 0.9.6.2 — 7% → 4%, and only while it chases you (`enemySpeed`). */
-  ragePerFuse: 0.04,
+   *  Update 0.9.6.2 — 7% → 4%, and only while it chases you (`enemySpeed`). Update 0.9.9 — 2%: with four
+   *  fuses it ran 5.0 m/s against your 5.4, and nobody got away (Nikola's co-op test). */
+  ragePerFuse: 0.02,
   catchRadius: 1.1,
   /** Update 0.5.2 — collision size of its body (was 0.35, its shoulders went into walls). */
   bodyRadius: 0.55,
@@ -51,7 +52,15 @@ export const ENEMY = {
   sideHalf: Math.PI / 2,
   alertRise: 2.4,
   alertDecay: 0.5,
-  memorySeconds: 1.2, // keeps tracking you briefly after losing sight
+  /** How long it keeps looking where it lost you before giving up. Update 0.9.9 — it no longer follows
+   *  where you really are for that long (round any corner, straight to you): see `guessAhead`. */
+  memorySeconds: 1.2,
+  /** Update 0.9.9 — losing sight of you mid-chase, it runs to where it last saw you and on a little the
+   *  way you were going (this far at most, m): a guess, so a turn it didn't see loses it. */
+  guessAhead: 3,
+  /** Update 0.9.9 — for this long after it loses you, your footsteps don't give you away: you were still
+   *  running when it lost you, and they brought it straight back (Nikola's idea). Other noises still do. */
+  deafAfterLost: 8,
   /** Update 0.9.8 — a safety net: this long after losing sight of you it gives up the chase wherever it is. */
   giveUpSeconds: 10,
   searchSeconds: 7,
@@ -136,6 +145,10 @@ export interface EnemyState {
   crawl: CrawlState | null;
   /** Seconds before it may go up on the ceiling again. */
   crawlCooldown: number;
+  /** Update 0.9.9 — which way you were going when it last saw you (m/s), for its guess once it loses you. */
+  heading: Vec2 | null;
+  /** Update 0.9.9 — seconds left in which your footsteps don't count (after it lost you). */
+  deaf: number;
 }
 
 /** Update 0.9.7 — on the ceiling: going up, crawling the corridors, or dropping back down. */
@@ -200,6 +213,8 @@ export function createEnemy(level: Level): EnemyState {
     clock: 0,
     crawl: null,
     crawlCooldown: CRAWL.firstWait, // never in the first minute
+    heading: null,
+    deaf: 0,
   };
 }
 
@@ -722,7 +737,10 @@ export function enemySpeed(e: Pick<EnemyState, 'mode' | 'rush' | 'rage'>): numbe
 
 /** Advances the enemy one frame. Mutates `e`, returns what happened. */
 export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rng): EnemyEvent[] {
-  const { dt, player, noise } = input;
+  const { dt, player } = input;
+  // Update 0.9.9 — a while after it loses you, your footsteps don't count.
+  e.deaf = Math.max(0, e.deaf - dt);
+  const noise = input.noise?.step && e.deaf > 0 ? null : input.noise;
   const events: EnemyEvent[] = [];
   const tune = tuningFor(level);
   e.rage = input.fuses * ENEMY.ragePerFuse;
@@ -739,6 +757,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
   const lit = litByBeam(level, e, player);
   const vis = lit ? 1 : visibility(level, e, player);
   const close = lit || (vis > 0 && dist(e.pos, player.pos) <= ENEMY.senseRadius);
+  const sawLastFrame = e.sinceSeen === 0;
   if (vis > 0) {
     e.alert = Math.min(1, e.alert + vis * ENEMY.alertRise * dt);
     e.sinceSeen = 0;
@@ -750,7 +769,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
 
   // Update 0.9.7 — up on the ceiling: its own rules. It can't catch you from there.
   if (e.crawl) {
-    stepCrawl(level, e, input, e.alert >= 1 || close, events, rng);
+    stepCrawl(level, e, { ...input, noise }, e.alert >= 1 || close, events, rng);
     return events;
   }
   e.crawlCooldown = Math.max(0, e.crawlCooldown - dt);
@@ -772,9 +791,31 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
     if (noise.lure) e.lure = true;
   }
 
-  // It keeps on your trail for a moment after losing sight of you, but not into a locker it didn't see
-  // you get into (Update 0.9.9: it went straight to the door of the one you'd just hidden in).
-  if (e.mode === 'chase' && e.sinceSeen <= tune.memorySeconds && !player.hidden) e.lastKnown = { ...player.pos };
+  // Update 0.9.9 — where it last saw you, and which way you were going. It used to keep following where you
+  // really were for 1.2 s after losing sight of you: round any corner and straight to where it could see
+  // you again (or to the door of the locker you'd just got into).
+  if (e.mode === 'chase') {
+    if (vis > 0) {
+      // (A jump is someone else, or you thrown: no heading from that. A teammate's 10-a-second updates
+      // come as steps; smoothed, they average out to how fast they really go.)
+      if (e.lastKnown && dist(player.pos, e.lastKnown) > 4) e.heading = null;
+      else if (sawLastFrame && e.lastKnown && dt > 0) {
+        const k = Math.min(1, dt * 5);
+        const v = { x: (player.pos.x - e.lastKnown.x) / dt, z: (player.pos.z - e.lastKnown.z) / dt };
+        const h = e.heading ?? v;
+        e.heading = { x: h.x + (v.x - h.x) * k, z: h.z + (v.z - h.z) * k };
+      }
+      e.lastKnown = { ...player.pos };
+    } else if (sawLastFrame && e.lastKnown) {
+      // Just lost you: on a little the way you were going (as far as its body fits).
+      const h = e.heading;
+      const len = h ? Math.hypot(h.x, h.z) : 0;
+      if (h && len > 0.5) {
+        const k = Math.min(ENEMY.guessAhead, len * 0.6) / len;
+        e.lastKnown = moveWithCollision(level, e.lastKnown, h.x * k, h.z * k, ENEMY.bodyRadius);
+      }
+    }
+  }
 
   // Update 0.6.4 — rushing to the generator (0.9.1: or to a panel that blew): chase speed.
   const speed = enemySpeed(e); // Update 0.9.6.2 — the fuses only speed up the chase
@@ -810,6 +851,8 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
           events.push('lost');
           e.idle = 1.5;
           e.goal = null;
+          e.heading = null;
+          e.deaf = ENEMY.deafAfterLost; // Update 0.9.9
         }
       }
       break;

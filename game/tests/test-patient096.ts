@@ -175,3 +175,49 @@ section('Tasks before teleports (0.9.6)');
   stepEnemy(level, e3, { dt: 1 / 60, player: youFar, noise: null, fuses: 0 }, createRng(13));
   check('it never stays in a sprint outside going somewhere', !e3.rush);
 }
+
+section('Getting away mid-chase (0.9.9, after Nikola\'s co-op test)');
+{
+  // It chases you down the corridor, you running ahead at 5 m/s; then you're out of its sight (round a
+  // corner) and keep running. It used to follow where you really were for 1.2 s after that.
+  const e = createEnemy(level);
+  e.pos = at(10, 5);
+  e.dir = { x: 1, z: 0 };
+  Object.assign(e, { mode: 'chase', alert: 1, windup: 0, sinceSeen: 0, crawlCooldown: 1e9 });
+  const rng = createRng(3);
+  const dt = 1 / 60;
+  let you = { ...at(13, 5) };
+  const runner = (hide: boolean) => ({ pos: you, flashlightOn: true, crouching: false, running: true, hidden: hide });
+  for (let i = 0; i < 30; i++) {
+    you = { x: you.x + 5 * dt, z: you.z };
+    stepEnemy(level, e, { dt, player: runner(false), noise: null, fuses: 0 }, rng);
+  }
+  const lastSeen = { ...you };
+  for (let i = 0; i < 72; i++) {
+    you = { x: you.x + 5 * dt, z: you.z };
+    stepEnemy(level, e, { dt, player: runner(true), noise: null, fuses: 0 }, rng);
+  }
+  const ahead = e.lastKnown!.x - lastSeen.x;
+  check('out of sight: it heads where it last saw you and a little on the way you were going (a guess)', ahead > 1 && ahead <= ENEMY.guessAhead + 0.01, `${ahead.toFixed(2)} m on`);
+  check('…not where you really are 1.2 s later', you.x - e.lastKnown!.x > 2.5, `${(you.x - e.lastKnown!.x).toFixed(1)} m short of you`);
+
+  // It loses you: for a while your footsteps don't bring it back; anything else still does.
+  const l = createEnemy(level);
+  l.pos = at(10, 5);
+  l.dir = { x: 1, z: 0 };
+  Object.assign(l, { mode: 'chase', alert: 1, windup: 0, sinceSeen: 5, lastKnown: { ...l.pos }, crawlCooldown: 1e9 });
+  const r2 = createRng(4);
+  let lost = false;
+  for (let i = 0; i < 120 && !lost; i++) lost = stepEnemy(level, l, { dt, player: hidden, noise: null, fuses: 0 }, r2).includes('lost');
+  check('lost you: for 8 s your footsteps don\'t count', lost && l.deaf === ENEMY.deafAfterLost && ENEMY.deafAfterLost >= 5);
+  const run = (pos: { x: number; z: number }) => ({ pos, radius: 15, step: true });
+  const ev = stepEnemy(level, l, { dt, player: hidden, noise: run(at(12, 5)), fuses: 0 }, r2);
+  check('…running right by it: nothing', !ev.includes('heard') && l.mode === 'patrol');
+  const thud = stepEnemy(level, l, { dt, player: hidden, noise: { pos: at(12, 5), radius: 15 }, fuses: 0 }, r2);
+  check('…but anything else you do, it hears (a door, a switch, something you threw)', thud.includes('heard') && l.mode === 'investigate');
+  const later = createEnemy(level);
+  later.pos = at(10, 5);
+  Object.assign(later, { deaf: ENEMY.deafAfterLost, crawlCooldown: 1e9 });
+  for (let i = 0; i < (ENEMY.deafAfterLost + 0.2) * 60; i++) stepEnemy(level, later, { dt, player: hidden, noise: null, fuses: 0 }, r2);
+  check('…and after those 8 s your footsteps count again', stepEnemy(level, later, { dt, player: hidden, noise: run(later.pos), fuses: 0 }, r2).includes('heard'));
+}

@@ -28,6 +28,9 @@ import { readFileSync } from 'fs';
 import { askMic, askMicOnce, currentMic, micAnswer, micIfAllowed } from '../src/net/voice';
 import { KNEEL, kneelAt, reviveBack, reviveFree } from '../src/state/coopRun';
 import { PLAYER } from '../src/state/playerRules';
+import { VIEW_DELAY_MAX, easeDelay, stepTrack, targetDelay } from '../src/state/coopRun';
+import { catchesYou } from '../src/world/enemyTargets';
+import { CRAWL } from '../src/world/enemyAI';
 import { PLAY_ONCE } from '../src/engine/playerAnim';
 
 /** player.glb's clips (read in the hit section, checked in the revive one). */
@@ -68,6 +71,71 @@ section('Co-op run: teammates between updates (0.9.9)');
   check('past the last: held there (no guessing ahead)', sampleTrack(tr, 1000)!.pos.x === 10);
   addToTrack(tr, live({ pos: { x: 99, z: 0 }, life: 'down', t: 0.5 }), 200);
   check('a late update changes the facts, not the time', tr.snaps[tr.snaps.length - 1].life === 'down' && tr.snaps[tr.snaps.length - 1].t === 1);
+  check('…nor where they are (0.9.9: it moved them back)', tr.snaps[tr.snaps.length - 1].pos.x === 10);
+}
+
+section('Co-op run: a bad connection (0.9.9, after Nikola\'s co-op test)');
+{
+  // They run at 5 m/s and send ten times a second; the updates arrive in order but late: 50 ms, plus up to
+  // 300 ms more at random. We draw sixty times a second.
+  const feed = (adaptive: boolean) => {
+    const tr = createTrack();
+    const rng = createRng(7);
+    let arrive = 0;
+    const queue: { at: number; t: number }[] = [];
+    for (let i = 0; i < 300; i++) {
+      const t = i * 0.1;
+      arrive = Math.max(arrive, t + 0.05 + rng() * rng() * 0.3);
+      queue.push({ at: 1000 + arrive, t });
+    }
+    let held = 0;
+    let frames = 0;
+    let back = 0;
+    let prev = -Infinity;
+    for (let now = 1000; now < 1029; now += 1 / 60) {
+      while (queue.length && queue[0].at <= now) {
+        const u = queue.shift()!;
+        addToTrack(tr, live({ pos: { x: u.t * 5, z: 0 }, t: u.t }), u.at);
+      }
+      if (adaptive) stepTrack(tr, 1 / 60);
+      const x = sampleTrack(tr, now, adaptive ? tr.delay : VIEW_DELAY)?.pos.x;
+      if (x === undefined || now < 1005) {
+        prev = x ?? prev;
+        continue;
+      }
+      frames++;
+      if (x < prev - 1e-9) back++;
+      if (Math.abs(x - prev) < 1e-9) held++;
+      prev = x;
+    }
+    return { held: held / frames, back, delay: tr.delay };
+  };
+  const fixed = feed(false);
+  const smooth = feed(true);
+  check('the old fixed 0.15 s: they kept stopping, then jumping', fixed.held > 0.15, `${(fixed.held * 100).toFixed(0)}% of frames standing still`);
+  check('now: drawn a little further back, they keep moving', smooth.held < 0.03 && smooth.held < fixed.held / 5, `${(smooth.held * 100).toFixed(1)}% standing still, ${smooth.delay.toFixed(2)} s behind`);
+  check('…and never move backwards', smooth.back === 0);
+  check('a good connection stays at 0.15 s; a bad one at most 0.5 s', Math.abs(targetDelay([0.01, 0.02, 0.01, 0.0, 0.02, 0.01]) - VIEW_DELAY) < 0.001 && targetDelay(Array(20).fill(2)) === VIEW_DELAY_MAX && VIEW_DELAY_MAX <= 0.5);
+  check('the delay changes slowly (no jump in what you see): up 0.25 s a second, down 0.05', Math.abs(easeDelay(0.15, 0.5, 0.1) - 0.175) < 1e-9 && Math.abs(easeDelay(0.5, 0.15, 0.1) - 0.495) < 1e-9);
+  // They rejoin: their game starts again, its clock from zero.
+  const tr = createTrack();
+  for (let i = 0; i <= 50; i++) addToTrack(tr, live({ pos: { x: i, z: 0 }, t: 600 + i * 0.1 }), 2000 + i * 0.1);
+  for (let i = 0; i <= 5; i++) addToTrack(tr, live({ pos: { x: 100 + i, z: 0 }, t: 3 + i * 0.1 }), 2010 + i * 0.1);
+  const after = sampleTrack(tr, 2010 + 0.25 + VIEW_DELAY)!;
+  check('a teammate rejoins (their clock starts again): smoothed again at once', tr.snaps.length === 6 && Math.abs(after.pos.x - 102.5) < 1e-6, `${after.pos.x}`);
+}
+
+section('Co-op run: your catch is decided on your screen (0.9.9)');
+{
+  const e = createEnemy(parseLevel(LEVEL_01));
+  e.pos = { x: 10, z: 7 };
+  const you = (x: number, hidden = false) => ({ pos: { x, z: 7 }, flashlightOn: true, crouching: false, hidden });
+  check('The Patient you see reaches you: caught', catchesYou(e, false, you(10.8)));
+  check('still a step off on your screen: not caught (the host\'s older picture of you no longer counts)', !catchesYou(e, false, you(10 + ENEMY.catchRadius + 0.3)));
+  check('in a locker it didn\'t see you get into: no', !catchesYou(e, false, you(10.5, true)));
+  check('while it holds someone else: no', !catchesYou(e, true, you(10.5)));
+  e.crawl = { phase: 'on', t: 1, left: CRAWL.minSeconds, then: 'patrol', noise: null };
+  check('from the ceiling: no', !catchesYou(e, false, you(10.5)));
 }
 
 section('Co-op run: the host hears everyone (0.9.9)');

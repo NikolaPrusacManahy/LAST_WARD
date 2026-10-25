@@ -40,6 +40,15 @@ export function catchable(e: EnemyState, hunted: Hunted[]): string[] {
   return hunted.filter((h) => !h.sense.hidden && dist(e.pos, h.sense.pos) <= ENEMY.catchRadius).map((h) => h.id);
 }
 
+/**
+ * Update 0.9.9 — off the host, whether The Patient on your screen has you: in reach, you not hidden, it not
+ * on the ceiling nor holding someone. Your own game decides: the host's picture of you is a moment old,
+ * and it caught you while it still looked a couple of metres off on yours.
+ */
+export function catchesYou(e: EnemyState, holding: boolean, you: PlayerSense): boolean {
+  return !holding && catchable(e, [{ id: '', sense: you }]).length > 0;
+}
+
 /** Where its "teleport away from you" should be measured from: the nearest of you (or anywhere). */
 export function nearestPos(e: EnemyState, hunted: Hunted[]): Vec2 {
   let best: Vec2 = NOBODY.pos;

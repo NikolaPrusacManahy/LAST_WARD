@@ -9,8 +9,10 @@ import type { CoopDifficulty } from './coop';
 
 export const SEND_HZ = 10;
 /** Teammates (and, off the host, The Patient) are drawn this far in the past, so there's an update on
- *  each side to blend between. */
+ *  each side to blend between. Update 0.9.9 — at least this far: more when updates come in late. */
 export const VIEW_DELAY = 0.15;
+/** Update 0.9.9 — …and at most this far, however bad the connection. */
+export const VIEW_DELAY_MAX = 0.5;
 
 /** Where a player is in the run: on their feet, in its hands, down, out (taken), or out the exit. */
 export type LifeState = 'up' | 'caught' | 'down' | 'out' | 'escaped';
@@ -144,17 +146,60 @@ export interface Track {
   snaps: LiveState[];
   /** Our clock minus theirs, the smallest seen (the quickest an update has ever arrived). */
   offset: number;
+  /** Update 0.9.9 — how late each of the last updates came (beyond the quickest), and how far in the past
+   *  they're drawn now (`stepTrack` moves it toward `targetDelay`). */
+  late: number[];
+  delay: number;
 }
 
-export const createTrack = (): Track => ({ snaps: [], offset: Infinity });
+export const createTrack = (): Track => ({ snaps: [], offset: Infinity, late: [], delay: VIEW_DELAY });
+
+/** Update 0.9.9 — keep how late the last 40 updates came. */
+export function noteLate(late: number[], by: number, keep = 40): void {
+  late.push(by);
+  if (late.length > keep) late.shift();
+}
+
+/**
+ * Update 0.9.9 — how far in the past to draw someone so there's nearly always an update to blend to: one
+ * gap between updates plus how late the slowest tenth came. It was a fixed 0.15 s: over a real connection
+ * updates often come later than that, and teammates and The Patient stopped, then jumped.
+ */
+export function targetDelay(late: number[]): number {
+  if (late.length < 5) return VIEW_DELAY;
+  const sorted = [...late].sort((a, b) => a - b);
+  const slow = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))];
+  return Math.max(VIEW_DELAY, Math.min(VIEW_DELAY_MAX, 1 / SEND_HZ + slow + 0.03));
+}
+
+/** Update 0.9.9 — the delay moves toward its target a little at a time: what you see slows down to 0.75×
+ *  (or speeds up to 1.05×) for a moment; it never jumps, nor runs backwards. */
+export function easeDelay(delay: number, target: number, dt: number): number {
+  return delay + Math.max(-0.05 * dt, Math.min(0.25 * dt, target - delay));
+}
+
+/** Update 0.9.9 — once a frame: the delay toward what their updates need. */
+export function stepTrack(tr: Track, dt: number): void {
+  tr.delay = easeDelay(tr.delay, targetDelay(tr.late), dt);
+}
 
 /** An update arrived at `now` (our clock, s). */
 export function addToTrack(tr: Track, s: LiveState, now: number, keep = 12): void {
-  tr.offset = Math.min(tr.offset, now - s.t);
   const last = tr.snaps[tr.snaps.length - 1];
-  if (last && s.t <= last.t) {
-    // Out of order or a repeat: just the newest facts (life, hold…) without moving them back in time.
-    tr.snaps[tr.snaps.length - 1] = { ...s, t: last.t };
+  // Update 0.9.9 — their clock went back: their game started again (they rejoined). Start over; every
+  // update after that used to count as old, and they moved in jumps for the rest of the run.
+  if (last && s.t < last.t - 1) {
+    tr.snaps = [];
+    tr.offset = Infinity;
+    tr.late = [];
+  }
+  tr.offset = Math.min(tr.offset, now - s.t);
+  noteLate(tr.late, now - s.t - tr.offset);
+  const newest = tr.snaps[tr.snaps.length - 1];
+  if (newest && s.t <= newest.t) {
+    // Out of order or a repeat: just the newest facts (life, hold…), without moving them back in time or
+    // (0.9.9) back to where they were.
+    tr.snaps[tr.snaps.length - 1] = { ...s, t: newest.t, pos: newest.pos, sense: newest.sense, rise: newest.rise, yaw: newest.yaw, pitch: newest.pitch };
     return;
   }
   tr.snaps.push(s);
@@ -164,9 +209,9 @@ export function addToTrack(tr: Track, s: LiveState, now: number, keep = 12): voi
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const lerpAngle = (a: number, b: number, k: number) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
 
-/** Where they were VIEW_DELAY ago (our clock `now`): blended between the two updates around then;
+/** Where they were `delay` ago (our clock `now`): blended between the two updates around then;
  *  before the first or after the last, held there (no guessing ahead). */
-export function sampleTrack(tr: Track, now: number, delay = VIEW_DELAY): LiveState | null {
+export function sampleTrack(tr: Track, now: number, delay = tr.delay): LiveState | null {
   const s = tr.snaps;
   if (!s.length) return null;
   const at = now - delay - tr.offset;

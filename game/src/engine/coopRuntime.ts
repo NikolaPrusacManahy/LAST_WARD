@@ -6,8 +6,9 @@
 import * as THREE from 'three';
 import type { Level, Vec2 } from '../world/level';
 import { dist } from '../world/level';
-import { EnemyState, LockerSpot, Noise, PlayerSense, stepEnemy, teleportAway } from '../world/enemyAI';
-import { Hunted, NOBODY, catchable, nearestPos, pickTarget } from '../world/enemyTargets';
+import { ENEMY, EnemyState, LockerSpot, Noise, PlayerSense, stepEnemy, teleportAway } from '../world/enemyAI';
+import { Hunted, NOBODY, catchable, catchesYou, nearestPos, pickTarget } from '../world/enemyTargets';
+import { moveWithCollision } from '../world/collision';
 import type { Rng } from '../world/rng';
 import { soundPath } from '../world/soundPath';
 import { EnemyMix, enemyHearing } from '../audio/spatial';
@@ -17,7 +18,7 @@ import { hitTimes } from '../state/hitSequence';
 import { PLAYER } from '../state/playerRules';
 import {
   HARD_CRAWL_BOOST, IN_PLAY, LifeState, LiveState, MIMIC, Member, ResumeState, SEND_HZ, mimicNow, mimicWho, nextMimic, Track, VOICE, VIEW_DELAY, addToTrack, createTrack, hears, louder, sampleTrack,
-  voiceDistanceGain, voiceNoiseRadius,
+  easeDelay, noteLate, stepTrack, targetDelay, voiceDistanceGain, voiceNoiseRadius,
 } from '../state/coopRun';
 import type { RoomPlayer } from '../state/coop';
 import { EnemyNet, ItemNet, PanelNet, PowerNet, ReviveNet, RunSync } from '../net/runSync';
@@ -95,6 +96,11 @@ export class CoopRuntime {
   // The Patient off the host: its updates, smoothed; the events already played.
   private enemySnaps: EnemySnap[] = [];
   private enemyOffset = Infinity;
+  /** Update 0.9.9 — how late its updates come, and how far in the past it's drawn (see `targetDelay`). */
+  private enemyLate: number[] = [];
+  private enemyDelay = VIEW_DELAY;
+  /** Update 0.9.9 — on the host: teammates whose catch (on their own screen) it has already taken in. */
+  private claimed = new Set<string>();
   private lastNet: EnemyNet | null = null;
   private seenEv = -1;
   // On the host: who it's after, its queue of noises, the one it's holding, its events for everyone.
@@ -233,7 +239,15 @@ export class CoopRuntime {
 
   private onEnemy(e: EnemyNet) {
     const now = performance.now() / 1000;
+    // (The host's clock went back: its game started again. Start over, as for a teammate.)
+    const prev = this.enemySnaps[this.enemySnaps.length - 1];
+    if (prev && e.t < prev.t - 1) {
+      this.enemySnaps = [];
+      this.enemyOffset = Infinity;
+      this.enemyLate = [];
+    }
     this.enemyOffset = Math.min(this.enemyOffset, now - e.t);
+    noteLate(this.enemyLate, now - e.t - this.enemyOffset);
     const last = this.enemySnaps[this.enemySnaps.length - 1];
     if (!last || e.t > last.t) {
       this.enemySnaps.push({ t: e.t, x: e.x, z: e.z, dx: e.dx, dz: e.dz });
@@ -264,6 +278,16 @@ export class CoopRuntime {
    */
   private stepHost(e: EnemyState, dt: number, mine: LiveState, world: { fuses: number; lockers: LockerSpot[]; rng: Rng }): string[] {
     const events: string[] = [];
+    // Update 0.9.9 — teammates caught on their own screen (they say so: their life turns 'caught'). Taken in
+    // once each; one that comes while it's holding someone else just plays on their screen.
+    const claims: string[] = [];
+    for (const m of this.mates.values()) {
+      if (m.latest?.life !== 'caught') this.claimed.delete(m.id);
+      else if (!this.claimed.has(m.id)) {
+        this.claimed.add(m.id);
+        claims.push(m.id);
+      }
+    }
     if (this.hold) {
       const h = this.hold;
       h.t += dt;
@@ -307,9 +331,17 @@ export class CoopRuntime {
       const who = this.lockers.get(e.check.locker);
       if (who && hunted.some((h) => h.id === who)) victim = who;
     }
-    victim = victim ?? catchable(e, hunted)[0] ?? null;
+    // You (the host) it catches here; the others are caught on their own screens (`catchesYou`).
+    victim = victim ?? catchable(e, hunted.filter((h) => h.id === this.me))[0] ?? claims[0] ?? null;
     if (victim) {
-      const at = hunted.find((h) => h.id === victim)!.sense.pos;
+      const at = { ...(victim === this.me ? mine.sense : this.mates.get(victim)?.latest?.pos ?? e.pos) };
+      // Their screen had it reach them; here it may still be a step or two off: it's at them now.
+      const d = dist(e.pos, at);
+      if (victim !== this.me && d > ENEMY.catchRadius) {
+        const k = (ENEMY.catchRadius * 0.8) / d;
+        e.pos = moveWithCollision(this.level, at, (e.pos.x - at.x) * k, (e.pos.z - at.z) * k, ENEMY.bodyRadius);
+        e.path = [];
+      }
       // Already hurt (or Hard's one life): its blow, not its grab. (Their own game decides the same way.)
       const v = victim === this.me ? mine : this.mates.get(victim)?.latest;
       this.hold = { who: victim, t: 0, at: { ...at }, hit: !!v?.injured || this.crawlBoostHard };
@@ -323,7 +355,7 @@ export class CoopRuntime {
     const n = this.lastNet;
     if (!n) return [];
     const now = performance.now() / 1000;
-    const at = now - VIEW_DELAY - this.enemyOffset;
+    const at = now - this.enemyDelay - this.enemyOffset;
     const s = this.enemySnaps;
     let x = n.x;
     let z = n.z;
@@ -348,7 +380,7 @@ export class CoopRuntime {
     e.dir = { x: dx / len, z: dz / len };
     e.mode = n.m;
     e.windup = n.w ? 1 : 0;
-    e.crawl = n.cr ? { phase: (['up', 'on', 'down'] as const)[n.cr[0]] ?? 'on', t: n.cr[1] + Math.max(0, now - VIEW_DELAY - this.enemyOffset - n.t), left: 0, then: 'patrol', noise: null } : null;
+    e.crawl = n.cr ? { phase: (['up', 'on', 'down'] as const)[n.cr[0]] ?? 'on', t: n.cr[1] + Math.max(0, at - n.t), left: 0, then: 'patrol', noise: null } : null;
     e.check = n.ck ? { locker: n.ck[0], phase: n.ck[1] ? 'open' : 'going', t: n.ck[2] } : null;
     this.hold = n.hold ? { who: n.hold[0], t: n.hold[1], at: e.pos, hit: n.hold[2] === 1 } : null;
     const events: string[] = [];
@@ -408,7 +440,12 @@ export class CoopRuntime {
         this.enemySendIn = 1 / SEND_HZ;
         this.publishEnemy(e, events);
       }
-    } else events = this.applyNet(e);
+    } else {
+      this.enemyDelay = easeDelay(this.enemyDelay, targetDelay(this.enemyLate), dt);
+      events = this.applyNet(e);
+      // Update 0.9.9 — your own catch: by The Patient on your screen.
+      if (mine.life === 'up' && catchesYou(e, !!this.hold, { pos: mine.sense, hidden: mine.hidden, flashlightOn: false, crouching: false })) this.side.caught();
+    }
     if (events.includes(`caught:${this.me}`)) this.side.caught();
 
     // Your voice as a noise ("Enemy can hear you talk").
@@ -447,6 +484,7 @@ export class CoopRuntime {
         continue;
       }
       const prev = m.now;
+      stepTrack(m.track, dt);
       m.now = sampleTrack(m.track, now);
       if (!m.now) continue;
       this.drawMate(m, dt, mine);
