@@ -4,6 +4,12 @@
 
 Co-op for up to three players, over Firebase: the lobby, and now the run itself. One shared ward, one Patient hunting all of you, going down and getting each other up, proximity voice chat. The version stays 0.9.9 until the game is ready to go public (Nikola's call).
 
+### Fixed: the camera spinning round on its own (0.9.9)
+
+- Nikola's friend (often) and Nikola (now and then): turning, the camera suddenly did a full turn, and you ended up facing The Patient. Not lag: a known browser glitch. With the mouse locked, Chrome on Windows now and then reports one mouse move hundreds or thousands of pixels too big (2,860 px is a full turn at sensitivity 1), and the game turned by all of it. Gaming mice (fast polling, high DPI) set it off more.
+- **Raw mouse input**: the mouse is locked with `unadjustedMovement` where the browser offers it (Chrome, Edge), which skips the Windows pointer handling the glitch comes from; elsewhere the usual lock (`lockPointer` in `Game.ts`). The mouse may feel a little different (no Windows pointer acceleration): Mouse sensitivity in Settings evens it out.
+- **Impossible jumps thrown away** (`isMouseSpike` in `engine/input.ts`): one move over 350 px and six times the biggest of the last 0.1 s (20 px at least, from rest) is dropped. A real flick builds up over a few frames, so it's always kept. Checked in the game: a gentle turn 4.5°, a hard flick 114.7° (all kept), a 2,860 px glitch 0°. New checks in `tests/test-input.ts`.
+
 ### The mimic is off for now (0.9.9)
 
 - Nikola's second co-op test: still laggy for the guest (Nikola hosting). **The mimic is switched off for now** (`MIMIC.enabled = false` in `state/coopRun.ts`): no lobby option, nobody's voice recorded (it recorded on the main thread in every game), The Patient never mimics, no solo test switch in Settings. All its code and the room's `mimic` field are kept: set `enabled` back to true to bring it back. New check in `tests/test-coop.ts`: no run gets the mimic, whatever the room says.

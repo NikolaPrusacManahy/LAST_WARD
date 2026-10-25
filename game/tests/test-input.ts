@@ -122,3 +122,32 @@ section('Debug tools sealed in the public build (0.6.5)');
   check('the credit screen always shows in the public build', showCredits(false, '?debug') && showCredits(false, ''));
   check('in dev, ?debug skips it and ?debug&credits shows it', !showCredits(true, '?debug') && showCredits(true, '?debug&credits') && showCredits(true, ''));
 }
+
+section('Mouse look: glitches thrown away, flicks kept (0.9.9)');
+{
+  const { MOUSE_SPIKE, isMouseSpike } = await import('../src/engine/input');
+  // What Input does with each move: drop a spike, keep the rest (and remember them for MOUSE_SPIKE.window s).
+  const feed = (moves: number[], fps = 60) => {
+    let recent: { t: number; size: number }[] = [];
+    let kept = 0;
+    const dropped: number[] = [];
+    moves.forEach((size, i) => {
+      const t = i / fps;
+      recent = recent.filter((m) => t - m.t <= MOUSE_SPIKE.window);
+      if (isMouseSpike(size, recent.reduce((a, m) => Math.max(a, m.size), 0))) dropped.push(size);
+      else {
+        recent.push({ t, size });
+        kept += size;
+      }
+    });
+    return { kept, dropped };
+  };
+  const flick = feed([10, 40, 120, 260, 480, 700, 520, 260, 80, 10]);
+  check('a hard flick (up to 700 px in a frame) is all kept', flick.dropped.length === 0 && flick.kept === 2480);
+  const slow = feed([0, 220, 520, 900, 400], 30);
+  check('…even at 30 frames a second', slow.dropped.length === 0);
+  const glitch = feed([12, 9, 15, 2860, 11, 8]);
+  check('turning left gently, then one move of 2,860 px (a full turn): that one is thrown away', glitch.dropped.length === 1 && glitch.dropped[0] === 2860 && glitch.kept === 55);
+  check('a jump straight from rest is thrown away too (a move of 400 px with nothing before it)', feed([0, 0, 400]).dropped.length === 1);
+  check('a full turn is ~2,860 px at sensitivity 1: far past the line', (2 * Math.PI) / 0.0022 > MOUSE_SPIKE.min * 6);
+}

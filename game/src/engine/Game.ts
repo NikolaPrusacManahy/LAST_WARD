@@ -462,8 +462,17 @@ export class Game {
   /** Update 0.9.9 — ?debug locks the mouse too (it never did: the cursor stayed and Esc couldn't pause).
    *  Only a browser that never locks it (an automated test browser) plays on without it. */
   private async lockPointer(): Promise<boolean> {
+    const el = this.renderer.domElement;
     try {
-      await this.renderer.domElement.requestPointerLock();
+      // Update 0.9.9 — raw mouse input where the browser offers it. With the usual (Windows-adjusted) input,
+      // Chrome on Windows now and then reports one mouse move hundreds of pixels too big, and the camera
+      // spun round (Nikola's friend, often; Nikola, now and then). Elsewhere: the usual lock.
+      try {
+        await el.requestPointerLock({ unadjustedMovement: true });
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === 'NotSupportedError')) throw err;
+        await el.requestPointerLock();
+      }
       return true;
     } catch {
       return this.debug && !this.lockedOnce; // browsers refuse re-lock for ~1 s after Esc; the pause menu stays up

@@ -3,6 +3,19 @@
 // actions (state/bindings.ts) instead of raw keys, so everything can be rebound.
 import { Action, Bindings, DEFAULT_BINDINGS, codesFor, mouseCode } from '../state/bindings';
 
+/**
+ * Update 0.9.9 — a mouse move no hand makes: a browser glitch (Chrome on Windows now and then reports one
+ * move hundreds or thousands of pixels too big; ~2,860 px is a full turn), thrown away. It's one when it's
+ * over `min` px and `ratio` times the biggest move in the last `window` s (`floor` px at least, from rest).
+ * A real flick builds up over a few frames, so it never looks like one.
+ */
+export const MOUSE_SPIKE = { min: 350, ratio: 6, floor: 20, window: 0.1 };
+
+/** `size`: this move (px); `recentMax`: the biggest kept move in the last `MOUSE_SPIKE.window` s. */
+export function isMouseSpike(size: number, recentMax: number): boolean {
+  return size > MOUSE_SPIKE.min && size > MOUSE_SPIKE.ratio * Math.max(recentMax, MOUSE_SPIKE.floor);
+}
+
 export class Input {
   private down = new Set<string>();
   private pressed = new Set<string>();
@@ -27,6 +40,8 @@ export class Input {
   /** Update 0.9.9 — ?debug counts as locked only until the browser really locks the mouse; from then on it
    *  plays like the real thing (no keys taken while the pause menu is up). */
   private everLocked = false;
+  /** Update 0.9.9 — the last moves kept (when, s; how big, px), to tell a glitch from a flick. */
+  private recentMoves: { t: number; size: number }[] = [];
   private onLock = () => {
     if (document.pointerLockElement === this.el) this.everLocked = true;
   };
@@ -52,6 +67,11 @@ export class Input {
   private onBlur = () => this.down.clear();
   private onMouse = (e: MouseEvent) => {
     if (!this.locked) return;
+    const t = e.timeStamp / 1000;
+    const size = Math.hypot(e.movementX, e.movementY);
+    this.recentMoves = this.recentMoves.filter((m) => t - m.t <= MOUSE_SPIKE.window);
+    if (isMouseSpike(size, this.recentMoves.reduce((a, m) => Math.max(a, m.size), 0))) return;
+    this.recentMoves.push({ t, size });
     this.mouseDX += e.movementX;
     this.mouseDY += e.movementY;
   };

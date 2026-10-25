@@ -83,7 +83,7 @@ App.tsx ── screen state (menu / game) + overlays (pause / settings / end) + 
 | `engine/postfx.ts` | Grain, vignette, chromatic aberration, red / white / black fades, night vision green (0.9.3) | no |
 | `engine/textures.ts` | Procedural canvas textures (walls, floor, ceiling, notes, wall notes, signs, flashlight cookie) | no |
 | `engine/noteLayout.ts` | 0.9.9: a wall note's line fits its page: one line, two, or smaller (`layoutNoteText`, `splitInTwo`) | yes |
-| `engine/input.ts` | Keys by `code`, mouse buttons as `Mouse0..4`, mouse deltas under pointer lock; `action(a)` / `actionPressed(a)` read `Settings.bindings` | no |
+| `engine/input.ts` | Keys by `code`, mouse buttons as `Mouse0..4`, mouse deltas under pointer lock; `action(a)` / `actionPressed(a)` read `Settings.bindings`; 0.9.9: impossible mouse jumps thrown away (`isMouseSpike`, `MOUSE_SPIKE`; tested) | no |
 | `state/bindings.ts` | Actions, `DEFAULT_BINDINGS` (left click interact, right click flashlight), `rebind` (clash = swap), reserved keys (0.9.8: + 1–3, the slot keys), `hydrateBindings`; Space = "Skill check / drop" (one action: they never clash) | yes |
 | `state/inputIcons.ts` | Code → Kenney icon name + label (`glyphFor`), the icon list `tools/prepare-input-icons.ts` ships | yes |
 | `state/prompts.ts` | Crosshair prompt words (`promptFor`: collect / read / fit a fuse / repair / switch on / start / hide / pick up / what's missing) + controls-card timer; 0.9.8: with something in your hand (`Hand`) it says what left click does with it (throw it / load it / fit the fuse / hold to patch yourself up) | yes |
