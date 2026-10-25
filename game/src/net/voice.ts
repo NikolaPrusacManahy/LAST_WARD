@@ -11,7 +11,13 @@ const ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun
 let mic: MediaStream | null = null;
 let micAsk: Promise<MediaStream | null> | null = null;
 
-/** Ask for the microphone once per page (the lobby does it when you press Ready). Null: refused / none. */
+/** Update 0.9.9 — what you said when asked for the microphone (null: not asked yet). */
+export type MicAnswer = 'yes' | 'no';
+let answer: MicAnswer | null = null;
+let asking: Promise<MicAnswer> | null = null;
+let menuAsk: Promise<MicAnswer> | null = null;
+
+/** Ask for the microphone and keep it (the lobby does it when you press Ready). Null: refused / none. */
 export function getMic(): Promise<MediaStream | null> {
   if (mic) return Promise.resolve(mic);
   if (!micAsk) {
@@ -19,8 +25,12 @@ export function getMic(): Promise<MediaStream | null> {
     micAsk = md?.getUserMedia
       ? md
           .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-          .then((s) => (mic = s))
+          .then((s) => {
+            answer = 'yes';
+            return (mic = s);
+          })
           .catch(() => {
+            answer = 'no';
             micAsk = null; // you can say yes next time
             return null;
           })
@@ -29,8 +39,57 @@ export function getMic(): Promise<MediaStream | null> {
   return micAsk;
 }
 
-/** The microphone if you already said yes (no prompt). */
+/** The microphone if it's open already (no prompt). */
 export const currentMic = () => mic;
+
+export const micAnswer = () => answer;
+
+/** What the browser says about the microphone without asking (null: this browser can't say). */
+async function micPermission(): Promise<PermissionState | null> {
+  try {
+    return (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Update 0.9.9 — ask for the microphone without keeping it open: the browser remembers a yes, so a run can
+ * open it later with no prompt (a prompt mid-run takes the mouse away). Nothing is asked if the browser
+ * already knows your answer. `onPrompt`: the question is about to come up.
+ */
+export function askMic(onPrompt?: () => void): Promise<MicAnswer> {
+  if (mic) return Promise.resolve((answer = 'yes'));
+  asking ??= (async (): Promise<MicAnswer> => {
+    const known = await micPermission();
+    if (known === 'granted') return 'yes';
+    if (known === 'denied') return 'no';
+    const md = typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined;
+    if (!md?.getUserMedia) return 'no';
+    onPrompt?.();
+    try {
+      (await md.getUserMedia({ audio: true })).getTracks().forEach((t) => t.stop());
+      return 'yes';
+    } catch {
+      return 'no';
+    }
+  })().then((a) => {
+    asking = null;
+    return (answer = a);
+  });
+  return asking;
+}
+
+/** Update 0.9.9 — the main menu asks once per page (going back to it doesn't ask again). */
+export const askMicOnce = (onPrompt?: () => void) => (menuAsk ??= askMic(onPrompt));
+
+/** Update 0.9.9 — in a run: your microphone if you've said yes, else none. Never a prompt. */
+export async function micIfAllowed(): Promise<MediaStream | null> {
+  if (mic) return mic;
+  if (asking) await asking;
+  if (answer === null && (await micPermission()) === 'granted') answer = 'yes';
+  return answer === 'yes' ? getMic() : null;
+}
 
 interface Peer {
   pc: RTCPeerConnection;

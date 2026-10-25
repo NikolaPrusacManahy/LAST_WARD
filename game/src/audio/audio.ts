@@ -347,6 +347,67 @@ export class AudioEngine {
   teamPickup(p: V3) {
     this.playSample('pickup', { at: p, ref: 1.5, rolloff: 1.6, gain: 0.5 });
   }
+  /**
+   * Update 0.9.9 — The Patient mimics one of you (audio/voiceClips.ts): your line, from where it is, wrong.
+   * Lower and slower; doubled by a second copy a hair lower and later (not quite one voice); roughened; a
+   * short echo; muffled by the walls between like its other sounds.
+   */
+  mimic(buf: AudioBuffer, p: V3, mix: EnemyMix, rate: number) {
+    const at = this.now;
+    const ctx = this.ctx;
+    const pn = this.panner(p, 2.5, 1.2);
+    const out = ctx.createGain();
+    out.gain.value = 1.7 * Math.max(0.15, mix.gain);
+    out.connect(pn).connect(this.sfx);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = Math.min(mix.cutoff, 4200);
+    const shape = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < curve.length; i++) {
+      const x = (i / (curve.length - 1)) * 2 - 1;
+      curve[i] = Math.tanh(2.6 * x) / Math.tanh(2.6);
+    }
+    shape.curve = curve;
+    lp.connect(shape).connect(out);
+    const echo = ctx.createDelay(1);
+    echo.delayTime.value = 0.14;
+    const back = ctx.createGain();
+    back.gain.value = 0.36;
+    const wet = ctx.createGain();
+    wet.gain.value = 0.45;
+    shape.connect(echo);
+    echo.connect(back).connect(echo);
+    echo.connect(wet).connect(out);
+    const r = rate * this.jitter(0.03);
+    const nodes: AudioNode[] = [pn, out, lp, shape, echo, back, wet];
+    for (const [k, delay, g] of [[1, 0, 1], [0.965, 0.035, 0.55]] as const) {
+      const s = ctx.createBufferSource();
+      s.buffer = buf;
+      s.playbackRate.value = r * k;
+      const gain = ctx.createGain();
+      gain.gain.value = g;
+      s.connect(gain).connect(lp);
+      s.start(at + delay);
+      nodes.push(s, gain);
+    }
+    // Let it ring out, then take it all apart (the echo loop would keep itself alive).
+    setTimeout(() => nodes.forEach((n) => n.disconnect()), (buf.duration / (r * 0.965) + 3) * 1000);
+  }
+
+  /** Update 0.9.9 — a ping (F): two quick tones where it is (lower and harsher for The Patient). */
+  ping(p: V3, danger: boolean) {
+    const at = this.now;
+    const pn = this.panner(p, 6, 0.6);
+    pn.connect(this.sfx);
+    for (const [k, f] of (danger ? [[0, 520], [0.11, 390]] : [[0, 880], [0.09, 1320]]) as [number, number][]) {
+      const o = this.osc(danger ? 'square' : 'sine', f);
+      const g = this.env(danger ? 0.08 : 0.12, 0.005, 0.16, at + k);
+      o.connect(g).connect(pn);
+      o.start(at + k);
+      o.stop(at + k + 0.25);
+    }
+  }
   teamThrown(p: V3) {
     this.playSample('thrown', { at: p, ref: 3, rolloff: 1.1, gain: 0.9 });
   }

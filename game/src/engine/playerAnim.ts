@@ -5,15 +5,19 @@ import type { Gait } from '../state/playerRules';
 export type PlayerClip =
   | 'idle' | 'walk' | 'run' | 'crouch' | 'strafeLeft' | 'strafeRight'
   | 'thrown' | 'getUp' | 'injuredIdle' | 'injuredWalk' | 'injuredRun'
-  /** Update 0.9.9 — hit on your last life and sent flying; down: crawling, and dying there. */
-  | 'hitFly' | 'crawl' | 'proneDeath';
+  /** Update 0.9.9 — hit on your last life and sent flying; down: crawling, and dying there; getting a
+   *  teammate up (on one knee). */
+  | 'hitFly' | 'crawl' | 'proneDeath' | 'revive';
 
 /** Ground speed each clip was authored at (stance foot), m/s. */
 export const PLAYER_CLIP_SPEED: Record<PlayerClip, number> = {
   idle: 0, walk: 1.6, run: 3.2, crouch: 1.25, strafeLeft: 1.6, strafeRight: 1.6,
   thrown: 0, getUp: 0, injuredIdle: 0, injuredWalk: 1.6, injuredRun: 3.2,
-  hitFly: 0, crawl: 0, proneDeath: 0,
+  hitFly: 0, crawl: 0, proneDeath: 0, revive: 0,
 };
+
+/** Clips that play once and hold their last frame (the rest loop). */
+export const PLAY_ONCE: readonly string[] = ['thrown', 'getUp', 'hitFly', 'proneDeath', 'revive'];
 
 /** Update 0.6 — after losing a life the idle / walk / run clips are the injured ones. */
 const INJURED: Partial<Record<PlayerClip, PlayerClip>> = { idle: 'injuredIdle', walk: 'injuredWalk', run: 'injuredRun' };

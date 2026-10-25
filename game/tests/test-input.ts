@@ -24,7 +24,12 @@ section('Bindings (0.5)');
   check('mouse side buttons can be bound', isBindable('Mouse3') && isBindable('Mouse4') && !isBindable('Mouse7'));
   check('either Shift / Ctrl works for the bound one', codesFor('ControlLeft').includes('ControlRight') && codesFor('KeyW').length === 1);
   check('hydrate: garbage → defaults', JSON.stringify(hydrateBindings('nope')) === JSON.stringify(d));
-  check('hydrate: keeps valid custom keys', hydrateBindings({ ...d, flashlight: 'KeyF' }).flashlight === 'KeyF');
+  check('hydrate: keeps valid custom keys', hydrateBindings({ ...d, flashlight: 'KeyG' }).flashlight === 'KeyG');
+  // Update 0.9.9 — Ping is on F: an old save (no ping in it) with the flashlight already moved to F keeps
+  // that, and Ping gets a free key instead.
+  const { ping: _p, mute: _m, ...before099 } = { ...d, flashlight: 'KeyF' };
+  const migrated = hydrateBindings(before099);
+  check('old save with the flashlight on F: kept; Ping moves to a free key', migrated.flashlight === 'KeyF' && migrated.ping !== 'KeyF' && migrated.interact === d.interact);
   check('hydrate: reserved / bad codes fall back per action', hydrateBindings({ ...d, flashlight: 'Escape', crouch: 42 }).flashlight === 'Mouse2');
   check('hydrate: duplicated keys → full reset', hydrateBindings({ ...d, back: 'KeyW' }).back === 'KeyS');
   const old = hydrateSave({ version: 1, settings: { sensitivity: 1.5 } });

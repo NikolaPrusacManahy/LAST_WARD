@@ -13,6 +13,8 @@ import { CoopClient, CoopStart } from './net/room';
 import { connectCoop } from './net/backend';
 import { createRng } from './world/rng';
 import { NAME_MAX } from './state/coop';
+import { RejoinTicket, clearTicket, loadTicket, saveTicket } from './net/rejoin';
+import { RunSync } from './net/runSync';
 import type { Difficulty } from './state/difficulty';
 import { Settings, loadSave, recordEscape, writeSave, SaveData, mixVolumes } from './state/settings';
 import { useUiSounds } from './hooks/useUiSounds';
@@ -39,6 +41,10 @@ export default function App() {
   const [coopRun, setCoopRun] = useState<CoopStart | null>(null);
   const coopRunRef = useRef(coopRun);
   coopRunRef.current = coopRun;
+  // Update 0.9.9 — the run this tab was in (a reload, a dropped connection): the menu offers to rejoin it.
+  const [ticket, setTicket] = useState<RejoinTicket | null>(loadTicket);
+  const [rejoinError, setRejoinError] = useState<string | null>(null);
+  const [rejoining, setRejoining] = useState(false);
   // Update 0.5.1 — credit screen once per page load. ?debug skips it (automated checks), ?debug&credits shows it.
   // Update 0.6.5 — only in dev; the public build always shows it.
   const [credits, setCredits] = useState(() => showCredits(import.meta.env.DEV, location.search));
@@ -90,6 +96,7 @@ export default function App() {
 
   // Update 0.9.3 — Begin asks for a difficulty first; the pick is saved and used for this run (and retries).
   const startWith = (d: Difficulty) => {
+    forgetTicket();
     const s = { ...save.settings, difficulty: d };
     setSave((x) => ({ ...x, settings: s }));
     setRunId((n) => n + 1);
@@ -99,16 +106,45 @@ export default function App() {
 
   // Update 0.9.9 — the countdown ran out: everyone's run starts, side by side in the spawn room.
   const startCoop = useCallback((run: CoopStart) => {
+    saveTicket({ code: run.code, name: run.players.find((p) => p.id === run.link.me)?.name ?? '' });
+    setTicket(null);
     setCoopRun(run);
     setRunId((n) => n + 1);
     setOverlay(null);
     setScreen('game');
   }, []);
 
+  const forgetTicket = () => {
+    clearTicket();
+    setTicket(null);
+    setRejoinError(null);
+  };
+
+  /** Update 0.9.9 — back into the run this tab dropped out of, where you were. */
+  const rejoin = async () => {
+    const t = loadTicket();
+    if (!t || rejoining) return;
+    setRejoining(true);
+    setRejoinError(null);
+    const ok = await coop.join(t.code, t.name);
+    const run = ok ? coop.startInfo() : null;
+    setRejoining(false);
+    if (!run) {
+      if (ok) void coop.leave();
+      clearTicket();
+      setTicket(null);
+      setRejoinError('That run is over.');
+      return;
+    }
+    const resume = await new RunSync(run.link.store, run.code, run.link.me, run.host).loadResume();
+    startCoop({ ...run, resume });
+  };
+
   const toMenu = () => {
     if (coopRunRef.current) {
       void coop.leave();
       setCoopRun(null);
+      forgetTicket(); // you left on purpose: nothing to rejoin
     }
     setOverlay(null);
     setScreen('menu');
@@ -117,6 +153,7 @@ export default function App() {
   const onEnd = useCallback((end: 'dead' | 'escaped', time: number, coopEnd?: CoopEnd) => {
     // Co-op runs stay out of the solo record (escapes, deaths, best time).
     if (!coopRunRef.current) setSave((d) => (end === 'escaped' ? recordEscape(d, time) : { ...d, deaths: d.deaths + 1 }));
+    if (coopEnd) clearTicket(); // the run is over: nothing to rejoin
     setOverlay({ end, time, coop: coopEnd });
   }, []);
 
@@ -145,7 +182,7 @@ export default function App() {
 
   return (
     <div className="lw-app">
-      {screen === 'menu' && overlay !== 'settings' && overlay !== 'credits' && overlay !== 'difficulty' && overlay !== 'coop' && <MainMenu save={save} onStart={() => setOverlay('difficulty')} onCoop={() => setOverlay('coop')} onSettings={() => openSettings('menu')} onCredits={() => setOverlay('credits')} startLevel={startLevel} onPickLevel={pickLevel} />}
+      {screen === 'menu' && overlay !== 'settings' && overlay !== 'credits' && overlay !== 'difficulty' && overlay !== 'coop' && <MainMenu save={save} rejoin={ticket ? { code: ticket.code, busy: rejoining } : null} rejoinError={rejoinError} onRejoin={() => void rejoin()} onStart={() => setOverlay('difficulty')} onCoop={() => (forgetTicket(), setOverlay('coop'))} onSettings={() => openSettings('menu')} onCredits={() => setOverlay('credits')} startLevel={startLevel} onPickLevel={pickLevel} />}
       {screen === 'game' && (
         <GameView key={runId} ref={game} settings={save.settings} onEnd={onEnd} onPause={onPause} paused={overlay !== null} startLevel={startLevel} coop={coopRun} />
       )}

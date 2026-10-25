@@ -107,6 +107,38 @@ export function decodeLive(raw: unknown): LiveState | null {
   };
 }
 
+/**
+ * Update 0.9.9 — rejoining: what your game saves about you about once a second (rooms/{code}/run/sv/{uid}),
+ * so a reload (or a dropped connection) puts you back where you were, as you were. Not what you carried:
+ * that fell where you dropped out.
+ */
+export interface ResumeState {
+  pos: Vec2;
+  yaw: number;
+  lives: number;
+  injured: boolean;
+  life: LifeState;
+  bleed: number;
+}
+
+export function encodeResume(r: ResumeState): Record<string, unknown> {
+  return { x: r2(r.pos.x), z: r2(r.pos.z), a: r3(r.yaw), lv: r.lives, i: r.injured ? 1 : 0, s: r.life === 'caught' ? 'up' : r.life, bl: Math.ceil(r.bleed) };
+}
+
+export function decodeResume(raw: unknown): ResumeState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.x !== 'number' || typeof r.z !== 'number') return null;
+  return {
+    pos: { x: r.x, z: r.z },
+    yaw: num(r.a),
+    lives: Math.max(0, Math.min(2, num(r.lv, 1))),
+    injured: r.i === 1,
+    life: LIVES.includes(r.s as LifeState) ? (r.s as LifeState) : 'up',
+    bleed: num(r.bl),
+  };
+}
+
 /** A teammate's recent updates, and how far their clock is from ours. */
 export interface Track {
   snaps: LiveState[];
@@ -193,6 +225,55 @@ export const DOWN = {
   reach: 1.8,
 };
 
+/**
+ * Update 0.9.9 — getting someone up you kneel at their side, square to them, your hands along their back
+ * (Nikola's `player_reviving.fbx`, clip `revive`: the hands work 0.45 m ahead of you, 0.4 m apart, their
+ * middle 0.16 m to your right). They're up on their elbows, so your hands go on their near side.
+ */
+export const KNEEL = {
+  /** The middle of their back: this far ahead of the spot they lie on (m). */
+  back: 0.15,
+  /** Their spine: this far ahead of you (m), and to your right (the hands' middle). */
+  ahead: 0.57,
+  right: 0.16,
+  /** Your eyes on one knee, bent over them, and how far ahead of your knee (m): just above your bent head
+   *  (it's hidden), your shoulders behind, their back 40 cm below. The first-person camera stays there:
+   *  riding the head itself put it on their back; further back, your own shoulders filled the view. */
+  eye: 1.0,
+  eyeAhead: 0.5,
+  /** How fast you shuffle over to them once you start (m/s). */
+  shuffle: 2,
+  /** Down onto your knee / back up (s). */
+  fade: 0.35,
+};
+
+/** The middle of their back (`yaw`: the way they face, on their front). */
+export function reviveBack(down: { pos: Vec2; yaw: number }): Vec2 {
+  return { x: down.pos.x - Math.sin(down.yaw) * KNEEL.back, z: down.pos.z - Math.cos(down.yaw) * KNEEL.back };
+}
+
+/** Where you kneel and the way you face, coming from `from`: at whichever side of them you're on (`other`:
+ *  the other side, when yours is up against a wall). */
+export function kneelAt(from: Vec2, down: { pos: Vec2; yaw: number }, other = false): { pos: Vec2; yaw: number } {
+  const back = reviveBack(down);
+  // Their right; you face them from that side or the other.
+  const side = { x: Math.cos(down.yaw), z: -Math.sin(down.yaw) };
+  const s = ((from.x - back.x) * side.x + (from.z - back.z) * side.z >= 0 ? 1 : -1) * (other ? -1 : 1);
+  const yaw = Math.atan2(side.x * s, side.z * s);
+  const f = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+  const r = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+  return { pos: { x: back.x - f.x * KNEEL.ahead - r.x * KNEEL.right, z: back.z - f.z * KNEEL.ahead - r.z * KNEEL.right }, yaw };
+}
+
+/**
+ * Update 0.9.9 — can you start getting them up? `r`: their revive now; `byIsUp`: whoever it names is in the
+ * run on their feet. Not once it's done (they're on their way up: starting again would undo it), nor while
+ * someone else is at it; but someone caught or gone mid-revive doesn't keep them from you.
+ */
+export function reviveFree(r: { by: string; d?: 1 } | undefined, me: string, byIsUp: boolean): boolean {
+  return !r || (!r.d && (r.by === me || !byIsUp));
+}
+
 /** Update 0.9.9 — co-op Hard: it climbs the ceilings this many times as often (and waits that much less). */
 export const HARD_CRAWL_BOOST = 2;
 
@@ -239,6 +320,46 @@ export function voiceNoiseRadius(db: number): number {
 export function voiceDistanceGain(d: number): number {
   if (d <= VOICE.fadeFrom) return 1;
   return Math.max(0, 1 - (d - VOICE.fadeFrom) / (VOICE.fadeTo - VOICE.fadeFrom));
+}
+
+/**
+ * Update 0.9.9 — the mimic (lobby: "It mimics your voices", needs proximity chat). Lines kept: someone talks
+ * for `minLine`–`maxLine` s (a stretch ends after `endQuiet` s of quiet; louder than `talkRms` counts as
+ * talking), the last `keep` per person. It mimics while it prowls, never mid-chase: the first time 60–90 s
+ * in, then every 45–90 s, someone who has talked. Played at `rate` (lower and slower than they said it).
+ */
+export const MIMIC = {
+  minLine: 0.7,
+  maxLine: 4,
+  endQuiet: 0.45,
+  talkRms: 0.015,
+  keep: 5,
+  firstMin: 60,
+  firstMax: 90,
+  everyMin: 45,
+  everyMax: 90,
+  /** Nobody has talked yet: look again in this many seconds. */
+  retry: 10,
+  rate: 0.84,
+};
+
+/** Update 0.9.9 — the test build's solo mimic (Settings → Audio): sooner, so there's something to hear. */
+export const MIMIC_SOLO_TEST = { firstMin: 15, firstMax: 25, everyMin: 20, everyMax: 40 };
+
+/** Seconds until it mimics (again). */
+export function nextMimic(first: boolean, rng: () => number): number {
+  return first ? MIMIC.firstMin + rng() * (MIMIC.firstMax - MIMIC.firstMin) : MIMIC.everyMin + rng() * (MIMIC.everyMax - MIMIC.everyMin);
+}
+
+/** Only while it prowls (patrol, a look round, a noise to check): not in a chase, not on the ceiling, not
+ *  with one of you in its hands. */
+export function mimicNow(mode: string, crawling: boolean, holding: boolean): boolean {
+  return !crawling && !holding && (mode === 'patrol' || mode === 'search' || mode === 'investigate');
+}
+
+/** Whose voice: one of those who've talked, at random (null: nobody yet). */
+export function mimicWho(talkers: string[], rng: () => number): string | null {
+  return talkers.length ? talkers[Math.floor(rng() * talkers.length)] : null;
 }
 
 /** The living hear the living. Once you're out (taken or escaped) you hear everyone, watching from a

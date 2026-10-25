@@ -21,7 +21,15 @@ export class Input {
     document.addEventListener('mousedown', this.onMouseDown);
     document.addEventListener('mouseup', this.onMouseUp);
     document.addEventListener('contextmenu', this.onContextMenu);
+    document.addEventListener('pointerlockchange', this.onLock);
   }
+
+  /** Update 0.9.9 — ?debug counts as locked only until the browser really locks the mouse; from then on it
+   *  plays like the real thing (no keys taken while the pause menu is up). */
+  private everLocked = false;
+  private onLock = () => {
+    if (document.pointerLockElement === this.el) this.everLocked = true;
+  };
 
   private press(code: string) {
     if (!this.down.has(code)) this.pressed.add(code);
@@ -62,7 +70,7 @@ export class Input {
   };
 
   get locked() {
-    return this.debug || document.pointerLockElement === this.el;
+    return document.pointerLockElement === this.el || (this.debug && !this.everLocked);
   }
 
   isDown(...codes: string[]) {
@@ -104,5 +112,6 @@ export class Input {
     document.removeEventListener('mousedown', this.onMouseDown);
     document.removeEventListener('mouseup', this.onMouseUp);
     document.removeEventListener('contextmenu', this.onContextMenu);
+    document.removeEventListener('pointerlockchange', this.onLock);
   }
 }

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { Gait } from '../state/playerRules';
-import { PlayerClip, armScaleFor, bodyBackOffset, bodyRootFor, bodyTurnFor, choosePlayerClip, injuredClip, limitBodyBack, localVelocity, playerClipTimeScale, strafeSide } from './playerAnim';
+import { PLAY_ONCE, PlayerClip, armScaleFor, bodyBackOffset, bodyRootFor, bodyTurnFor, choosePlayerClip, injuredClip, limitBodyBack, localVelocity, playerClipTimeScale, strafeSide } from './playerAnim';
 
 export const PLAYER_URL = '/models/player.glb';
 const FADE = 0.2;
@@ -89,7 +89,7 @@ export async function loadPlayerBody(eyeHeight: number): Promise<PlayerBody> {
   const actions = new Map<PlayerClip, THREE.AnimationAction>();
   for (const clip of gltf.animations) {
     const a = mixer.clipAction(clip);
-    if (clip.name === 'thrown' || clip.name === 'getUp' || clip.name === 'hitFly' || clip.name === 'proneDeath') {
+    if (PLAY_ONCE.includes(clip.name)) {
       a.setLoop(THREE.LoopOnce, 1);
       a.clampWhenFinished = true;
     }

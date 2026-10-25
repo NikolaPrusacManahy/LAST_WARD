@@ -5,6 +5,7 @@ import type { Rng } from '../world/rng';
 import type { Store, Unsubscribe } from './store';
 import { CoopDifficulty, Room, RoomPlayer, cleanName, freeSlots, hostStep, isValidCode, makeRoomCode, normalizeCode, parseRoom, slotKey } from '../state/coop';
 import { currentMic } from './voice';
+import type { ResumeState } from '../state/coopRun';
 
 export interface CoopSnapshot {
   /** Creating / joining / leaving: buttons wait. */
@@ -28,6 +29,8 @@ export interface CoopStart {
   players: RoomPlayer[];
   /** Update 0.9.9 — the live connection for the run itself. */
   link: CoopLink;
+  /** Update 0.9.9 — rejoining: where you were and how (null: a fresh start). */
+  resume?: ResumeState | null;
 }
 
 /** Update 0.9.9 — what the run uses of the room: the connection, who you are, the host's options. */
@@ -36,9 +39,10 @@ export interface CoopLink {
   code: string;
   me: string;
   host: boolean;
-  /** Proximity chat on, and The Patient hears you talk. */
+  /** Proximity chat on, The Patient hears you talk, it mimics your voices. */
   voice: boolean;
   hear: boolean;
+  mimic: boolean;
   /** Your microphone, if you let the game have it (asked when you pressed Ready). */
   mic: MediaStream | null;
   /** Who's in the room now (nobody once it's closed). */
@@ -72,6 +76,8 @@ export class CoopClient {
   private unwatch: Unsubscribe | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private leaving = false;
+  /** Update 0.9.9 — the run has started: your place in the room stays if you drop out (you can rejoin). */
+  private kept = false;
 
   constructor(
     private connect: () => Promise<Store>,
@@ -142,6 +148,7 @@ export class CoopClient {
           seed: 1 + Math.floor(this.rng() * 0x7fffffff),
           voice: true,
           hear: false,
+          mimic: true,
           slots: { [slotKey(0)]: store.uid },
           players: { [store.uid]: { name, ready: false, slot: 0 } },
         };
@@ -169,7 +176,13 @@ export class CoopClient {
       if (!room) return this.fail(COOP_ERRORS.noRoom);
       const back = room.players.find((p) => p.id === store.uid);
       if (back) {
-        // Same player again (a reload): just carry on in your slot.
+        // Same player again (a reload): carry on in your slot. (In the lobby you drop off again if you go;
+        // in a run your place stays, so you can rejoin.) The room is known now, before its first update.
+        if (room.status === 'lobby') {
+          await store.removeOnDisconnect(`${roomPath(code)}/slots/${slotKey(back.slot)}`);
+          await store.removeOnDisconnect(`${roomPath(code)}/players/${store.uid}`);
+        }
+        this.put({ room });
         this.enter(code);
         return true;
       }
@@ -198,6 +211,7 @@ export class CoopClient {
 
   private enter(code: string) {
     this.leaving = false;
+    this.kept = false;
     this.unwatch = this.store!.watch(roomPath(code), (raw) => this.onRoom(code, raw));
     if (this.autoTick) this.timer = setInterval(() => this.tick(), 100);
     this.put({ busy: false, error: null });
@@ -211,6 +225,14 @@ export class CoopClient {
       return;
     }
     this.put({ room });
+    if (room.status === 'playing' && !this.kept && this.store) {
+      this.kept = true;
+      if (room.host !== this.snap.me) {
+        const me = room.players.find((p) => p.id === this.snap.me);
+        void this.store.cancelOnDisconnect(`${roomPath(code)}/players/${this.snap.me}`);
+        if (me) void this.store.cancelOnDisconnect(`${roomPath(code)}/slots/${slotKey(me.slot)}`);
+      }
+    }
     this.tick();
   }
 
@@ -240,11 +262,11 @@ export class CoopClient {
   }
 
   /** Update 0.9.9 — host only, in the lobby: proximity chat on / off, and whether it hears you talk. */
-  async setOptions(o: { voice?: boolean; hear?: boolean }) {
+  async setOptions(o: { voice?: boolean; hear?: boolean; mimic?: boolean }) {
     const room = this.snap.room;
     if (!room || !this.store || !this.isHost() || room.status !== 'lobby') return;
     const voice = o.voice ?? room.voice;
-    await this.store.update(roomPath(room.code), { voice, hear: voice && (o.hear ?? room.hear) });
+    await this.store.update(roomPath(room.code), { voice, hear: voice && (o.hear ?? room.hear), mimic: voice && (o.mimic ?? room.mimic) });
   }
 
   /** What this player's run starts with, once the room is playing. */
@@ -259,6 +281,7 @@ export class CoopClient {
       host: room.host === this.snap.me,
       voice: room.voice,
       hear: room.hear,
+      mimic: room.mimic,
       mic: room.voice ? currentMic() : null,
       players: () => this.snap.room?.players ?? [],
       startedWith: room.players,

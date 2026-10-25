@@ -17,7 +17,7 @@ import { PLAYER } from '../src/state/playerRules';
 import { defaultSave, hydrateSave } from '../src/state/settings';
 
 const room = (over: Partial<Room> = {}): Room => ({
-  code: 'K7Q2M', host: 'a', status: 'lobby', startAt: 0, difficulty: 'normal', seed: 1, voice: true, hear: false,
+  code: 'K7Q2M', host: 'a', status: 'lobby', startAt: 0, difficulty: 'normal', seed: 1, voice: true, hear: false, mimic: true,
   players: [{ id: 'a', name: 'Ann', ready: false, slot: 0 }],
   ...over,
 });

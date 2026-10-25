@@ -22,7 +22,15 @@ function randomId(): string {
 export async function connectCoop(): Promise<Store> {
   if (wantsLocalCoop(import.meta.env.DEV, location.search)) {
     hub ??= new MemoryHub(storageBacking());
-    return hub.connect(randomId());
+    // Update 0.9.9 — the same id after a reload of this tab, so you can rejoin your run.
+    let id: string | null = null;
+    try {
+      id = sessionStorage.getItem('lw-coop-uid');
+      if (!id) sessionStorage.setItem('lw-coop-uid', (id = randomId()));
+    } catch {
+      /* storage blocked */
+    }
+    return hub.connect(id ?? randomId());
   }
   const { connectFirebase } = await import('./firebaseStore');
   return connectFirebase();

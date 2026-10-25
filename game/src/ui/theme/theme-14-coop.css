@@ -100,3 +100,11 @@
 .lw-lobby-mic { margin: 2px 0 0; font-size: 12px; color: var(--lw-bone-dim); }
 .lw-lobby-mic-on { color: var(--lw-sick); }
 .lw-lobby-mic-off { color: #c9746f; }
+
+/* Update 0.9.9 — rejoining the run this tab dropped out of. */
+.lw-menu-rejoin { color: var(--lw-sick); }
+.lw-menu-rejoin:disabled { opacity: 0.5; cursor: default; }
+/* Update 0.9.9 — the microphone question on the main menu. */
+.lw-menu-mic { margin: 6px 0 0; font-size: 12px; color: var(--lw-bone-dim); opacity: 0.7; }
+.lw-menu-rejoin-error { padding: 2px 0 6px 26px; font-size: 12px; color: #c9746f; }
+.lw-lobby-privacy { margin: 2px 0 0; font-size: 11px; line-height: 1.5; color: var(--lw-bone-dim); opacity: 0.8; }

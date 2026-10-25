@@ -1,0 +1,35 @@
+/* theme-16 — Update 0.9.9: settings in tabs ("folders"): Video, Audio, Controls. One column, the page
+   scrolls on its own (the key list is long) so the tabs and Back always stay in view. */
+.lw-settings { width: min(640px, 94vw); }
+.lw-set-tabs { display: flex; gap: 2px; margin: 4px 0 0; border-bottom: 1px solid rgba(216, 210, 188, 0.14); }
+.lw-set-tab {
+  position: relative; padding: 10px 20px 9px; font-family: var(--lw-type); font-size: 20px; letter-spacing: 0.04em; color: var(--lw-bone-dim);
+  border: 1px solid transparent; border-bottom: none; margin-bottom: -1px; transition: color 0.15s, background 0.15s;
+}
+.lw-set-tab:hover, .lw-set-tab:focus-visible { color: var(--lw-bone); outline: none; }
+.lw-set-tab-on {
+  color: var(--lw-bone); background: rgba(13, 13, 15, 0.9);
+  border-color: rgba(216, 210, 188, 0.14); box-shadow: inset 0 2px 0 var(--lw-blood);
+}
+.lw-set-page {
+  min-height: 300px; max-height: min(56vh, 520px); overflow-y: auto; padding: 14px 4px 4px;
+  border: 1px solid rgba(216, 210, 188, 0.14); border-top: none; padding-left: 18px; padding-right: 18px;
+  background: rgba(13, 13, 15, 0.6);
+}
+.lw-set-page .lw-set-row { grid-template-columns: 170px 1fr 56px; }
+.lw-set-page .lw-set-check { grid-template-columns: 170px 1fr; }
+.lw-set-choice { grid-template-columns: 170px 1fr; }
+.lw-set-seg { display: inline-flex; justify-self: start; border: 1px solid rgba(216, 210, 188, 0.2); }
+.lw-set-seg-btn { padding: 6px 18px; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--lw-bone-dim); transition: color 0.15s, background 0.15s; }
+.lw-set-seg-btn + .lw-set-seg-btn { border-left: 1px solid rgba(216, 210, 188, 0.2); }
+.lw-set-seg-btn:hover, .lw-set-seg-btn:focus-visible { color: var(--lw-bone); outline: none; }
+.lw-set-seg-on { color: var(--lw-black); background: var(--lw-bone); }
+.lw-set-seg-on:hover { color: var(--lw-black); }
+.lw-set-hint { margin: 2px 0 6px 170px; font-size: 12px; color: var(--lw-bone-dim); }
+.lw-set-keys { margin-top: 16px; }
+.lw-settings .lw-menu-nav { margin-top: 18px; }
+@media (max-width: 560px) {
+  .lw-set-page .lw-set-row, .lw-set-choice { grid-template-columns: 120px 1fr 48px; }
+  .lw-set-hint { margin-left: 0; }
+}
+.lw-set-hint-wide { margin-left: 0; }

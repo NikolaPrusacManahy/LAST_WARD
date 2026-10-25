@@ -15,17 +15,20 @@ import { shuffleItems } from '../world/itemShuffle';
 import { LookBack, createLookBack, hideBodyWhileLookingBack, lookBackTimeScale, lookBackYaw, stepLookBack } from '../state/lookBack';
 import { createRng } from '../world/rng';
 import { findTarget, Target } from '../world/interact';
+import { PING, PingMark, inCrosshair, pingRay, snapPing } from '../world/ping';
 import { CONTROLS_CARD_SECONDS, Hand, Prompt, promptFor, samePrompt, tickControlsCard } from '../state/prompts';
 import { LIGHT, atmosphereFor, blendAtmosphere } from '../state/lightLevels';
 import { Gait, PLAYER, PlayerStatus, addBattery, createPlayerStatus, fearLevel, tickStatus, toggleFlashlight } from '../state/playerRules';
 import { debugLines } from '../state/debugInfo';
-import { mixVolumes } from '../state/settings';
+import { mixVolumes, pixelRatioFor } from '../state/settings';
 import { DIFFICULTY, DifficultyRules } from '../state/difficulty';
 import { spawnSpot } from '../state/coop';
 import type { CoopStart } from '../net/room';
 import { CoopRuntime } from './coopRuntime';
+import { VoiceClips } from '../audio/voiceClips';
+import { micIfAllowed } from '../net/voice';
 import type { ItemNet, PanelNet, PowerNet } from '../net/runSync';
-import { DOWN, LifeState, LiveState, Member, catchOutcome, nextWatch, runOver, teamEscaped, watchable } from '../state/coopRun';
+import { DOWN, KNEEL, LifeState, LiveState, MIMIC, MIMIC_SOLO_TEST, Member, ResumeState, catchOutcome, kneelAt, mimicNow, nextWatch, reviveFree, runOver, teamEscaped, watchable } from '../state/coopRun';
 import { wakeTimes } from '../state/wakeSequence';
 import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
 import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
@@ -51,7 +54,7 @@ import { loadEnemyModel } from './enemyModel';
 import { createLighting, Lighting } from './lighting';
 import { createPostFx, PostFx } from './postfx';
 import { Input } from './input';
-import { PlayerController } from './playerController';
+import { PlayerController, StepResult } from './playerController';
 import { HudStore, HudState } from './hudStore';
 import { loadPlayerBody, PlayerBody } from './playerBody';
 import { createDebugView, DebugView } from './debugView';
@@ -185,6 +188,9 @@ export class Game {
   private reviving: { id: string; name: string; t: number } | null = null;
   /** Just got this teammate up: don't start again on them while their "done" reaches them. */
   private revivedJust: { id: string; until: number } | null = null;
+  /** 0 standing … 1 on one knee getting a teammate up: how far your eyes have gone down with your body. */
+  private kneel = 0;
+  private kneelEye = new THREE.Vector3();
   /** Shared world from the others: who holds / threw each item, who's repairing each panel, its bangs. */
   private itemBy = new Map<number, string>();
   private thrownByMe = new Set<number>();
@@ -193,6 +199,17 @@ export class Game {
   private repairClaim = -1;
   private repairSendIn = 0;
   private coopEnded = false;
+  /** Update 0.9.9 — keeps the run going while this tab is hidden (see `backgroundTick`). */
+  private bgWorker: Worker | null = null;
+  private bgLast = 0;
+  /** When the frame loop last ran (performance.now ms). */
+  private lastFrameAt = 0;
+  /** Update 0.9.9 — when you may ping (F) again. */
+  private pingReady = 0;
+  /** Update 0.9.9 — test build, solo: your lines, your microphone's level, when it next mimics you. */
+  private soloClips: VoiceClips | null = null;
+  private soloMic: (() => number) | null = null;
+  private soloMimicIn = 0;
 
   constructor(
     private container: HTMLElement,
@@ -208,8 +225,9 @@ export class Game {
     this.lives = this.rules.lives;
     this.status = createPlayerStatus(this.rules.batteryDrainMul);
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    this.renderer.shadowMap.enabled = true;
+    // Update 0.9.9 — Settings → Video → Graphics (Low: 0.75× resolution, no shadows).
+    this.renderer.setPixelRatio(pixelRatioFor(settings.graphics, window.devicePixelRatio));
+    this.renderer.shadowMap.enabled = settings.graphics !== 'low';
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
@@ -258,8 +276,22 @@ export class Game {
     this.input.bindings = settings.bindings;
     this.audio = new AudioEngine(mixVolumes(settings));
     if (coop) this.startCoop(coop);
+    // Update 0.9.9 — rejoining: you're already where (and as) you were, even on the click-to-begin screen,
+    // so the others don't see you standing at the spawn; `begin` puts you back in it.
+    const r = coop?.resume;
+    if (r) {
+      this.player.pos = { ...r.pos };
+      this.player.yaw = r.yaw;
+      this.lives = Math.max(1, r.lives);
+      this.injured = r.injured;
+      this.life = r.life === 'caught' ? 'up' : r.life;
+      this.bleed = r.bleed;
+      if (r.life === 'down') this.downAt = { pos: { ...r.pos }, yaw: r.yaw, moving: false };
+      if (r.life === 'out' || r.life === 'escaped') this.outAt = { ...r.pos };
+    }
 
     document.addEventListener('pointerlockchange', this.onLockChange);
+    if (this.debug) window.addEventListener('keydown', this.onDebugEsc);
     window.addEventListener('beforeunload', this.onBeforeUnload);
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(container);
@@ -280,7 +312,10 @@ export class Game {
     void this.audio.resume();
     this.audio.startAmbience();
     this.audio.startEnemyBreath(this.enemy3D());
-    this.startWake();
+    this.startSoloMimic();
+    // Update 0.9.9 — rejoining: straight back where you were (no waking up again).
+    if (this.coop?.resume) this.resumeRun(this.coop.resume);
+    else this.startWake();
     void this.lockPointer();
     this.rt?.begin(); // Update 0.9.9 — the host's Patient starts moving once the host is in
   }
@@ -418,24 +453,49 @@ export class Game {
 
   /** Resume after pause (also needs a click). */
   async resume(): Promise<boolean> {
-    if (this.debug) {
-      if (!this.rt) this.phase = 'playing'; // (co-op never left its phase)
-      return true;
-    }
-    return this.lockPointer();
+    const ok = await this.lockPointer();
+    // ?debug in a browser that won't lock the mouse: carry on without it (co-op never left its phase).
+    if (ok && !this.rt && this.phase === 'paused' && document.pointerLockElement !== this.renderer.domElement) this.unpause();
+    return ok;
   }
 
+  /** Update 0.9.9 — ?debug locks the mouse too (it never did: the cursor stayed and Esc couldn't pause).
+   *  Only a browser that never locks it (an automated test browser) plays on without it. */
   private async lockPointer(): Promise<boolean> {
-    if (this.debug) return true;
     try {
       await this.renderer.domElement.requestPointerLock();
       return true;
     } catch {
-      return false; // browsers refuse re-lock for ~1 s after Esc; the pause menu stays up
+      return this.debug && !this.lockedOnce; // browsers refuse re-lock for ~1 s after Esc; the pause menu stays up
     }
   }
 
+  /** Has the browser ever locked the mouse for us? */
+  private lockedOnce = false;
+
+  /** Update 0.9.9 — ?debug without the mouse locked: Esc still pauses (with it locked, letting go does). */
+  private onDebugEsc = (e: KeyboardEvent) => {
+    if (e.code === 'Escape' && !document.pointerLockElement) this.onLockChange();
+  };
+
+  private unpause() {
+    this.phase = this.resumePhase;
+    if (this.phase === 'waking' && this.wake) this.audio.wakeUp(this.wake.t); // Update 0.9.6.1 — from where the scene is
+  }
+
   setSettings(s: Settings) {
+    if (s.soloMimic && !this.settings.soloMimic && this.phase !== 'intro') queueMicrotask(() => this.startSoloMimic());
+    if (s.graphics !== this.settings.graphics) {
+      this.renderer.setPixelRatio(pixelRatioFor(s.graphics, window.devicePixelRatio));
+      this.fx.composer.setPixelRatio(pixelRatioFor(s.graphics, window.devicePixelRatio));
+      this.renderer.shadowMap.enabled = s.graphics !== 'low';
+      // Every material is rebuilt with or without shadows (a moment's hitch, once).
+      this.scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material;
+        if (m) for (const x of Array.isArray(m) ? m : [m]) x.needsUpdate = true;
+      });
+      this.resize();
+    }
     this.settings = s;
     this.audio.setVolume(mixVolumes(s));
     this.fx.set({ grain: s.grain ? 1 : 0 });
@@ -452,6 +512,7 @@ export class Game {
 
   private onLockChange = () => {
     const locked = document.pointerLockElement === this.renderer.domElement;
+    if (locked) this.lockedOnce = true;
     // Update 0.9.9 — co-op: Esc opens the menu but nothing stops (the ward goes on for everyone); with no
     // mouse you just stand there.
     if (this.rt) {
@@ -464,8 +525,7 @@ export class Game {
       return;
     }
     if (locked && this.phase === 'paused') {
-      this.phase = this.resumePhase;
-      if (this.phase === 'waking' && this.wake) this.audio.wakeUp(this.wake.t); // Update 0.9.6.1 — from where the scene is
+      this.unpause();
     } else if (!locked && (this.phase === 'playing' || this.phase === 'reading' || this.phase === 'caught' || this.phase === 'waking')) {
       this.resumePhase = this.phase;
       this.phase = 'paused';
@@ -522,6 +582,7 @@ export class Game {
 
   private frame = (now: number) => {
     this.raf = requestAnimationFrame(this.frame);
+    this.lastFrameAt = performance.now();
     // Update 0.5 — a frame stamped before the game was built gave a negative dt and froze the HUD.
     const dt = Math.max(0, Math.min(0.05, (now - this.last) / 1000));
     this.last = now;
@@ -566,7 +627,12 @@ export class Game {
     this.audio.setRunBreath(this.gait === 'sprint');
     this.audio.setDownBreath(this.phase === 'down' && this.bledOut === null); // Update 0.9.9
 
-    if (!scripted && this.phase !== 'spectating') this.body?.update({
+    const kneelBy = this.reviving && !scripted && this.phase !== 'spectating' ? this.revivingNow() : null;
+    const kneelYaw = kneelBy ? kneelAt(this.player.pos, kneelBy).yaw : 0;
+    if (kneelBy) {
+      // Update 0.9.9 — getting a teammate up: on one knee at their side, your hands on their back.
+      this.body?.cinematic({ clip: 'revive', fade: KNEEL.fade, pos: this.player.pos, yaw: kneelYaw, dt: this.phase === 'paused' ? 0 : wdt });
+    } else if (!scripted && this.phase !== 'spectating') this.body?.update({
       pos: this.player.pos,
       yaw: this.player.yaw,
       pitch: this.player.pitch,
@@ -582,6 +648,14 @@ export class Game {
       injured: this.injured,
     });
     if (!scripted && this.body) this.body.root.position.y = this.player.rise; // Update 0.7 — up the stairs
+    // Update 0.9.9 — your eyes go down as you kneel, over your hands (and back up after); you look round as usual.
+    this.kneel += ((kneelBy ? 1 : 0) - this.kneel) * (1 - Math.exp(-dt / (KNEEL.fade / 3)));
+    if (kneelBy) this.kneelEye.set(this.player.pos.x - Math.sin(kneelYaw) * KNEEL.eyeAhead, this.player.rise + KNEEL.eye, this.player.pos.z - Math.cos(kneelYaw) * KNEEL.eyeAhead);
+    if (this.kneel > 0.001 && !scripted && this.phase !== 'spectating') {
+      this.camera.position.lerp(this.kneelEye, this.kneel);
+      this.camera.updateMatrixWorld();
+      this.player.updateLight(0, this.status);
+    }
     this.debugView.update(this.enemy, this.t, this.toWorld);
     this.drawThrowables();
     this.lights.update(this.t, this.curFloor);
@@ -620,7 +694,7 @@ export class Game {
     if (!this.hide) player.pos = nearestFree(this.level, player.pos, PLAYER.radius, player.obstacles);
     status.chased = this.enemy.mode === 'chase'; // Update 0.9.6.2 — adrenaline: your sprint lasts longer
     // Update 0.9.5 — in a locker you don't walk: you're placed in it, and can peek or get out.
-    const step = this.hide ? this.stepHiding(dt) : player.step(this.level, input, status, dt);
+    const step = this.hide ? this.stepHiding(dt) : this.reviving ? this.stepKneeling(dt) : player.step(this.level, input, status, dt);
     // Update 0.7 — walked onto / off the stairs' portal: you're on the other floor now.
     const crossed = crossPortal(this.level, player.pos);
     if (crossed.crossed && !this.hide) player.pos = crossed.pos;
@@ -680,6 +754,7 @@ export class Game {
     // Enemy. Update 0.9.9 — in co-op it's the run's (coopFrame does it for everyone); here only what it
     // means to you.
     if (!this.rt && this.soloEnemy(dt, step.gait)) return;
+    if (!this.rt) this.stepSoloMimic(dt);
     const chasing = this.enemy.mode === 'chase';
 
     const targetFear = fearLevel(dist(this.enemy.pos, player.pos), chasing);
@@ -902,7 +977,7 @@ export class Game {
   private drawThrowables() {
     const b = this.viewBasis();
     const id = inHand(this.inv);
-    const show = id !== null && !this.hide && (this.phase === 'playing' || this.phase === 'paused' || this.phase === 'reading');
+    const show = id !== null && !this.hide && !this.reviving && (this.phase === 'playing' || this.phase === 'paused' || this.phase === 'reading');
     const held = show ? { id, pos: heldPos(b.eye, b.forward, b.right), quat: this.camera.quaternion } : null;
     this.throwView.update(this.throwables, (p) => {
       const w = this.toWorld(p);
@@ -1544,8 +1619,59 @@ export class Game {
       },
       c.difficulty === 'hard',
     );
+    // A hidden tab stops drawing and slows its timers; a worker's timer keeps ticking.
+    this.bgWorker = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 50);'], { type: 'text/javascript' })));
+    this.bgWorker.onmessage = () => this.backgroundTick();
+    this.rt.resumeOf = (mine) => ({ pos: mine.pos, yaw: mine.yaw, lives: this.lives, injured: this.injured, life: mine.life, bleed: this.bleed });
     this.rt.heldBy = (id) => [...this.itemBy].filter(([, by]) => by === id).map(([k]) => ({ id: k, th: this.throwables.find((x) => x.id === k)?.throws ?? 0 }));
     this.rt.panelsBy = (id) => this.panelBy.flatMap((by, i) => (by === id ? [i] : []));
+  }
+
+  /** Update 0.9.9 — what your ping (F) marks: The Patient in your crosshair, else a thing near where your
+   *  view hits (item, panel, locker, generator, exit), else that spot. */
+  private pingFrom(): PingMark {
+    const b = this.viewBasis();
+    const head = { x: this.enemy.pos.x, y: 1.6, z: this.enemy.pos.z };
+    const to = { x: head.x - b.eye.x, y: head.y - b.eye.y, z: head.z - b.eye.z };
+    if (Math.hypot(to.x, to.z) <= PING.range && inCrosshair(b.forward, to) && lineOfSight(this.level, this.player.pos, this.enemy.pos)) {
+      return { kind: 'enemy', label: "It's here!", pos: head };
+    }
+    const hit = pingRay(this.level, b.eye, b.forward);
+    const things: { pos: { x: number; y: number; z: number }; label: string }[] = [];
+    for (const it of this.throwables) if (it.state === 'ground') things.push({ pos: { ...it.pos }, label: throwableTitle(it) });
+    panelSpots(this.level).forEach((s, i) => things.push({ pos: { x: s.x, y: s.y, z: s.z }, label: this.progress.panels[i]?.on ? 'Live panel' : 'Electrical panel' }));
+    lockerSpots(this.level).forEach((l) => things.push({ pos: { x: l.x, y: 1.1, z: l.z }, label: 'Locker' }));
+    const g = cellCenter(this.level.generator);
+    things.push({ pos: { x: g.x, y: 0.8, z: g.z }, label: 'Generator' });
+    const x = cellCenter(this.level.exit);
+    things.push({ pos: { x: x.x, y: 1.2, z: x.z }, label: 'Exit' });
+    const thing = snapPing(hit, things);
+    return thing ? { kind: 'item', label: thing.label, pos: thing.pos } : { kind: 'spot', label: 'Here', pos: hit };
+  }
+
+  /** Update 0.9.9 — rejoined a run: where you were, as you were (your slots are empty: what you carried
+   *  fell where you dropped out). */
+  private resumeRun(r: ResumeState) {
+    const at = nearestFree(this.level, r.pos, PLAYER.radius, this.player.obstacles);
+    this.player.pos = at;
+    this.player.yaw = r.yaw;
+    this.syncFloor();
+    this.lives = Math.max(1, r.lives);
+    this.injured = r.injured;
+    this.fx.set({ lids: 0 });
+    this.input.clear();
+    if (r.life === 'down') {
+      this.enterDown(at, r.yaw);
+      this.bleed = Math.max(1, r.bleed);
+    } else if (r.life === 'out' || r.life === 'escaped') {
+      this.outAt = { ...at };
+      this.goOut(r.life);
+    } else {
+      this.phase = 'playing';
+      this.life = 'up';
+      this.lastObjective = '';
+    }
+    this.toastMsg('Back in the run. What you carried fell where you dropped out.', 5);
   }
 
   /** What you send the others about yourself. */
@@ -1610,7 +1736,14 @@ export class Game {
         }
         it.state = 'held';
       }
-    } else if (!mine) {
+    } else {
+      if (mine) {
+        // Still in your slots, yet lying somewhere: you dropped out for a moment and the host put down what
+        // you carried (your own drops and throws leave your slots before they're sent).
+        this.inv = remove(this.inv, id);
+        this.useT = 0;
+        this.toastMsg('You lost your grip: what you carried fell where you dropped out.');
+      }
       this.itemBy.delete(id);
       const was = it.state;
       if (n.s === 'flying') {
@@ -1762,7 +1895,7 @@ export class Game {
         }
       }
     }
-    d.yaw = player.yaw;
+    if (!r) d.yaw = player.yaw; // Update 0.9.9 — someone's at your side: your body holds still
     player.pos = { ...d.pos };
     this.syncFloor();
     player.rise = stairRise(this.level, player.pos);
@@ -1807,9 +1940,12 @@ export class Game {
   /** A teammate down in front of you, close enough to get up. */
   private reviveTarget(): { id: string; name: string } | null {
     const p = this.player;
+    const rt = this.rt;
     let best: { id: string; name: string; d: number } | null = null;
-    for (const m of this.rt?.downMates() ?? []) {
+    for (const m of rt?.downMates() ?? []) {
       if (this.revivedJust?.id === m.id && this.t < this.revivedJust.until) continue;
+      const r = rt!.revives.get(m.id);
+      if (!reviveFree(r, rt!.me, !!r && rt!.mateNow(r.by)?.life === 'up')) continue; // Update 0.9.9
       const d = dist(p.pos, m.pos);
       if (d > DOWN.reach) continue;
       const f = p.forward;
@@ -1837,6 +1973,37 @@ export class Game {
       this.reviving = null;
       this.revivedJust = { id: t.id, until: this.t + 3 };
     }
+  }
+
+  /** Update 0.9.9 — the teammate you're getting up, as you see them now (where they lie, the way they face). */
+  private revivingNow(): { pos: Vec2; yaw: number } | null {
+    const m = this.reviving ? this.rt?.mateNow(this.reviving.id) : null;
+    return m?.life === 'down' ? m : null;
+  }
+
+  /** Update 0.9.9 — getting a teammate up: you shuffle over beside them and stay on one knee (no walking). */
+  private stepKneeling(dt: number): StepResult {
+    const p = this.player;
+    p.stop();
+    tickStatus(this.status, 'idle', dt);
+    const down = this.revivingNow();
+    if (down) {
+      const mates = p.teammates.filter((b) => dist(p.pos, b) >= PLAYER.radius * 2);
+      const blockers = [...p.obstacles, ...mates];
+      const free = (q: Vec2) => dist(nearestFree(this.level, q, PLAYER.radius, blockers), q) < 0.01;
+      // Your side of them up against a wall (or furniture): round to the other.
+      let to = kneelAt(p.pos, down).pos;
+      if (!free(to)) {
+        const other = kneelAt(p.pos, down, true).pos;
+        if (free(other)) to = other;
+      }
+      const d = dist(p.pos, to);
+      if (d > 0.01) {
+        const k = Math.min(1, (KNEEL.shuffle * dt) / d);
+        p.pos = moveWithCollision(this.level, p.pos, (to.x - p.pos.x) * k, (to.z - p.pos.z) * k, PLAYER.radius, blockers);
+      }
+    }
+    return { gait: 'idle', moved: 0, footstep: null };
   }
 
   private stopRevive() {
@@ -1890,7 +2057,7 @@ export class Game {
       this.player.pos = { ...m.pos };
       this.player.rise = m.rise;
       this.syncFloor();
-      const eye = m.life === 'down' ? 0.35 : m.crouching ? PLAYER.crouchEyeHeight : PLAYER.eyeHeight;
+      const eye = m.life === 'down' ? 0.35 : rt.revivingWho(this.watching!, null) ? KNEEL.eye : m.crouching ? PLAYER.crouchEyeHeight : PLAYER.eyeHeight;
       this.camera.position.set(m.pos.x, m.rise + eye, m.pos.z);
       this.camera.rotation.set(m.life === 'down' ? -0.6 : m.pitch, m.yaw, 0, 'YXZ');
       this.camera.updateMatrixWorld();
@@ -1913,6 +2080,11 @@ export class Game {
       if (this.phase === 'playing' || this.phase === 'reading') rt.noise(this.noise);
       this.noise = null;
     }
+    if (this.input.actionPressed('ping') && this.phase === 'playing' && !this.hide && this.t >= this.pingReady) {
+      this.pingReady = this.t + PING.every;
+      rt.ping(this.pingFrom());
+    }
+    rt.drawPings(this.camAbs());
     if (this.input.actionPressed('mute') && rt.hasVoice) {
       rt.setMuted(!rt.muted);
       this.toastMsg(rt.muted ? 'Microphone muted.' : 'Microphone on.', 2);
@@ -1933,6 +2105,7 @@ export class Game {
       } else this.enemyEffects(events, dt, moved);
     }
     for (const e of events) {
+      if (e.startsWith('mimic:')) this.playMimic(e.slice(6));
       if (!e.startsWith('caught:') || e === `caught:${rt.me}`) continue;
       const who = rt.mateNow(e.slice(7));
       if (who) this.toastMsg(`It has ${who.name}!`, 3);
@@ -1943,6 +2116,82 @@ export class Game {
       if (this.coop?.link.closed()) this.endCoop('The host left. The run is over.');
       else if (runOver(rt.team(this.life))) this.endCoop();
     }
+  }
+
+  /**
+   * Update 0.9.9 — this tab isn't being drawn (you tabbed out, minimised it, or it's behind another tab):
+   * the frame loop stops. The run doesn't: twenty times a second the worker's tick moves it on. On the
+   * host The Patient keeps hunting (it used to freeze for everyone); everyone keeps sending where they are
+   * (you stand still) and hearing the others. Back in the tab, the frame loop takes over. (Going by "no frame
+   * for a quarter of a second", not the page's hidden flag: some browsers stop drawing a tab that still
+   * says it's visible.)
+   */
+  private backgroundTick() {
+    const now = performance.now();
+    const drawing = now - this.lastFrameAt < 250;
+    if (drawing || !this.rt || this.disposed || this.phase === 'over') {
+      this.bgLast = now;
+      return;
+    }
+    let left = Math.min(0.25, (now - this.bgLast) / 1000);
+    this.bgLast = now;
+    while (left > 1e-4) {
+      const dt = Math.min(0.05, left);
+      left -= dt;
+      this.coopBackgroundStep(dt);
+    }
+    this.last = now; // no jump when the frame loop comes back
+  }
+
+  private coopBackgroundStep(dt: number) {
+    const rt = this.rt!;
+    this.realDt = dt;
+    if (this.noise) {
+      if (this.phase === 'playing' || this.phase === 'reading') rt.noise(this.noise);
+      this.noise = null;
+    }
+    rt.frame(dt, this.enemy, this.myLive(), this.player.pos, { fuses: this.progress.fuses, lockers: this.enemyLockers(), rng: this.rng });
+    if (!this.coopEnded && this.phase !== 'intro') {
+      if (this.coop?.link.closed()) this.endCoop('The host left. The run is over.');
+      else if (runOver(rt.team(this.life))) this.endCoop();
+    }
+  }
+
+  /** Update 0.9.9 — The Patient mimics `who`: one of their lines, from where it is. */
+  private playMimic(who: string) {
+    const clip = this.rt?.clips?.pick(who);
+    if (clip) this.playMimicClip(clip);
+  }
+
+  private playMimicClip(clip: AudioBuffer) {
+    const mix = this.enemyHearing(0);
+    this.audio.mimic(clip, this.enemySoundPos(mix), mix, MIMIC.rate);
+  }
+
+  /** Update 0.9.9 — test build only (Settings → Audio): a solo run with your microphone, and it mimics you. */
+  private startSoloMimic() {
+    if (this.rt || !import.meta.env.DEV || !this.settings.soloMimic || this.soloClips) return;
+    this.soloClips = new VoiceClips(this.audio.ctx);
+    this.soloMimicIn = MIMIC_SOLO_TEST.firstMin + Math.random() * (MIMIC_SOLO_TEST.firstMax - MIMIC_SOLO_TEST.firstMin);
+    void micIfAllowed().then((mic) => {
+      if (!mic || this.disposed || !this.soloClips) return;
+      this.soloClips.record('me', mic);
+      this.soloMic = this.audio.micMeter(mic);
+    });
+  }
+
+  private stepSoloMimic(dt: number) {
+    const clips = this.soloClips;
+    if (!clips) return;
+    this.soloMimicIn -= dt;
+    if (this.soloMimicIn > 0) return;
+    const clip = mimicNow(this.enemy.mode, !!this.enemy.crawl, false) ? clips.pick('me') : null;
+    if (!clip) {
+      this.soloMimicIn = MIMIC.retry / 2;
+      return;
+    }
+    this.playMimicClip(clip);
+    this.soloMimicIn = MIMIC_SOLO_TEST.everyMin + Math.random() * (MIMIC_SOLO_TEST.everyMax - MIMIC_SOLO_TEST.everyMin);
   }
 
   private endCoop(note?: string) {
@@ -1958,7 +2207,7 @@ export class Game {
   /** Update 0.9.9 — the co-op parts of the HUD. */
   private coopHud(): Pick<HudState, 'team' | 'down' | 'watching' | 'mic'> {
     const rt = this.rt;
-    if (!rt) return { team: null, down: null, watching: null, mic: null };
+    if (!rt) return { team: null, down: null, watching: null, mic: this.soloMic ? (this.soloMic() > -45 ? 'talking' : 'live') : this.soloClips ? 'none' : null };
     const r = rt.revives.get(rt.me);
     return {
       team: rt.teamHud(),
@@ -1998,6 +2247,13 @@ export class Game {
     this.enemy.pos = cellCenter({ col, row: row + floor * floorStride(this.level) });
   }
   /** Update 0.6 — ?debug: get caught right now (it appears 1 m in front of you). */
+  /** Update 0.9.9 — ?debug: it mimics you right now (solo test build with the switch on). */
+  debugMimic() {
+    const clip = this.soloClips?.pick('me');
+    if (clip) this.playMimicClip(clip);
+    return !!clip;
+  }
+
   debugCatch() {
     if (this.rt) return this.coopCaught(); // Update 0.9.9 — as if the host's Patient had you
     const f = this.player.forward;
@@ -2059,11 +2315,15 @@ export class Game {
 
   dispose() {
     this.disposed = true;
+    this.soloClips?.dispose();
+    this.bgWorker?.terminate();
+    this.bgWorker = null;
     this.rt?.dispose();
     this.rt = null;
     cancelAnimationFrame(this.raf);
     clearTimeout(this.stingerTimer);
     document.removeEventListener('pointerlockchange', this.onLockChange);
+    window.removeEventListener('keydown', this.onDebugEsc);
     window.removeEventListener('beforeunload', this.onBeforeUnload);
     if (document.pointerLockElement) document.exitPointerLock();
     this.resizeObs.disconnect();

@@ -45,9 +45,11 @@ export interface Room {
   startAt: number;
   difficulty: CoopDifficulty;
   seed: number;
-  /** Update 0.9.9 — the host's lobby options: proximity chat, and The Patient hearing you talk (needs chat). */
+  /** Update 0.9.9 — the host's lobby options: proximity chat, The Patient hearing you talk, and it mimicking
+   *  your voices (both need chat). */
   voice: boolean;
   hear: boolean;
+  mimic: boolean;
   /** In slot order (the host is slot 0). */
   players: RoomPlayer[];
 }
@@ -102,6 +104,7 @@ export function parseRoom(code: string, raw: unknown): Room | null {
     seed: typeof raw.seed === 'number' ? raw.seed : 1,
     voice: raw.voice === true,
     hear: raw.voice === true && raw.hear === true,
+    mimic: raw.voice === true && raw.mimic === true,
     players,
   };
 }

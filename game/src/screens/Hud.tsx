@@ -68,7 +68,7 @@ export function Hud({ store, hidden, onBegin }: Props) {
     <div className={`lw-mic lw-mic-${h.mic}`}>
       <span className="lw-mic-dot" />
       {h.mic === 'muted' ? 'Muted' : h.mic === 'none' ? 'No mic' : 'Mic'}
-      {h.mic !== 'none' && <InputIcon code={h.bindings.mute} size="sm" />}
+      {h.mic !== 'none' && h.team && <InputIcon code={h.bindings.mute} size="sm" />}
     </div>
   );
   // Down: on the floor, the clock running out (or someone getting you up).
@@ -130,7 +130,7 @@ export function Hud({ store, hidden, onBegin }: Props) {
         </div>
       )}
       <div className="lw-hud-crosshair" />
-      {h.controls > 0 && !h.note && <ControlsCard bindings={h.bindings} secondsLeft={h.controls} nightVision={h.nightVision} />}
+      {h.controls > 0 && !h.note && <ControlsCard bindings={h.bindings} secondsLeft={h.controls} nightVision={h.nightVision} coop={h.team ? { voice: h.mic !== null } : undefined} />}
       {h.prompt && !h.repair?.check && (
         <div className="lw-hud-prompt">
           <span className="lw-prompt-title">{h.prompt.title}</span>

@@ -31,9 +31,9 @@ Picked each time you press Begin:
 
 Up to three players, over the internet (Firebase). Press **Co-op** on the main menu and type your name. One player presses **Create room** and gets a five-letter code to send to the others, who press **Join with code**. In the lobby the host picks Normal or Hard; when everyone is ready, a 3-second countdown starts and you all wake up side by side in the same room.
 
-You share one ward: the same items on the same tables, the panels and the generator fixed for everyone, and one Patient hunting all of you. You see and hear each other (footsteps, grunts, flashlights), and you can't walk through each other. Caught on your last life, it hits you and you're sent flying; in co-op Normal you survive it, down on the floor: you have a minute, you can crawl, you breathe hard, and the others see a marker over you through the walls; a friend holds left click on you for 5 seconds to get you up. On Hard there's no getting up, and it climbs the ceilings twice as often. Once you're out (taken, or out the exit) you watch the others. The run ends when everyone is out; if anyone got out, you won.
+You share one ward: the same items on the same tables, the panels and the generator fixed for everyone, and one Patient hunting all of you. You see and hear each other (footsteps, grunts, flashlights), and you can't walk through each other. Caught on your last life, it hits you and you're sent flying; in co-op Normal you survive it, down on the floor: you have a minute, you can crawl, you breathe hard, and the others see a marker over you through the walls; a friend holds left click on you for 5 seconds to get you up (they kneel at your side, hands on your back). On Hard there's no getting up, and it climbs the ceilings twice as often. Once you're out (taken, or out the exit) you watch the others. The run ends when everyone is out; if anyone got out, you won.
 
-The host can turn on **proximity chat** in the lobby (you hear whoever is near you, muffled through walls; V mutes you) and **Enemy can hear you talk** (talk out loud near it and it comes for you). Esc doesn't pause a co-op run. The host's tab has to stay open and visible: The Patient runs there.
+The host can turn on **proximity chat** in the lobby (you hear whoever is near you, muffled through walls; V mutes you), **Enemy can hear you talk** (talk out loud near it and it comes for you) and **It mimics your voices** (it learns what you say and calls out in your voices from the dark). Press **F** to ping: everyone sees a marker where you're looking (an item, a panel, a locker, the exit, The Patient itself) for a few seconds, through walls. Esc doesn't pause a co-op run, and the run goes on if you tab out. The host's tab has to stay open: The Patient runs there. If you drop out (a reload, a lost connection) and you're not the host, **Rejoin the run** on the main menu puts you back where you were.
 
 ## Controls
 
@@ -50,10 +50,11 @@ The host can turn on **proximity chat** in the lobby (you hear whoever is near y
 | Peek out of a locker | Hold Space + W |
 | Look back (hold while running) | Q |
 | Mute your microphone (co-op proximity chat) | V |
+| Ping (co-op) | F |
 | Get a downed teammate up (co-op) | Hold left click |
 | Pause (co-op: menu only, nothing stops) | Esc |
 
-Everything except Look, the item slots (1 2 3) and Pause can be rebound in Settings. Full screen (F11) and headphones are recommended.
+Everything except Look, the item slots (1 2 3) and Pause can be rebound in Settings. Full screen (F11) and headphones are recommended. On a slower computer, set **Graphics** to Low (Settings → Video).
 
 ## Running it
 
@@ -148,7 +149,7 @@ Press F2 in game for the debug view: full lighting, The Patient's position and p
 
 When there's more than one level, the main menu shows a tester panel in the top-right corner (local runs only) to pick which level Begin starts on; `?level=N` in the address does the same.
 
-Adding `?debug` to the address skips the credit screen and gives the browser console a `window.__lastWard` object with helpers for moving the player and The Patient.
+Adding `?debug` to the address skips the credit screen and gives the browser console a `window.__lastWard` object with helpers for moving the player and The Patient. It plays like the normal game otherwise (the mouse is locked, Esc pauses).
 
 ## Publishing
 

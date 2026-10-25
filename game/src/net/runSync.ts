@@ -6,10 +6,13 @@
 //   pw        the generator: who started it and where they stood
 //   rv/{uid}  someone getting uid back up (d: 1 once done)
 //   e         The Patient, written by the host only (everyone else draws it from here)
+//   sv/{uid}  where you are and how (lives, hurt, down…), about once a second: rejoining puts you back
+//   pg/{uid}  your last ping (F): what, where, and a number so each one shows once
 // Anyone writes the shared world, with transactions where two of you could race for the same thing.
 import type { Store, Unsubscribe } from './store';
-import { LiveState, decodeLive, encodeLive } from '../state/coopRun';
+import { LiveState, ResumeState, decodeLive, decodeResume, encodeLive, encodeResume } from '../state/coopRun';
 import type { EnemyMode } from '../world/enemyAI';
+import type { PingKind, PingMark } from '../world/ping';
 
 export type ItemNetState = 'ground' | 'held' | 'flying' | 'gone';
 export interface ItemNet {
@@ -83,6 +86,8 @@ export interface RunHandlers {
   revive(id: string, r: ReviveNet | null): void;
   /** Not on the host (it writes this). */
   enemy(e: EnemyNet): void;
+  /** Update 0.9.9 — a teammate pinged (F). */
+  ping(id: string, mark: PingMark): void;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
@@ -123,6 +128,19 @@ export class RunSync {
     this.offs.push(this.store.watch(at('pw'), (v) => isObj(v) && typeof v.by === 'string' && h.power(v as unknown as PowerNet)));
     this.offs.push(this.store.watch(at('rv'), differ((id, v) => h.revive(id, isObj(v) && typeof v.by === 'string' ? (v as unknown as ReviveNet) : null))));
     if (!this.host) this.offs.push(this.store.watch(at('e'), (v) => isObj(v) && typeof v.x === 'number' && h.enemy(v as unknown as EnemyNet)));
+    let first = true;
+    this.offs.push(
+      this.store.watch(
+        at('pg'),
+        differ((id, v) => {
+          // (Pings already up when you arrive aren't news.)
+          if (first || id === this.me || !isObj(v) || typeof v.x !== 'number') return;
+          const k = (['enemy', 'item', 'spot'] as PingKind[]).includes(v.k as PingKind) ? (v.k as PingKind) : 'spot';
+          h.ping(id, { kind: k, label: typeof v.l === 'string' ? v.l.slice(0, 24) : '', pos: { x: v.x as number, y: Number(v.y) || 0, z: Number(v.z) || 0 } });
+        }),
+      ),
+    );
+    first = false;
   }
 
   private at(p: string) {
@@ -131,6 +149,22 @@ export class RunSync {
 
   publish(s: LiveState) {
     void this.store.set(this.at(`p/${this.me}`), encodeLive(s));
+  }
+
+  /** Update 0.9.9 — for rejoining (kept when you drop out, unlike your live state). */
+  saveResume(r: ResumeState) {
+    void this.store.set(this.at(`sv/${this.me}`), encodeResume(r));
+  }
+
+  async loadResume(): Promise<ResumeState | null> {
+    return decodeResume(await this.store.get(this.at(`sv/${this.me}`)));
+  }
+
+  private pingSeq = 0;
+  /** Update 0.9.9 — your ping (F), for everyone else. */
+  ping(m: PingMark) {
+    const r = (v: number) => Math.round(v * 100) / 100;
+    void this.store.set(this.at(`pg/${this.me}`), { x: r(m.pos.x), y: r(m.pos.y), z: r(m.pos.z), k: m.kind, l: m.label, q: ++this.pingSeq });
   }
 
   publishEnemy(e: EnemyNet) {
@@ -208,12 +242,14 @@ export class RunSync {
     void this.store.remove(this.at(`rv/${this.me}`));
   }
 
-  /** Host: someone left mid-run. What they held lands where they last stood; their locker and panel free up. */
-  cleanUpAfter(id: string, at: { x: number; z: number }, items: { id: number; th: number }[], lockers: number[], panels: number[]) {
+  /** Host: someone left mid-run. What they held lands where they last stood; their locker and panel free up;
+   *  (0.9.9) whoever they were getting up isn't held still any longer (their clock runs, they can crawl). */
+  cleanUpAfter(id: string, at: { x: number; z: number }, items: { id: number; th: number }[], lockers: number[], panels: number[], revives: string[] = []) {
     if (!this.host) return;
     for (const it of items) this.putItem(it.id, { s: 'ground', x: at.x, y: 0, z: at.z, w: 0, th: it.th, f: 1 });
     for (const i of lockers) void this.store.transact(this.at(`lk/${i}`), (cur) => (cur === id ? null : undefined));
     for (const i of panels) void this.store.transact(this.at(`pn/${i}/by`), (cur) => (cur === id ? null : undefined));
+    for (const down of revives) void this.store.transact(this.at(`rv/${down}`), (cur) => (isObj(cur) && cur.by === id && !cur.d ? null : undefined));
   }
 
   stop() {

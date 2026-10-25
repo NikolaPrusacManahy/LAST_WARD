@@ -9,9 +9,11 @@ interface Props {
   secondsLeft: number;
   /** Update 0.9.3 — Easy: the flashlight key is the night vision goggles. */
   nightVision?: boolean;
+  /** Update 0.9.9 — co-op: the ping, and (with proximity chat) the mute key. */
+  coop?: { voice: boolean };
 }
 
-export function ControlsCard({ bindings: b, secondsLeft, nightVision }: Props) {
+export function ControlsCard({ bindings: b, secondsLeft, nightVision, coop }: Props) {
   const rows: [string, JSX.Element][] = [
     ['Move', <><InputIcon code={b.forward} /><InputIcon code={b.left} /><InputIcon code={b.back} /><InputIcon code={b.right} /></>],
     ['Look', <InputIcon glyph={MOUSE_LOOK} />],
@@ -23,7 +25,9 @@ export function ControlsCard({ bindings: b, secondsLeft, nightVision }: Props) {
     ['Item slots', <><InputIcon code="Digit1" /><InputIcon code="Digit2" /><InputIcon code="Digit3" /></>],
     ['Skill check / drop', <InputIcon code={b.skillCheck} />],
     ['Look back (running)', <InputIcon code={b.lookBack} />],
-    ['Pause', <InputIcon code="Escape" />],
+    ...(coop ? ([['Ping', <InputIcon code={b.ping} />]] as [string, JSX.Element][]) : []),
+    ...(coop?.voice ? ([['Mute microphone', <InputIcon code={b.mute} />]] as [string, JSX.Element][]) : []),
+    [coop ? 'Menu (nothing stops)' : 'Pause', <InputIcon code="Escape" />],
   ];
   return (
     <aside className="lw-ctl-card" aria-label="Controls">

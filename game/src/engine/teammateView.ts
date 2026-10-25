@@ -2,16 +2,17 @@
 // walking, running, crouching and limping like they are; their name over their head (a mark beside it
 // while they talk); their flashlight beam. Hit: sent flying. Down: crawling on the floor, with a revive
 // marker over them that shows through walls (who, and the seconds they have left). Taken: their body
-// stays where they fell. Escaped: gone.
+// stays where they fell. Escaped: gone. Getting someone up: on one knee beside them, hands on their back.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { PLAYER_URL } from './playerBody';
-import { PlayerClip, choosePlayerClip, injuredClip, localVelocity, playerClipTimeScale, strafeSide } from './playerAnim';
+import { PLAY_ONCE, PlayerClip, choosePlayerClip, injuredClip, localVelocity, playerClipTimeScale, strafeSide } from './playerAnim';
 import { THROWN_CLIP } from '../state/caughtSequence';
-import { DOWN } from '../state/coopRun';
+import { DOWN, KNEEL, kneelAt } from '../state/coopRun';
 import { LIGHT, FLASHLIGHT_BEAM } from '../state/lightLevels';
 import { PLAYER } from '../state/playerRules';
 import type { LiveState } from '../state/coopRun';
+import type { Vec2 } from '../world/level';
 import { flashlightCookie } from './textures';
 
 const FADE = 0.2;
@@ -43,8 +44,9 @@ function drawMark(ctx: CanvasRenderingContext2D, name: string, secs: number) {
 
 export interface TeammateView {
   root: THREE.Group;
-  /** Draw them as `s` says (already smoothed). `talking`: the mark by their name. */
-  update(s: LiveState, dt: number, talking: boolean): void;
+  /** Draw them as `s` says (already smoothed). `talking`: the mark by their name. `reviving`: the one
+   *  they're getting up, where they lie and the way they face (Update 0.9.9). */
+  update(s: LiveState, dt: number, talking: boolean, reviving?: { pos: Vec2; yaw: number } | null): void;
   /** Where their head is (voice and grunts come from there). */
   head(out: THREE.Vector3): THREE.Vector3;
   dispose(): void;
@@ -112,7 +114,7 @@ export async function loadTeammate(name: string, light: THREE.SpotLight | null):
   const actions = new Map<PlayerClip, THREE.AnimationAction>();
   for (const clip of gltf.animations) {
     const a = mixer.clipAction(clip);
-    if (clip.name === 'thrown' || clip.name === 'getUp' || clip.name === 'hitFly' || clip.name === 'proneDeath') {
+    if (PLAY_ONCE.includes(clip.name)) {
       a.setLoop(THREE.LoopOnce, 1);
       a.clampWhenFinished = true;
     }
@@ -128,7 +130,7 @@ export async function loadTeammate(name: string, light: THREE.SpotLight | null):
 
   let current: PlayerClip | null = 'idle';
   let lastLife = 'up';
-  const play = (clip: PlayerClip, timeScale: number, startAt?: number) => {
+  const play = (clip: PlayerClip, timeScale: number, startAt?: number, fade = FADE) => {
     const next = actions.get(clip) ?? actions.get('idle');
     if (!next) return;
     next.timeScale = timeScale;
@@ -137,7 +139,7 @@ export async function loadTeammate(name: string, light: THREE.SpotLight | null):
     next.reset();
     if (startAt !== undefined) next.time = startAt;
     next.play();
-    if (prev) next.crossFadeFrom(prev, FADE, false);
+    if (prev) next.crossFadeFrom(prev, fade, false);
     current = clip;
   };
 
@@ -178,7 +180,7 @@ export async function loadTeammate(name: string, light: THREE.SpotLight | null):
 
   return {
     root,
-    update(s, dt, talking) {
+    update(s, dt, talking, reviving = null) {
       const gone = s.life === 'escaped' || (s.hidden && s.locker >= 0);
       root.visible = !gone;
       if (light) light.intensity = 0;
@@ -209,6 +211,7 @@ export async function loadTeammate(name: string, light: THREE.SpotLight | null):
       prevPos.z = s.pos.z;
       havePrev = true;
       const speed = Math.hypot(vel.x, vel.z);
+      const kneeling = !!reviving && s.life === 'up';
 
       if (s.life === 'out') {
         // Taken: down when the minute ran out (the slump), or sent flying (lying where they landed).
@@ -224,6 +227,9 @@ export async function loadTeammate(name: string, light: THREE.SpotLight | null):
         if (s.hit) play('hitFly', 1, 0);
         else play('thrown', 1, THROWN_CLIP.flipStart);
         mixer.update(dt);
+      } else if (kneeling) {
+        play('revive', 1, 0, KNEEL.fade);
+        mixer.update(dt);
       } else {
         const local = localVelocity(vel, s.yaw);
         const clip = injuredClip(choosePlayerClip(speed < 0.15 ? 'idle' : s.gait, s.crouching, strafeSide(local.side, local.ahead)), s.injured);
@@ -231,7 +237,7 @@ export async function loadTeammate(name: string, light: THREE.SpotLight | null):
         mixer.update(dt);
       }
       root.position.set(s.pos.x, s.rise, s.pos.z);
-      root.rotation.y = s.yaw + Math.PI; // Mixamo faces +Z
+      root.rotation.y = (kneeling ? kneelAt(s.pos, reviving!).yaw : s.yaw) + Math.PI; // Mixamo faces +Z
       lastLife = s.life;
 
       root.updateWorldMatrix(true, true);
@@ -247,7 +253,7 @@ export async function loadTeammate(name: string, light: THREE.SpotLight | null):
       if (light && s.light && s.life === 'up' && !gone) {
         const f = { x: -Math.sin(s.yaw) * Math.cos(s.pitch), y: Math.sin(s.pitch), z: -Math.cos(s.yaw) * Math.cos(s.pitch) };
         const right = { x: Math.cos(s.yaw), z: -Math.sin(s.yaw) };
-        const eyeY = s.rise + (s.crouching ? PLAYER.crouchEyeHeight : PLAYER.eyeHeight);
+        const eyeY = s.rise + (kneeling ? KNEEL.eye : s.crouching ? PLAYER.crouchEyeHeight : PLAYER.eyeHeight);
         light.position.set(s.pos.x + right.x * 0.22 + f.x * 0.2, eyeY - 0.22, s.pos.z + right.z * 0.22 + f.z * 0.2);
         aim.set(light.position.x + f.x * 6, light.position.y + f.y * 6, light.position.z + f.z * 6);
         light.target.position.copy(aim);

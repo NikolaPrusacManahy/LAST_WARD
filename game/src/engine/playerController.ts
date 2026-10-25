@@ -97,6 +97,11 @@ export class PlayerController {
     this.blockers = [...level.items.map((i) => itemPos(level, i.cell)), ...propBlockers(placedProps(level))];
   }
 
+  /** Update 0.9.9 — on one knee getting a teammate up: no walking (nothing carries on after). */
+  stop() {
+    this.vel = { x: 0, z: 0 };
+  }
+
   get forward(): Vec2 {
     return { x: -Math.sin(this.yaw), z: -Math.cos(this.yaw) };
   }

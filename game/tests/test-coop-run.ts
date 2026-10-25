@@ -18,10 +18,21 @@ import { parseRoom } from '../src/state/coop';
 import { DEFAULT_BINDINGS } from '../src/state/bindings';
 import { defaultSave, hydrateSave, mixVolumes } from '../src/state/settings';
 import { worldTimeScale } from '../src/state/session';
+import { MIMIC, decodeResume, encodeResume, mimicNow, mimicWho, nextMimic } from '../src/state/coopRun';
+import { pixelRatioFor } from '../src/state/settings';
+import { PING, inCrosshair, pingRay, pingText, snapPing } from '../src/world/ping';
 import { HIT, flyProgress, hitBlack, hitCues, hitLids, hitTimes } from '../src/state/hitSequence';
 import { caughtTimes } from '../src/state/caughtSequence';
 import { DOWN_BREATH_GAIN } from '../src/audio/spatial';
 import { readFileSync } from 'fs';
+import { askMic, askMicOnce, currentMic, micAnswer, micIfAllowed } from '../src/net/voice';
+import { KNEEL, kneelAt, reviveBack, reviveFree } from '../src/state/coopRun';
+import { PLAYER } from '../src/state/playerRules';
+import { PLAY_ONCE } from '../src/engine/playerAnim';
+
+/** player.glb's clips (read in the hit section, checked in the revive one). */
+type GlbClips = { animations: { name: string; samplers: { input: number }[] }[]; accessors: { max: number[] }[] };
+let reviveClip = null as GlbClips | null;
 
 const live = (over: Partial<LiveState> = {}): LiveState => ({
   pos: { x: 10, z: 7 }, rise: 0, yaw: 1, pitch: 0, gait: 'walk', crouching: false, light: true, hidden: false, sense: { x: 10, z: 7 }, locker: -1,
@@ -155,7 +166,7 @@ section('Co-op run: the shared ward (0.9.9)');
   await hs.set('rooms/K7Q2M', { host: 'host', status: 'playing', players: { host: { name: 'H', slot: 0 }, guest: { name: 'G', slot: 1 } } });
   const host = new RunSync(hs, 'K7Q2M', 'host', true);
   const guest = new RunSync(gs, 'K7Q2M', 'guest', false);
-  const seen = { live: [] as string[], items: [] as string[], panels: [] as string[], lockers: [] as string[], power: [] as string[], revive: [] as string[], enemy: 0 };
+  const seen = { live: [] as string[], items: [] as string[], panels: [] as string[], lockers: [] as string[], power: [] as string[], revive: [] as string[], enemy: 0, pings: [] as string[] };
   const handlers = (who: string) => ({
     live: (id: string, s: LiveState | null) => seen.live.push(`${who}<${id}:${s ? s.life : 'gone'}`),
     item: (id: number, it: { s: string; by?: string } | null) => seen.items.push(`${who}<${id}:${it?.s}:${it?.by ?? ''}`),
@@ -164,6 +175,7 @@ section('Co-op run: the shared ward (0.9.9)');
     power: (p: { by: string }) => seen.power.push(`${who}<${p.by}`),
     revive: (id: string, r: { by: string; d?: 1 } | null) => seen.revive.push(`${who}<${id}:${r ? r.by + (r.d ? ':done' : '') : 'stop'}`),
     enemy: () => seen.enemy++,
+    ping: (id: string, m: { kind: string; label: string }) => seen.pings.push(`${who}<${id}:${m.kind}:${m.label}`),
   });
   host.start(handlers('h'));
   guest.start(handlers('g'));
@@ -199,11 +211,27 @@ section('Co-op run: the shared ward (0.9.9)');
   host.publishEnemy({ x: 1, z: 2, dx: 1, dz: 0, m: 'patrol', w: 0, cr: 0, ck: 0, hold: 0, ev: [], t: 1 });
   guest.publishEnemy({ x: 9, z: 9, dx: 1, dz: 0, m: 'chase', w: 0, cr: 0, ck: 0, hold: 0, ev: [], t: 2 });
   check('only the host sends The Patient', seen.enemy === 1);
+  guest.revive('host', false);
+  host.cleanUpAfter('guest', { x: 4, z: 4 }, [], [], [], ['host']);
+  check("someone leaves while getting you up: you're free again (your clock runs, you can crawl)", (await hs.get('rooms/K7Q2M/run/rv/host')) == null && seen.revive.includes('h<host:stop'));
+  guest.revive('host', true);
+  host.cleanUpAfter('guest', { x: 4, z: 4 }, [], [], [], ['host']);
+  check("…but if they'd finished, you still get up", !!(await hs.get('rooms/K7Q2M/run/rv/host')));
+  host.clearRevive();
   await host.takeItem(1001, 0);
   host.cleanUpAfter('guest', { x: 4, z: 4 }, [{ id: 1000, th: 0 }], [], []);
   check('someone leaves holding a fuse: it lands where they were', seen.items.includes('g<1000:ground:'));
+  guest.ping({ kind: 'item', label: 'Fuse', pos: { x: 3, y: 0.8, z: 4 } });
+  host.ping({ kind: 'enemy', label: "It's here!", pos: { x: 9, y: 1.6, z: 9 } });
+  check('a ping (F) reaches the others, not yourself', seen.pings.includes('h<guest:item:Fuse') && seen.pings.includes("g<host:enemy:It's here!") && !seen.pings.some((x) => x.startsWith('g<guest') || x.startsWith('h<host')));
+  guest.ping({ kind: 'item', label: 'Fuse', pos: { x: 3, y: 0.8, z: 4 } });
+  check('the same ping again shows again', seen.pings.filter((x) => x === 'h<guest:item:Fuse').length === 2);
+  guest.saveResume({ pos: { x: 12.345, z: 6 }, yaw: 1.2, lives: 1, injured: true, life: 'down', bleed: 41.3 });
+  const back = await guest.loadResume();
+  check('rejoining: where you were and how, saved', !!back && Math.abs(back.pos.x - 12.35) < 1e-9 && back.lives === 1 && back.injured && back.life === 'down' && back.bleed === 42);
   gs.close();
   check('a player dropping off: gone from the run for the others', seen.live.includes('h<guest:gone'));
+  check('…but what they saved stays (to rejoin)', !!(await hs.get('rooms/K7Q2M/run/sv/guest')));
 }
 
 section('Co-op run: lobby options and settings (0.9.9)');
@@ -258,10 +286,53 @@ section('Hit on your last life: sent flying (0.9.9)');
   const glb = readFileSync(new URL('../public/models/player.glb', import.meta.url));
   const json = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString('utf8')) as { animations: { name: string }[] };
   const names = json.animations.map((a) => a.name);
+  reviveClip = json as unknown as GlbClips;
   check('player.glb has the flight, the crawl and the slump', ['hitFly', 'crawl', 'proneDeath'].every((n) => names.includes(n)), names.join(' '));
   check('…and kept all its old clips', ['idle', 'walk', 'run', 'crouch', 'thrown', 'getUp', 'injuredIdle'].every((n) => names.includes(n)));
   check('the hit flag goes out with your state', decodeLive(encodeLive(live({ life: 'caught', hit: true })))!.hit && !decodeLive(encodeLive(live()))!.hit);
   check('heavy breathing while down: half its level', DOWN_BREATH_GAIN === 0.5);
+}
+
+section('Getting someone up: on one knee beside them (0.9.9)');
+{
+  const near = (a: { x: number; z: number }, b: { x: number; z: number }, e = 1e-9) => Math.hypot(a.x - b.x, a.z - b.z) < e;
+  // The middle of the revive clip's hands, from where you kneel and the way you face.
+  const hands = (k: { pos: { x: number; z: number }; yaw: number }) => ({
+    x: k.pos.x - Math.sin(k.yaw) * KNEEL.ahead + Math.cos(k.yaw) * KNEEL.right,
+    z: k.pos.z - Math.cos(k.yaw) * KNEEL.ahead - Math.sin(k.yaw) * KNEEL.right,
+  });
+  const down = { pos: { x: 10, z: 6 }, yaw: -1.8 };
+  const back = reviveBack(down);
+  check('their back: a little ahead of where they lie, the way they face', near(back, { x: down.pos.x - Math.sin(down.yaw) * KNEEL.back, z: down.pos.z - Math.cos(down.yaw) * KNEEL.back }) && KNEEL.back > 0 && KNEEL.back < 0.3);
+  const theirRight = { x: Math.cos(down.yaw), z: -Math.sin(down.yaw) };
+  let allOn = true;
+  let square = true;
+  let ownSide = true;
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+    const from = { x: back.x + Math.sin(a) * 1.5, z: back.z + Math.cos(a) * 1.5 };
+    const k = kneelAt(from, down);
+    if (!near(hands(k), back, 1e-6)) allOn = false;
+    const f = { x: -Math.sin(k.yaw), z: -Math.cos(k.yaw) };
+    if (Math.abs(f.x * -Math.sin(down.yaw) + f.z * -Math.cos(down.yaw)) > 1e-9) square = false;
+    const mine = (from.x - back.x) * theirRight.x + (from.z - back.z) * theirRight.z;
+    const spot = (k.pos.x - back.x) * theirRight.x + (k.pos.z - back.z) * theirRight.z;
+    if (Math.abs(mine) > 0.01 && Math.sign(mine) !== Math.sign(spot)) ownSide = false;
+  }
+  check('from whichever way you come, your hands land on their back', allOn);
+  check('…kneeling square to them (at their side, not their head or feet)', square);
+  check('…on the side you came from', ownSide);
+  const flipped = kneelAt({ x: back.x + theirRight.x, z: back.z + theirRight.z }, down, true);
+  check('…or round the other side (yours up against a wall), hands still on their back', near(hands(flipped), back, 1e-6) && (flipped.pos.x - back.x) * theirRight.x + (flipped.pos.z - back.z) * theirRight.z < 0);
+  check('your eyes: lower than crouching, out over your hands; you shuffle over quickly', KNEEL.eye < PLAYER.crouchEyeHeight && KNEEL.eye > 0.8 && KNEEL.eyeAhead > 0 && KNEEL.eyeAhead < KNEEL.ahead && KNEEL.shuffle >= 1.5 && KNEEL.fade > 0.1 && KNEEL.fade < 0.6);
+  check('nobody on them: you can start', reviveFree(undefined, 'me', false));
+  check('your own revive: you carry on', reviveFree({ by: 'me' }, 'me', true));
+  check('done (they\'re on their way up): nobody starts again, it would undo it', !reviveFree({ by: 'me', d: 1 }, 'me', true) && !reviveFree({ by: 'ann', d: 1 }, 'me', false));
+  check('someone else on their feet is on them: not you too', !reviveFree({ by: 'ann' }, 'me', true));
+  check('…but if they were caught or left mid-way, you can take over', reviveFree({ by: 'ann' }, 'me', false));
+  check('the revive clip plays once and holds (it doesn\'t loop)', PLAY_ONCE.includes('revive'));
+  const rv = reviveClip?.animations.find((a) => a.name === 'revive');
+  const len = rv ? Math.max(...rv.samplers.map((x) => reviveClip!.accessors[x.input].max[0])) : 0;
+  check('player.glb has it, longer than the 5 s it takes (it never runs out mid-revive)', len > DOWN.reviveSeconds && len < 10, len.toFixed(2));
 }
 
 section('The stand-in between tabs: one write at a time (0.9.9)');
@@ -288,4 +359,120 @@ section('The stand-in between tabs: one write at a time (0.9.9)');
   check('writes from both land, none lost', r.run.p.a.x === 2 && r.rtc.a.b.o === 'offer' && r.rtc.a.b.c['0'] === 'cand');
   const wins = await Promise.all([a.claim('rooms/R/lk/1', 'a'), b.claim('rooms/R/lk/1', 'b')]);
   check('two claims at once: exactly one wins', wins.filter(Boolean).length === 1);
+}
+
+section('Rejoining a run (0.9.9)');
+{
+  check('saved mid-throw: back on your feet (never stuck in its hands)', decodeResume(encodeResume({ pos: { x: 1, z: 2 }, yaw: 0, lives: 1, injured: true, life: 'caught', bleed: 0 }))!.life === 'up');
+  check('junk: no saved state', decodeResume(null) === null && decodeResume({ x: 'a' }) === null);
+  check('lives stay 0–2', decodeResume({ x: 1, z: 1, lv: 9 })!.lives === 2 && decodeResume({ x: 1, z: 1, lv: -3 })!.lives === 0);
+  // The room keeps you once the run is on: a reload or a dropped connection, and you can come back in.
+  let clock = 0;
+  const hub = new MemoryHub(undefined, () => clock);
+  const host = new CoopClient(async () => hub.connect('h'), createRng(1), false);
+  let guestStore = hub.connect('g');
+  const guest = new CoopClient(async () => guestStore, createRng(2), false);
+  await host.create('Host', 'normal');
+  const code = host.getSnapshot().room!.code;
+  await guest.join(code, 'Guest');
+  await host.setReady(true);
+  await guest.setReady(true);
+  clock += 3000;
+  host.tick();
+  check('(the run started)', guest.startInfo() !== null);
+  guest.close(); // the tab reloads
+  check('dropped out mid-run: your place in the room stays', host.getSnapshot().room!.players.some((p) => p.id === 'g'));
+  guestStore = hub.connect('g');
+  const again = new CoopClient(async () => guestStore, createRng(3), false);
+  check('the same player again: back in the run', (await again.join(code, 'Guest')) && again.startInfo() !== null && again.startInfo()!.slot === 1);
+  const fresh = new CoopClient(async () => hub.connect('x'), createRng(4), false);
+  check("someone new still can't join a run that started", !(await fresh.join(code, 'New')));
+  await again.leave();
+  check('leaving on purpose: your place goes', !host.getSnapshot().room!.players.some((p) => p.id === 'g'));
+}
+
+section('Pings (0.9.9)');
+{
+  const level = parseLevel(LEVEL_01);
+  const eye = { x: 10.5, y: 1.6, z: 7.5 };
+  const atWall = pingRay(level, eye, { x: 0, y: 0, z: -1 });
+  check("looking at a wall: the ping is on it (the spawn room's north wall, z = 3)", atWall.z >= 3 && atWall.z < 3.2, `${atWall.z.toFixed(2)}`);
+  const atFloor = pingRay(level, eye, { x: 0, y: -1, z: 0.3 });
+  check('looking at the floor: on the floor', atFloor.y < 0.1 && atFloor.z > 7.5);
+  check('aim near a thing: that thing', snapPing({ x: 1, y: 1, z: 1 }, [{ pos: { x: 1.5, y: 0.8, z: 1.2 }, label: 'Fuse' }, { pos: { x: 5, y: 1, z: 5 }, label: 'Locker' }])?.label === 'Fuse');
+  check('nothing near: just the spot', snapPing({ x: 1, y: 1, z: 1 }, [{ pos: { x: 5, y: 1, z: 5 }, label: 'Locker' }]) === null);
+  check('The Patient in your crosshair (or close to it)', inCrosshair({ x: 0, y: 0, z: -1 }, { x: 0.5, y: 0, z: -10 }) && !inCrosshair({ x: 0, y: 0, z: -1 }, { x: 5, y: 0, z: -10 }));
+  check('the marker says who, what and how far', pingText('Fuse', 12.4, 'Ann') === 'Ann · Fuse · 12 m' && pingText('Here', 3, null) === 'Here · 3 m');
+  check('F pings', DEFAULT_BINDINGS.ping === 'KeyF');
+  check('a marker for a few seconds, not spam', PING.seconds >= 4 && PING.every >= 0.5);
+}
+
+section('The mimic (0.9.9)');
+{
+  check('"It mimics your voices" needs proximity chat', parseRoom('K7Q2M', { host: 'a', voice: false, mimic: true })!.mimic === false && parseRoom('K7Q2M', { host: 'a', voice: true, mimic: true })!.mimic);
+  check('it only mimics while it prowls: not in a chase, not on the ceiling, not holding one of you', mimicNow('patrol', false, false) && mimicNow('search', false, false) && !mimicNow('chase', false, false) && !mimicNow('patrol', true, false) && !mimicNow('patrol', false, true));
+  const rng = createRng(4);
+  const first = nextMimic(true, rng);
+  const later = nextMimic(false, rng);
+  check('the first time a minute or so in, then every 45–90 s', first >= 60 && first <= 90 && later >= 45 && later <= 90);
+  check('someone who has talked (nobody yet: nobody)', mimicWho([], rng) === null && ['a', 'b'].includes(mimicWho(['a', 'b'], rng)!));
+  const picks = new Set<string>();
+  for (let i = 0; i < 50; i++) picks.add(mimicWho(['a', 'b', 'c'], rng)!);
+  check('…any of them', picks.size === 3);
+  check('lines between 0.7 and 4 s, the last few each, played lower and slower', MIMIC.minLine < MIMIC.maxLine && MIMIC.keep >= 3 && MIMIC.rate < 1 && MIMIC.rate > 0.7);
+  const hub = new MemoryHub();
+  const ann = new CoopClient(async () => hub.connect('a'), createRng(1), false);
+  const bo = new CoopClient(async () => hub.connect('b'), createRng(2), false);
+  await ann.create('Ann', 'normal');
+  await bo.join(ann.getSnapshot().room!.code, 'Bo');
+  check('a new room: the mimic on (with chat)', ann.getSnapshot().room!.mimic);
+  await bo.setOptions({ mimic: false });
+  check('only the host turns it off', bo.getSnapshot().room!.mimic);
+  await ann.setOptions({ mimic: false });
+  check('the host turns it off: everyone sees it', !bo.getSnapshot().room!.mimic);
+}
+
+section('Graphics (0.9.9)');
+{
+  check('High by default; Low is kept; junk is High', defaultSave().settings.graphics === 'high' && hydrateSave({ settings: { graphics: 'low' } }).settings.graphics === 'low' && hydrateSave({ settings: { graphics: 'ultra' } }).settings.graphics === 'high');
+  check('High: up to 1.5× on a sharp screen', pixelRatioFor('high', 2) === 1.5 && pixelRatioFor('high', 1) === 1);
+  check('Low: 0.75× (a softer, much cheaper picture)', pixelRatioFor('low', 2) === 0.75 && pixelRatioFor('low', 1) === 0.75);
+}
+
+section('The microphone: asked on the main menu, never mid-run (0.9.9)');
+{
+  // A stand-in browser: what it already knows about the mic, and every time the mic is opened (a prompt
+  // unless it's already allowed).
+  let state: PermissionState = 'prompt';
+  let opened = 0;
+  const stopped: string[] = [];
+  const real = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      permissions: { query: async () => ({ state }) },
+      mediaDevices: {
+        getUserMedia: async () => {
+          opened++;
+          if (state === 'denied') throw new Error('NotAllowedError');
+          const id = `s${opened}`;
+          return { id, getTracks: () => [{ stop: () => stopped.push(id) }] } as unknown as MediaStream;
+        },
+      },
+    },
+  });
+  check('in a run, not asked yet: no mic, and no question', (await micIfAllowed()) === null && opened === 0);
+  state = 'denied';
+  check('the main menu: the browser already knows "no": nothing asked', (await askMicOnce()) === 'no' && opened === 0);
+  check('…and the run doesn\'t ask either', (await micIfAllowed()) === null && opened === 0);
+  state = 'prompt';
+  check('back on the main menu: not asked again', (await askMicOnce()) === 'no' && opened === 0);
+  const yes = await askMic();
+  state = 'granted';
+  check('asked (the solo switch, Ready): yes', yes === 'yes' && micAnswer() === 'yes' && opened === 1);
+  check('…and the mic is let go at once (no recording light while you play solo)', stopped.includes('s1') && currentMic() === null);
+  const m = await micIfAllowed();
+  check('the run opens it with no question (already allowed)', m !== null && m.id === 's2' && currentMic() === m && !stopped.includes('s2'));
+  check('…once', (await micIfAllowed()) === m && opened === 2);
+  if (real) Object.defineProperty(globalThis, 'navigator', real);
 }

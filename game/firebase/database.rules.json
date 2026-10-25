@@ -28,6 +28,10 @@
           ".write": "auth != null && root.child('rooms').child($code).child('host').val() === auth.uid",
           ".validate": "newData.isBoolean()"
         },
+        "mimic": {
+          ".write": "auth != null && root.child('rooms').child($code).child('host').val() === auth.uid",
+          ".validate": "newData.isBoolean()"
+        },
         "slots": {
           "$slot": {
             ".write": "auth != null && root.child('rooms').child($code).child('host').exists() && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && !newData.exists()))",
@@ -60,6 +64,8 @@
           "lk": { "$i": { ".write": "auth != null && root.child('rooms').child($code).child('players').child(auth.uid).exists()" } },
           "pw": { ".write": "auth != null && root.child('rooms').child($code).child('players').child(auth.uid).exists()" },
           "rv": { "$uid": { ".write": "auth != null && root.child('rooms').child($code).child('players').child(auth.uid).exists()" } },
+          "sv": { "$uid": { ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($code).child('players').child(auth.uid).exists()" } },
+          "pg": { "$uid": { ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($code).child('players').child(auth.uid).exists()" } },
           "$other": { ".validate": false }
         },
         "rtc": {

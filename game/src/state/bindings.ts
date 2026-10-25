@@ -1,7 +1,7 @@
 // Update 0.5 — rebindable controls. Pure: codes are KeyboardEvent.code ('KeyW', 'ShiftLeft')
 // or mouse buttons as 'Mouse0'..'Mouse4' (left, middle, right, back, forward).
 
-export type Action = 'forward' | 'back' | 'left' | 'right' | 'sprint' | 'crouch' | 'flashlight' | 'interact' | 'skillCheck' | 'lookBack' | 'mute';
+export type Action = 'forward' | 'back' | 'left' | 'right' | 'sprint' | 'crouch' | 'flashlight' | 'interact' | 'skillCheck' | 'lookBack' | 'mute' | 'ping';
 export type Bindings = Record<Action, string>;
 
 /** Order shown in settings and the controls card. */
@@ -17,6 +17,7 @@ export const ACTIONS: { id: Action; label: string }[] = [
   { id: 'skillCheck', label: 'Skill check / drop' }, // Update 0.9 — electrical panel repairs; 0.9.8: drop what's in your hand
   { id: 'lookBack', label: 'Look back (running)' }, // Update 0.5.4
   { id: 'mute', label: 'Mute microphone (co-op)' }, // Update 0.9.9 — proximity chat
+  { id: 'ping', label: 'Ping (co-op)' }, // Update 0.9.9 — mark a spot / item / The Patient for the others
 ];
 
 export const DEFAULT_BINDINGS: Bindings = {
@@ -31,6 +32,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   skillCheck: 'Space', // Update 0.9
   lookBack: 'KeyQ', // Update 0.5.4 — hold while running
   mute: 'KeyV', // Update 0.9.9
+  ping: 'KeyF', // Update 0.9.9
 };
 
 /** Never bindable: Esc pauses (the browser owns it), F2/F3 are the debug view, Win/Cmd opens the OS.

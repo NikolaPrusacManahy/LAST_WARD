@@ -4,6 +4,19 @@ import { Bindings, DEFAULT_BINDINGS, hydrateBindings } from './bindings';
 import { DEFAULT_DIFFICULTY, Difficulty, hydrateDifficulty } from './difficulty';
 import { NAME_MAX } from './coop';
 
+/** Update 0.9.9 — graphics quality. Low draws at 0.75× your screen's resolution (stretched to fill it) with
+ *  no shadows: the two things that cost most. High: up to 1.5× on sharp screens, the flashlight's shadows. */
+export type Graphics = 'high' | 'low';
+export const GRAPHICS: Record<Graphics, { label: string; blurb: string }> = {
+  high: { label: 'High', blurb: 'Sharp, with shadows from your flashlight.' },
+  low: { label: 'Low', blurb: 'For slower computers: a softer picture and no shadows, so it runs smoothly.' },
+};
+
+/** How many pixels to draw per screen pixel. */
+export function pixelRatioFor(g: Graphics, devicePixelRatio: number): number {
+  return g === 'low' ? Math.min(devicePixelRatio, 1) * 0.75 : Math.min(devicePixelRatio, 1.5);
+}
+
 export interface Settings {
   sensitivity: number; // 0.2 – 3
   /** Master volume 0 – 1 (the key stays `volume` so old saves keep it). */
@@ -22,6 +35,10 @@ export interface Settings {
   bindings: Bindings;
   /** Update 0.9.3 — the last difficulty picked (the picker starts on it). */
   difficulty: Difficulty;
+  /** Update 0.9.9 — graphics quality. */
+  graphics: Graphics;
+  /** Update 0.9.9 — test build only: solo runs use your microphone and The Patient mimics you. */
+  soloMimic: boolean;
 }
 
 export interface SaveData {
@@ -39,7 +56,7 @@ export const SAVE_KEY = 'last-ward-save';
 export const FOV_MIN = 60;
 export const FOV_MAX = 100;
 
-export const DEFAULT_SETTINGS: Settings = { sensitivity: 1, volume: 0.8, sfxVolume: 1, bgmVolume: 1, voiceVolume: 1, invertY: false, grain: true, fov: 72, bindings: DEFAULT_BINDINGS, difficulty: DEFAULT_DIFFICULTY };
+export const DEFAULT_SETTINGS: Settings = { sensitivity: 1, volume: 0.8, sfxVolume: 1, bgmVolume: 1, voiceVolume: 1, invertY: false, grain: true, fov: 72, bindings: DEFAULT_BINDINGS, difficulty: DEFAULT_DIFFICULTY, graphics: 'high', soloMimic: false };
 
 export function defaultSave(): SaveData {
   return { version: 1, settings: { ...DEFAULT_SETTINGS, bindings: { ...DEFAULT_BINDINGS } }, bestTime: null, escapes: 0, deaths: 0, coopName: '' };
@@ -67,6 +84,8 @@ export function hydrateSave(raw: unknown): SaveData {
       fov: Math.round(clamp(s.fov, FOV_MIN, FOV_MAX, DEFAULT_SETTINGS.fov)),
       bindings: hydrateBindings(s.bindings),
       difficulty: hydrateDifficulty(s.difficulty),
+      graphics: s.graphics === 'low' ? 'low' : 'high',
+      soloMimic: s.soloMimic === true,
     },
     bestTime: typeof r.bestTime === 'number' && r.bestTime > 0 ? r.bestTime : null,
     escapes: clamp(r.escapes, 0, 1e9, 0),

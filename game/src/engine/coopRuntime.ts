@@ -16,14 +16,17 @@ import { caughtTimes, nextGruntDelay } from '../state/caughtSequence';
 import { hitTimes } from '../state/hitSequence';
 import { PLAYER } from '../state/playerRules';
 import {
-  HARD_CRAWL_BOOST, IN_PLAY, LifeState, LiveState, Member, SEND_HZ, Track, VOICE, VIEW_DELAY, addToTrack, createTrack, hears, louder, sampleTrack,
+  HARD_CRAWL_BOOST, IN_PLAY, LifeState, LiveState, MIMIC, Member, ResumeState, SEND_HZ, mimicNow, mimicWho, nextMimic, Track, VOICE, VIEW_DELAY, addToTrack, createTrack, hears, louder, sampleTrack,
   voiceDistanceGain, voiceNoiseRadius,
 } from '../state/coopRun';
 import type { RoomPlayer } from '../state/coop';
 import { EnemyNet, ItemNet, PanelNet, PowerNet, ReviveNet, RunSync } from '../net/runSync';
-import { VoiceChat, getMic } from '../net/voice';
+import { VoiceChat, micIfAllowed } from '../net/voice';
 import type { CoopLink } from '../net/room';
 import { TeammateView, createTeamLight, loadTeammate } from './teammateView';
+import { createPingMarkers } from './pingView';
+import { VoiceClips } from '../audio/voiceClips';
+import type { PingMark } from '../world/ping';
 
 type V3 = { x: number; y: number; z: number };
 type VoiceNode = ReturnType<AudioEngine['addVoice']>;
@@ -84,6 +87,9 @@ export class CoopRuntime {
   /** Revives under way / done, by who's being got up. */
   readonly revives = new Map<string, ReviveNet>();
   private sendIn = 0;
+  private saveIn = 0;
+  /** Everyone who's been in the run (a roster player you've never heard from yet is just starting). */
+  private seen = new Set<string>();
   private myNoise: (Noise & { seq: number }) | null = null;
   private noiseSeq = 0;
   // The Patient off the host: its updates, smoothed; the events already played.
@@ -108,6 +114,13 @@ export class CoopRuntime {
   /** Out and watching through this teammate's eyes: their body isn't drawn (you'd be inside it). */
   watched: string | null = null;
   private tmp = new THREE.Vector3();
+  private pings: ReturnType<typeof createPingMarkers>;
+  /** Update 0.9.9 — the mimic: everyone's lines kept here (all games), and on the host when it next mimics
+   *  and who has talked. */
+  readonly clips: VoiceClips | null;
+  private clipOffs = new Map<string, () => void>();
+  private mimicIn = 0;
+  private talked = new Set<string>();
 
   constructor(
     private link: CoopLink,
@@ -120,6 +133,9 @@ export class CoopRuntime {
     this.host = link.host;
     this.me = link.me;
     this.sync = new RunSync(link.store, link.code, link.me, link.host);
+    this.pings = createPingMarkers(scene);
+    this.clips = link.voice && link.mimic ? new VoiceClips(audio.ctx) : null;
+    this.mimicIn = nextMimic(true, Math.random);
     // Their flashlights: made now and kept (see createTeamLight).
     for (let i = 0; i < 2; i++) this.lights.push(createTeamLight(scene));
     this.sync.start({
@@ -130,15 +146,21 @@ export class CoopRuntime {
       power: (p) => side.power(p),
       revive: (id, r) => (r ? this.revives.set(id, r) : this.revives.delete(id)),
       enemy: (e) => this.onEnemy(e),
+      ping: (id, mark) => {
+        this.pings.show(id, mark, this.mates.get(id)?.name ?? this.roster().find((p) => p.id === id)?.name ?? '?', performance.now() / 1000);
+        this.audio.ping(this.side.toWorld(mark.pos), mark.kind === 'enemy');
+      },
     });
     // Proximity chat: starts once you've answered the microphone question (a run that began while the
     // prompt was still up used to go on without your mic for good). A teammate's call waits in your inbox.
+    // Update 0.9.9 — never asked here: a prompt mid-run takes the mouse away (said no: chat without it).
     if (link.voice) {
-      void (link.mic ? Promise.resolve(link.mic) : getMic()).then((mic) => {
+      void (link.mic ? Promise.resolve(link.mic) : micIfAllowed()).then((mic) => {
         if (this.disposed) return;
         this.voice = new VoiceChat(link.store, link.code, link.me, mic, (id, stream) => this.onVoice(id, stream));
         this.voice.start();
         if (mic) this.micDb = audio.micMeter(mic);
+        if (mic && this.clips) this.clipOffs.set(this.me, this.clips.record(this.me, mic));
       });
     }
   }
@@ -172,6 +194,7 @@ export class CoopRuntime {
       return;
     }
     const m = this.mate(id);
+    this.seen.add(id);
     addToTrack(m.track, s, performance.now() / 1000);
     m.latest = s;
     if (this.host && s.noise && s.noise.seq !== m.noiseSeq) {
@@ -184,7 +207,8 @@ export class CoopRuntime {
     if (this.host && m.latest) {
       const at = m.latest.pos;
       const lockers = [...this.lockers].filter(([, who]) => who === m.id).map(([i]) => i);
-      this.sync.cleanUpAfter(m.id, at, this.heldBy(m.id), lockers, this.panelsBy(m.id));
+      const revives = [...this.revives].filter(([, r]) => r.by === m.id && !r.d).map(([id]) => id);
+      this.sync.cleanUpAfter(m.id, at, this.heldBy(m.id), lockers, this.panelsBy(m.id), revives);
     }
     m.view?.dispose();
     if (m.view) this.scene.remove(m.view.root);
@@ -202,6 +226,9 @@ export class CoopRuntime {
     const m = this.mate(id);
     m.voice?.dispose();
     m.voice = stream ? this.audio.addVoice(stream) : null;
+    this.clipOffs.get(id)?.();
+    this.clipOffs.delete(id);
+    if (stream && this.clips) this.clipOffs.set(id, this.clips.record(id, stream));
   }
 
   private onEnemy(e: EnemyNet) {
@@ -262,6 +289,15 @@ export class CoopRuntime {
     let n: Noise | null = null;
     for (const q of this.queue) n = louder(n, q);
     this.queue = [];
+    // The mimic: now and then, while it prowls, one of you who has talked.
+    if (this.link.mimic && this.link.voice) {
+      this.mimicIn -= dt;
+      if (this.mimicIn <= 0) {
+        const who = mimicNow(e.mode, !!e.crawl, false) ? mimicWho([...this.talked], world.rng) : null;
+        this.mimicIn = who ? nextMimic(false, world.rng) : MIMIC.retry;
+        if (who) events.push(`mimic:${who}`);
+      }
+    }
     const sense = target?.sense ?? { ...NOBODY, pos: nearestPos(e, hunted) };
     const ev = stepEnemy(this.level, e, { dt, player: sense, noise: n, fuses: world.fuses, lockers: world.lockers, playerLocker: null, crawlBoost: this.crawlBoostHard ? HARD_CRAWL_BOOST : 1 }, world.rng);
     for (const x of ev) if (x !== 'caught' && x !== 'foundYou') events.push(x);
@@ -378,6 +414,7 @@ export class CoopRuntime {
     // Your voice as a noise ("Enemy can hear you talk").
     const db = this.micDb && !this.voice?.isMuted ? this.micDb() : -100;
     this.myTalking = db > -45;
+    if (this.myTalking) this.talked.add(this.me);
     this.voiceNoiseIn -= dt;
     if (this.link.hear && IN_PLAY.includes(mine.life) && mine.life === 'up' && this.voiceNoiseIn <= 0) {
       const r = voiceNoiseRadius(db);
@@ -385,6 +422,13 @@ export class CoopRuntime {
         this.voiceNoiseIn = VOICE.every;
         this.noise({ pos: { ...mine.pos }, radius: r });
       }
+    }
+
+    // Where you are and how, about once a second (rejoining puts you back there).
+    this.saveIn -= dt;
+    if (this.saveIn <= 0 && mine.life !== 'caught') {
+      this.saveIn = 1;
+      this.sync.saveResume(this.resumeOf(mine));
     }
 
     // You, ten times a second (with the loudest noise since the last time).
@@ -405,14 +449,14 @@ export class CoopRuntime {
       const prev = m.now;
       m.now = sampleTrack(m.track, now);
       if (!m.now) continue;
-      this.drawMate(m, dt);
+      this.drawMate(m, dt, mine);
       this.hearMate(m, prev, dt, listener, mine.life);
     }
     this.voice?.setPeers(roster.filter((p) => p.id !== this.me && this.mates.has(p.id)).map((p) => p.id));
     return events;
   }
 
-  private drawMate(m: Mate, dt: number) {
+  private drawMate(m: Mate, dt: number, mine: LiveState) {
     if (!m.view && !m.loading) {
       m.loading = true;
       m.light = this.lights.find((l) => ![...this.mates.values()].some((o) => o.light === l)) ?? null;
@@ -424,7 +468,7 @@ export class CoopRuntime {
         })
         .catch((err) => console.warn('Teammate model failed to load', err));
     }
-    m.view?.update(m.now!, dt, performance.now() / 1000 < m.talkUntil);
+    m.view?.update(m.now!, dt, performance.now() / 1000 < m.talkUntil, this.revivingWho(m.id, mine));
     if (m.view && m.id === this.watched) m.view.root.visible = false;
   }
 
@@ -480,8 +524,23 @@ export class CoopRuntime {
       const d = dist(s.pos, listener);
       const g = !ok ? 0 : spatial ? voiceDistanceGain(d) * Math.max(0.15, m.mix.gain) : 1;
       m.voice.set(this.headOf(m), g, spatial ? m.mix.cutoff : 16000, spatial);
-      if (ok && m.voice.level() > -45) m.talkUntil = performance.now() / 1000 + 0.3;
+      if (ok && m.voice.level() > -45) {
+        m.talkUntil = performance.now() / 1000 + 0.3;
+        this.talked.add(m.id);
+      }
     }
+  }
+
+  /** Update 0.9.9 — your ping (F): shown for you, sent to the others. */
+  ping(mark: PingMark) {
+    this.pings.show(this.me, mark, null, performance.now() / 1000);
+    this.audio.ping(this.side.toWorld(mark.pos), mark.kind === 'enemy');
+    this.sync.ping(mark);
+  }
+
+  /** Each frame (drawn ones): the markers fade, and say how far they are from your eyes. */
+  drawPings(eye: { x: number; y: number; z: number }) {
+    this.pings.update(eye, performance.now() / 1000);
   }
 
   setMuted(on: boolean) {
@@ -501,12 +560,16 @@ export class CoopRuntime {
     return !!this.micDb;
   }
 
-  /** Everyone and where they are in the run (you as `myLife`; anyone gone from the room as 'left'). */
+  /** What the Game knows about you that the run doesn't (lives), for the saved state. */
+  resumeOf: (mine: LiveState) => ResumeState = (mine) => ({ pos: mine.pos, yaw: mine.yaw, lives: 1, injured: mine.injured, life: mine.life, bleed: mine.bleed });
+
+  /** Everyone and where they are in the run (you as `myLife`; anyone gone from the room, or dropped out
+   *  and not back yet, as 'left'). */
   team(myLife: LifeState): Member[] {
     return this.roster().map((p): Member => {
       if (p.id === this.me) return { id: p.id, name: p.name, life: myLife };
       const m = this.mates.get(p.id);
-      return { id: p.id, name: p.name, life: m?.latest?.life ?? 'up' };
+      return { id: p.id, name: p.name, life: m?.latest?.life ?? (this.seen.has(p.id) ? 'left' : 'up') };
     }).concat(
       // Started the run with you but gone from the room since.
       this.link.startedWith.filter((p) => !this.roster().some((r) => r.id === p.id)).map((p) => ({ id: p.id, name: p.name, life: 'left' as const })),
@@ -517,6 +580,16 @@ export class CoopRuntime {
   mateNow(id: string): (LiveState & { name: string }) | null {
     const m = this.mates.get(id);
     return m?.now ? { ...m.now, name: m.name } : null;
+  }
+
+  /** Update 0.9.9 — whoever `id` is getting up (where they lie, the way they face), or null. `mine`: you. */
+  revivingWho(id: string, mine: LiveState | null): { pos: Vec2; yaw: number } | null {
+    for (const [downId, r] of this.revives) {
+      if (r.by !== id || r.d) continue;
+      const down = downId === this.me ? mine : this.mates.get(downId)?.now;
+      if (down?.life === 'down') return down;
+    }
+    return null;
   }
 
   /** Teammates who are down, as you'd see them now. */
@@ -541,6 +614,8 @@ export class CoopRuntime {
 
   dispose() {
     this.disposed = true;
+    this.pings.dispose();
+    this.clips?.dispose();
     this.sync.stop();
     this.voice?.stop();
     for (const m of [...this.mates.values()]) {
