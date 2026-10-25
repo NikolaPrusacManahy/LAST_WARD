@@ -2175,7 +2175,7 @@ export class Game {
 
   /** Update 0.9.9 — test build only (Settings → Audio): a solo run with your microphone, and it mimics you. */
   private startSoloMimic() {
-    if (this.rt || !import.meta.env.DEV || !this.settings.soloMimic || this.soloClips) return;
+    if (this.rt || !import.meta.env.DEV || !MIMIC.enabled || !this.settings.soloMimic || this.soloClips) return;
     this.soloClips = new VoiceClips(this.audio.ctx);
     this.soloMimicIn = MIMIC_SOLO_TEST.firstMin + Math.random() * (MIMIC_SOLO_TEST.firstMax - MIMIC_SOLO_TEST.firstMin);
     void micIfAllowed().then((mic) => {

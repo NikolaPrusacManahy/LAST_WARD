@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CoopClient, CoopStart } from '../net/room';
 import { currentMic, getMic, micAnswer } from '../net/voice';
 import { CODE_LENGTH, COOP_DIFFICULTIES, COOP_DIFFICULTY, CoopDifficulty, MAX_PLAYERS, NAME_MAX, Room, countdownLeft, lobbyHint, normalizeCode } from '../state/coop';
+import { MIMIC } from '../state/coopRun';
 
 interface Props {
   client: CoopClient;
@@ -200,13 +201,15 @@ function Lobby({ client, room, me, local, busy }: { client: CoopClient; room: Ro
             <input type="checkbox" checked={room.hear} disabled={!host || !room.voice || room.status !== 'lobby'} onChange={(e) => void client.setOptions({ hear: e.target.checked })} />
             <span className="lw-opt-name">Enemy can hear you talk</span>
           </label>
+          {MIMIC.enabled && (
           <label className={`lw-opt ${room.voice ? '' : 'lw-opt-off'}`}>
             <input type="checkbox" checked={room.mimic} disabled={!host || !room.voice || room.status !== 'lobby'} onChange={(e) => void client.setOptions({ mimic: e.target.checked })} />
             <span className="lw-opt-name">It mimics your voices</span>
           </label>
+          )}
           {room.voice && (
             <p className="lw-lobby-privacy">
-              Voice is peer-to-peer: players in this room can see your IP.{room.mimic ? ' Mimic clips stay in memory, this run only.' : ''}
+              Voice is peer-to-peer: players in this room can see your IP.{MIMIC.enabled && room.mimic ? ' Mimic clips stay in memory, this run only.' : ''}
             </p>
           )}
           {room.voice && (

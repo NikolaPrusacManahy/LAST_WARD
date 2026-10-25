@@ -374,6 +374,9 @@ export function voiceDistanceGain(d: number): number {
  * in, then every 45–90 s, someone who has talked. Played at `rate` (lower and slower than they said it).
  */
 export const MIMIC = {
+  /** Update 0.9.9 — off for now (Nikola, while co-op still lags for a guest): no lobby option, nobody's voice
+   *  recorded, no mimicking, no solo test switch. Everything else is kept: set true to bring it back. */
+  enabled: false,
   minLine: 0.7,
   maxLine: 4,
   endQuiet: 0.45,

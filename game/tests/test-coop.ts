@@ -15,6 +15,7 @@ import { overlapsWall } from '../src/world/collision';
 import { placedProps, propBlockers } from '../src/world/props';
 import { PLAYER } from '../src/state/playerRules';
 import { defaultSave, hydrateSave } from '../src/state/settings';
+import { MIMIC } from '../src/state/coopRun';
 
 const room = (over: Partial<Room> = {}): Room => ({
   code: 'K7Q2M', host: 'a', status: 'lobby', startAt: 0, difficulty: 'normal', seed: 1, voice: true, hear: false, mimic: true,
@@ -166,6 +167,7 @@ section('Co-op: three players through the lobby (0.9.9)');
   check('time is up → everyone starts together', runs.every((r) => r !== null));
   check('each run knows its slot, the difficulty and the seed', runs.map((r) => r!.slot).join() === '0,1,2' && runs.every((r) => r!.difficulty === 'hard' && r!.seed === runs[0]!.seed));
   check('one host among them', runs.filter((r) => r!.host).length === 1 && runs[0]!.host);
+  check('the mimic is off for now: no run gets it, whatever the room says (0.9.9)', !MIMIC.enabled && ann.getSnapshot().room!.mimic && runs.every((r) => !r!.link.mimic));
   check('too late to join a run that started', !(await dee.join(code, 'Dee')) && dee.getSnapshot().error === COOP_ERRORS.started);
 }
 

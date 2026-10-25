@@ -4,6 +4,11 @@
 
 Co-op for up to three players, over Firebase: the lobby, and now the run itself. One shared ward, one Patient hunting all of you, going down and getting each other up, proximity voice chat. The version stays 0.9.9 until the game is ready to go public (Nikola's call).
 
+### The mimic is off for now (0.9.9)
+
+- Nikola's second co-op test: still laggy for the guest (Nikola hosting). **The mimic is switched off for now** (`MIMIC.enabled = false` in `state/coopRun.ts`): no lobby option, nobody's voice recorded (it recorded on the main thread in every game), The Patient never mimics, no solo test switch in Settings. All its code and the room's `mimic` field are kept: set `enabled` back to true to bring it back. New check in `tests/test-coop.ts`: no run gets the mimic, whatever the room says.
+- Suggested next for the lag (not done yet): a small network / frame-rate readout for the next test (FPS, ping to the host, how far behind things are drawn), then sending positions and The Patient straight between the players over WebRTC (the voice chat's connection) at 20 a second, with Firebase as the fallback.
+
 ### Menus: less text, twice the size, no scrolling; look back without slow motion (0.9.9, seventh part)
 
 - **Less explaining** (Nikola: gamers get what they recognise). Gone: the line under Co-op ("Up to three of you…") and under Difficulty, the voice options' explanations, the Graphics explanation, the solo mimic paragraph, "Headphones recommended…" on the main menu (the intro card says it). Shorter: difficulty ("2 lives. Revives." / "1 life. No revives. Less battery."; solo "Night vision." / "2 lives." / "1 life. Less battery."), the mic lines ("Mic on · V mutes", "No mic"), the lobby's waiting line ("Share the code. 2 players minimum.", "Waiting for 1 player.", "All ready."). The privacy note stays, in one line.

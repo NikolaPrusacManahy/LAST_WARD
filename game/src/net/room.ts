@@ -5,7 +5,7 @@ import type { Rng } from '../world/rng';
 import type { Store, Unsubscribe } from './store';
 import { CoopDifficulty, Room, RoomPlayer, cleanName, freeSlots, hostStep, isValidCode, makeRoomCode, normalizeCode, parseRoom, slotKey } from '../state/coop';
 import { currentMic } from './voice';
-import type { ResumeState } from '../state/coopRun';
+import { MIMIC, type ResumeState } from '../state/coopRun';
 
 export interface CoopSnapshot {
   /** Creating / joining / leaving: buttons wait. */
@@ -281,7 +281,7 @@ export class CoopClient {
       host: room.host === this.snap.me,
       voice: room.voice,
       hear: room.hear,
-      mimic: room.mimic,
+      mimic: MIMIC.enabled && room.mimic, // Update 0.9.9 — off for now (MIMIC.enabled)
       mic: room.voice ? currentMic() : null,
       players: () => this.snap.room?.players ?? [],
       startedWith: room.players,

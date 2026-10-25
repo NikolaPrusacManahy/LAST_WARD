@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { FOV_MAX, FOV_MIN, GRAPHICS, Graphics, Settings } from '../state/settings';
 import { KeyBindings } from './KeyBindings';
 import { askMic } from '../net/voice';
+import { MIMIC } from '../state/coopRun';
 
 const VOLUMES: [key: 'volume' | 'sfxVolume' | 'bgmVolume' | 'voiceVolume', label: string][] = [
   ['volume', 'Master volume'],
@@ -78,7 +79,7 @@ export function SettingsPanel({ settings: s, onChange, onClose }: Props) {
                 </label>
               ))}
               {/* Update 0.9.9 — test build only: try the mimic on your own (solo runs use your microphone). */}
-              {import.meta.env.DEV && (
+              {import.meta.env.DEV && MIMIC.enabled && (
                 <label className="lw-set-row lw-set-check">
                   <span>Solo mimic (test)</span>
                   <input
