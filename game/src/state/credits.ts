@@ -31,6 +31,8 @@ export const CREDITS: Credit[] = [
   { id: 'bottle', what: 'Glass bottle', title: 'Beer Bottle', author: 'gelmi.com.br', licence: CC_BY, source: 'https://sketchfab.com/3d-models/beer-bottle-c3de7f8b092e4092aef14d4ffc9fac7f' },
   // Update 0.9.8 — the link is a search until the model page link is filled in (like the locker).
   { id: 'medkit', what: 'Med kit', title: 'Medkit_low', author: '3dmodelsst', licence: CC_BY, source: 'https://sketchfab.com/search?q=Medkit_low+3dmodelsst&type=models' },
+  // Update 1.0.1 — Harrow Mill: walls, floors, roof plates, stairs, lamps, benches and props.
+  { id: 'factory', what: 'Harrow Mill (the factory)', title: 'Abandoned Factory Modules', author: 'Thaddaeus', licence: CC_BY, source: 'https://sketchfab.com/3d-models/abandoned-factory-modules-1f8e4e72cafc4df18945a8a9cd22dd7d' },
   { id: 'mixamo', what: 'Characters and animations', title: 'Mixamo', author: 'Adobe', licence: 'Mixamo terms', source: 'https://www.mixamo.com' },
   { id: 'kenney', what: 'Control icons', title: 'Input Prompts', author: 'Kenney', licence: 'CC0', source: 'https://kenney.nl' },
   { id: 'fonts', what: 'Fonts', title: 'Special Elite, IBM Plex Mono', author: 'Astigmatic, IBM', licence: 'Apache 2.0, SIL OFL 1.1', source: 'https://fonts.google.com' },
@@ -59,4 +61,12 @@ export const PROP_CREDIT: Record<PropKind, string> = {
   item_table: 'hospital_room',
   fluorescent: 'fluorescent',
   locker: 'locker',
+  console: 'factory',
+  crate: 'factory',
+  crate_tall: 'factory',
+  tank: 'factory',
+  electric_box: 'factory',
+  sign_caution: 'factory',
+  sign_warning: 'factory',
+  blueprint: 'factory',
 };

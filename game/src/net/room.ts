@@ -3,7 +3,7 @@
 // when the host goes the room goes with them. React reads it through subscribe / getSnapshot.
 import type { Rng } from '../world/rng';
 import type { Store, Unsubscribe } from './store';
-import { CoopDifficulty, Room, RoomPlayer, cleanName, freeSlots, hostStep, isValidCode, makeRoomCode, normalizeCode, parseRoom, slotKey } from '../state/coop';
+import { CoopDifficulty, LEVEL_ID, Room, RoomPlayer, cleanName, freeSlots, hostStep, isValidCode, makeRoomCode, normalizeCode, parseRoom, slotKey } from '../state/coop';
 import { currentMic } from './voice';
 import { MIMIC, type ResumeState } from '../state/coopRun';
 
@@ -24,6 +24,8 @@ export interface CoopStart {
   code: string;
   difficulty: CoopDifficulty;
   seed: number;
+  /** Update 1.0.1 — the map (a level id; '' = the first map). */
+  level: string;
   slot: number;
   host: boolean;
   players: RoomPlayer[];
@@ -261,6 +263,13 @@ export class CoopClient {
     await this.store.update(roomPath(room.code), { difficulty });
   }
 
+  /** Update 1.0.1 — host only, in the lobby: which map the run plays. */
+  async setLevel(level: string) {
+    const room = this.snap.room;
+    if (!room || !this.store || !this.isHost() || room.status !== 'lobby' || !LEVEL_ID.test(level)) return;
+    await this.store.update(roomPath(room.code), { level });
+  }
+
   /** Update 0.9.9 — host only, in the lobby: proximity chat on / off, and whether it hears you talk. */
   async setOptions(o: { voice?: boolean; hear?: boolean; mimic?: boolean }) {
     const room = this.snap.room;
@@ -287,7 +296,7 @@ export class CoopClient {
       startedWith: room.players,
       closed: () => !this.snap.room && this.snap.error === COOP_ERRORS.closed,
     };
-    return { code: room.code, difficulty: room.difficulty, seed: room.seed, slot: me.slot, host: link.host, players: room.players, link };
+    return { code: room.code, difficulty: room.difficulty, seed: room.seed, level: room.level, slot: me.slot, host: link.host, players: room.players, link };
   }
 
   /** Leave the room (the host's leaving closes it for everyone). */

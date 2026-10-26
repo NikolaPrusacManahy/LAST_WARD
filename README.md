@@ -4,7 +4,16 @@ A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
 You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find four fuses, bring four electrical panels back to life, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 1.0.0, the first public release. A student work. The full patch history is in `HANDOVER.md`.
+Current version: 1.0.1: a second map, Harrow Mill, and a map picker. A student work (1.0.0 was the first public release). The full patch history is in `HANDOVER.md`.
+
+## Maps
+
+After **Begin** you pick a map, then the difficulty:
+
+- **St. Brigid's — Ward 13**: the hospital. One floor, tight halls, small rooms.
+- **Harrow Mill**: an abandoned factory on two floors. A machine hall, a warehouse of shelf aisles, a loading bay with the way out; a steel stair at each end leads up to the gantry, the records office, the drafting loft and the control room (one of the panels is up there). The Patient follows you up the stairs.
+
+Each map is a run of its own, with its own best time. In co-op the host picks the map in the lobby.
 
 ## How the game works
 
@@ -29,7 +38,7 @@ Picked each time you press Begin:
 
 ## Co-op
 
-Up to three players, over the internet (Firebase). Press **Co-op** on the main menu and type your name. One player presses **Create room** and gets a five-letter code to send to the others, who press **Join with code**. In the lobby the host picks Normal or Hard; when everyone is ready, a 3-second countdown starts and you all wake up side by side in the same room.
+Up to three players, over the internet (Firebase). Press **Co-op** on the main menu and type your name. One player presses **Create room** and gets a five-letter code to send to the others, who press **Join with code**. In the lobby the host picks the map and Normal or Hard; when everyone is ready, a 3-second countdown starts and you all wake up side by side in the same room.
 
 You share one ward: the same items on the same tables, the panels and the generator fixed for everyone, and one Patient hunting all of you. You see and hear each other (footsteps, grunts, flashlights), and you can't walk through each other. Caught on your last life, it hits you and you're sent flying; in co-op Normal you survive it, down on the floor: you have a minute, you can crawl, you breathe hard, and the others see a marker over you through the walls; a friend holds left click on you for 5 seconds to get you up (they kneel at your side, hands on your back). On Hard there's no getting up, and it climbs the ceilings twice as often. Once you're out (taken, or out the exit) you watch the others. The run ends when everyone is out; if anyone got out, you won.
 
@@ -128,7 +137,7 @@ o  the stairwell, on the floor above a flight of stairs
 
 A level can have several floors: one map per floor, ground floor first, all the same size. A flight of stairs is a straight line of arrows on the lower floor, with walls on both sides and a wall past the top step (the landing upstairs sits over it). The floor above marks the same cells with `o`. The game checks these rules when the level loads and says what's wrong.
 
-Note texts, the notes pinned to walls, the intro text and any changes to how The Patient behaves sit in the same file. The levels are played in the order listed in `levels.ts`; right now that's just the hospital. `tests/test-level.ts` checks that it's playable: every place can be reached, there are enough fuses, and there are no more than 8 lamps. `tests/test-floors.ts` checks the stairs on a small two-floor test map.
+Note texts, the notes pinned to walls, the intro text and any changes to how The Patient behaves sit in the same file, with its props, lockers, corridors and its look (`theme`: the hospital's tiles or the factory kit). `levels.ts` lists the maps you can pick (each needs an `id` and a one-line `blurb`). `tests/test-maps.ts` checks every one of them is playable: every place can be reached, there are enough fuses, the panels are one per quarter, every locker works, there are no more than 8 lamps. `tests/test-floors.ts` checks the stairs on a small two-floor test map, `tests/test-factory.ts` the factory's stairs and its build from the kit.
 
 ## Assets
 
@@ -136,6 +145,7 @@ Raw files go in `ASSETS/` and are converted into `game/public/` with the scripts
 
 - **Characters:** Mixamo FBX files go through `node tools/convert-character.mjs`, which produces one `.glb` per character with all animations merged. `--add` adds new clips to a `.glb` that's already converted.
 - **Props:** Sketchfab models in `ASSETS/models/props/` and `ASSETS/models/electrical/` go through `node tools/prepare-props.mjs ../ASSETS/models public/models/props`. It cuts out the parts the game uses, scales them to metres and shrinks their textures. Where each prop stands is set in the level file. The locker has its own script, `node tools/prepare-locker.mjs ../ASSETS/models/locker/locker.glb public/models/props/locker.glb`, which also cuts its door free so it can swing.
+- **The factory kit:** `node tools/prepare-kit.mjs ../ASSETS/models/factory/abandoned_factory_modules.glb public/models/props/factory_kit.glb` turns the Abandoned Factory Modules kit into one file for Harrow Mill (its walls, floors, roof plates, stairs, lamps and props), every piece sharing the kit's textures.
 - **Sound:** `python tools/prepare-audio.py ../ASSETS/audio public/audio` (needs Python with numpy and scipy, plus ffmpeg).
 - **Control icons:** `tools/prepare-input-icons.ts` recolours the Kenney input prompts to match the game. The whole Kenney pack sits in `ASSETS/UI - inputs/`, but `.gitignore` only uploads its licence and the 89 icons the game uses.
 
@@ -147,7 +157,7 @@ The debug tools only work when the game runs from the dev server (`START_GAME.ba
 
 Press F2 in game for the debug view: full lighting, The Patient's position and path, and an info panel. While it's open, F3 freezes The Patient.
 
-When there's more than one level, the main menu shows a tester panel in the top-right corner (local runs only) to pick which level Begin starts on; `?level=N` in the address does the same.
+`?level=N` in the address starts on map N whatever you picked (local runs only).
 
 Adding `?debug` to the address skips the credit screen and gives the browser console a `window.__lastWard` object with helpers for moving the player and The Patient. It plays like the normal game otherwise (the mouse is locked, Esc pauses).
 

@@ -82,7 +82,12 @@ export function wallTexture(variant: WallVariant, seed: number): THREE.CanvasTex
     ctx.fillRect(x, 0, w, h);
   }
   grime(ctx, S, rng, variant === 'plain' ? 10 : 22, 'rgba(30,25,15,0.35)');
+  bloodAndWriting(ctx, S, rng, variant, 'IT HEARS YOU');
+  return toTexture(c);
+}
 
+/** The blood smear, hand prints and scrawled line of the 'blood' / 'writing' wall variants. */
+function bloodAndWriting(ctx: CanvasRenderingContext2D, S: number, rng: () => number, variant: WallVariant, text: string) {
   if (variant === 'blood' || variant === 'writing') {
     // Dragged smear + drips.
     ctx.fillStyle = 'rgba(90,8,8,0.85)';
@@ -112,9 +117,135 @@ export function wallTexture(variant: WallVariant, seed: number): THREE.CanvasTex
     ctx.font = 'bold 64px "Special Elite", monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(110,10,10,0.9)';
-    ctx.fillText('IT HEARS YOU', 0, 0);
+    ctx.fillText(text, 0, 0);
     ctx.restore();
   }
+}
+
+/**
+ * Update 1.0.1 — the factory (Harrow Mill): red brick up to about a metre, a concrete sill on it, then
+ * flaking grey-beige concrete with rust and water running down from the roof.
+ */
+export function factoryWallTexture(variant: WallVariant, seed: number): THREE.CanvasTexture {
+  const S = 512;
+  const [c, ctx] = canvas(S);
+  const rng = createRng(seed);
+  // Concrete.
+  ctx.fillStyle = '#857f72';
+  ctx.fillRect(0, 0, S, S);
+  speckle(ctx, S, rng, 9000, 0.1);
+  grime(ctx, S, rng, 14, 'rgba(160,150,130,0.18)');
+  // Formwork seams.
+  ctx.strokeStyle = 'rgba(40,36,30,0.35)';
+  ctx.lineWidth = 2;
+  for (const y of [S * 0.22, S * 0.45]) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(S, y); ctx.stroke();
+  }
+  // Brick (lower third), one course every 22 px, every other course shifted half a brick.
+  const brickTop = S * 0.66;
+  ctx.fillStyle = '#3b2620';
+  ctx.fillRect(0, brickTop, S, S - brickTop);
+  const bh = 22;
+  const bw = 64;
+  for (let y = brickTop, row = 0; y < S; y += bh, row++) {
+    for (let x = row % 2 ? -bw / 2 : 0; x < S; x += bw) {
+      const r = rng() < 0.15 ? 55 + rng() * 20 : 80 + rng() * 32;
+      ctx.fillStyle = `rgb(${r | 0},${(r * 0.5) | 0},${(r * 0.4) | 0})`;
+      ctx.fillRect(x + 2, y + 2, bw - 4, bh - 4);
+    }
+  }
+  grime(ctx, S, rng, 10, 'rgba(20,12,8,0.35)');
+  // Sill between brick and concrete, and the dark foot of the wall.
+  ctx.fillStyle = '#6d685d';
+  ctx.fillRect(0, brickTop - 12, S, 12);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(0, brickTop, S, 4);
+  ctx.fillStyle = '#1c1915';
+  ctx.fillRect(0, S - 10, S, 10);
+  // Flaking patches (pale concrete showing through).
+  for (let i = 0; i < 6; i++) {
+    ctx.fillStyle = `rgba(170,162,145,${0.25 + rng() * 0.25})`;
+    ctx.beginPath();
+    const px = rng() * S;
+    const py = rng() * brickTop * 0.9;
+    for (let k = 0; k < 7; k++) {
+      const a = (k / 7) * Math.PI * 2;
+      const r = 10 + rng() * 26;
+      ctx.lineTo(px + Math.cos(a) * r, py + Math.sin(a) * r * 0.7);
+    }
+    ctx.fill();
+  }
+  // Rust and water running down from the roof.
+  for (let i = 0; i < 6; i++) {
+    const x = rng() * S;
+    const w = 6 + rng() * 30;
+    const h = 80 + rng() * 260;
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    const rust = rng() < 0.5;
+    g.addColorStop(0, rust ? 'rgba(110,55,20,0.5)' : 'rgba(45,40,30,0.5)');
+    g.addColorStop(1, 'rgba(60,40,20,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, 0, w, h);
+  }
+  grime(ctx, S, rng, variant === 'plain' ? 5 : 11, 'rgba(25,20,12,0.3)');
+  bloodAndWriting(ctx, S, rng, variant, 'LIGHTS OFF');
+  return toTexture(c);
+}
+
+/** Update 1.0.1 — the factory floor: a stained concrete slab per tile, its joints cut along the edges. */
+export function factoryFloorTexture(): THREE.CanvasTexture {
+  const S = 512;
+  const [c, ctx] = canvas(S);
+  const rng = createRng(41);
+  ctx.fillStyle = '#5d5952';
+  ctx.fillRect(0, 0, S, S);
+  speckle(ctx, S, rng, 14000, 0.14);
+  grime(ctx, S, rng, 18, 'rgba(120,114,100,0.2)');
+  // Oil and water stains.
+  grime(ctx, S, rng, 7, 'rgba(18,15,10,0.3)');
+  // Hairline cracks.
+  ctx.strokeStyle = 'rgba(15,12,10,0.55)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 5; i++) {
+    let x = rng() * S;
+    let y = rng() * S;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let k = 0; k < 8; k++) {
+      x += (rng() - 0.5) * 60;
+      y += (rng() - 0.5) * 60;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  // Joints at the slab's edges.
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(0, 0, S, S);
+  return toTexture(c);
+}
+
+/** Update 1.0.1 — the factory roof: corrugated sheet metal, rusting, a steel beam across each tile. */
+export function factoryCeilingTexture(): THREE.CanvasTexture {
+  const S = 256;
+  const [c, ctx] = canvas(S);
+  const rng = createRng(17);
+  ctx.fillStyle = '#4a4a46';
+  ctx.fillRect(0, 0, S, S);
+  for (let x = 0; x < S; x += 16) {
+    const g = ctx.createLinearGradient(x, 0, x + 16, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0.08)');
+    g.addColorStop(0.5, 'rgba(0,0,0,0.25)');
+    g.addColorStop(1, 'rgba(255,255,255,0.08)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, 0, 16, S);
+  }
+  grime(ctx, S, rng, 10, 'rgba(110,55,20,0.4)');
+  speckle(ctx, S, rng, 3000, 0.12);
+  ctx.fillStyle = '#26241f';
+  ctx.fillRect(0, S / 2 - 10, S, 20);
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fillRect(0, S / 2 - 10, S, 3);
   return toTexture(c);
 }
 

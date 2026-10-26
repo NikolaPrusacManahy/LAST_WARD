@@ -35,6 +35,8 @@ export interface Settings {
   bindings: Bindings;
   /** Update 0.9.3 — the last difficulty picked (the picker starts on it). */
   difficulty: Difficulty;
+  /** Update 1.0.1 — the last map picked (a level id, world/content/levels.ts). */
+  map: string;
   /** Update 0.9.9 — graphics quality. */
   graphics: Graphics;
   /** Update 0.9.9 — test build only: solo runs use your microphone and The Patient mimics you. */
@@ -45,6 +47,8 @@ export interface SaveData {
   version: 1;
   settings: Settings;
   bestTime: number | null; // seconds
+  /** Update 1.0.1 — the best escape on each map (level id → seconds); bestTime stays the best of all. */
+  bestTimes: Record<string, number>;
   escapes: number;
   deaths: number;
   /** Update 0.9.9 — the name you go by in co-op (what you last typed). */
@@ -54,12 +58,15 @@ export interface SaveData {
 export const SAVE_KEY = 'last-ward-save';
 
 export const FOV_MIN = 60;
+/** Update 1.0.1 — the hospital (world/content/level01.ts). */
+export const DEFAULT_MAP = 'ward13';
+const MAP_ID = /^[a-z0-9_-]{1,24}$/;
 export const FOV_MAX = 100;
 
-export const DEFAULT_SETTINGS: Settings = { sensitivity: 1, volume: 0.8, sfxVolume: 1, bgmVolume: 1, voiceVolume: 1, invertY: false, grain: true, fov: 72, bindings: DEFAULT_BINDINGS, difficulty: DEFAULT_DIFFICULTY, graphics: 'high', soloMimic: false };
+export const DEFAULT_SETTINGS: Settings = { sensitivity: 1, volume: 0.8, sfxVolume: 1, bgmVolume: 1, voiceVolume: 1, invertY: false, grain: true, fov: 72, bindings: DEFAULT_BINDINGS, difficulty: DEFAULT_DIFFICULTY, map: DEFAULT_MAP, graphics: 'high', soloMimic: false };
 
 export function defaultSave(): SaveData {
-  return { version: 1, settings: { ...DEFAULT_SETTINGS, bindings: { ...DEFAULT_BINDINGS } }, bestTime: null, escapes: 0, deaths: 0, coopName: '' };
+  return { version: 1, settings: { ...DEFAULT_SETTINGS, bindings: { ...DEFAULT_BINDINGS } }, bestTime: null, bestTimes: {}, escapes: 0, deaths: 0, coopName: '' };
 }
 
 const clamp = (v: unknown, lo: number, hi: number, d: number) =>
@@ -84,10 +91,12 @@ export function hydrateSave(raw: unknown): SaveData {
       fov: Math.round(clamp(s.fov, FOV_MIN, FOV_MAX, DEFAULT_SETTINGS.fov)),
       bindings: hydrateBindings(s.bindings),
       difficulty: hydrateDifficulty(s.difficulty),
+      map: typeof s.map === 'string' && MAP_ID.test(s.map) ? s.map : DEFAULT_MAP,
       graphics: s.graphics === 'low' ? 'low' : 'high',
       soloMimic: s.soloMimic === true,
     },
     bestTime: typeof r.bestTime === 'number' && r.bestTime > 0 ? r.bestTime : null,
+    bestTimes: hydrateBestTimes(r.bestTimes, r.bestTime),
     escapes: clamp(r.escapes, 0, 1e9, 0),
     deaths: clamp(r.deaths, 0, 1e9, 0),
     coopName: typeof r.coopName === 'string' ? r.coopName.slice(0, NAME_MAX) : '',
@@ -115,9 +124,21 @@ export function writeSave(data: SaveData): void {
   }
 }
 
-export function recordEscape(data: SaveData, seconds: number): SaveData {
+/** Update 1.0.1 — per-map bests; a save from before the factory had one best, set in the hospital. */
+function hydrateBestTimes(raw: unknown, oldBest: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (raw && typeof raw === 'object') {
+    for (const [id, t] of Object.entries(raw)) if (MAP_ID.test(id) && typeof t === 'number' && t > 0) out[id] = t;
+  } else if (typeof oldBest === 'number' && oldBest > 0) {
+    out[DEFAULT_MAP] = oldBest;
+  }
+  return out;
+}
+
+export function recordEscape(data: SaveData, seconds: number, map = DEFAULT_MAP): SaveData {
   const best = data.bestTime === null ? seconds : Math.min(data.bestTime, seconds);
-  return { ...data, bestTime: best, escapes: data.escapes + 1 };
+  const mapBest = data.bestTimes[map];
+  return { ...data, bestTime: best, bestTimes: { ...data.bestTimes, [map]: mapBest === undefined ? seconds : Math.min(mapBest, seconds) }, escapes: data.escapes + 1 };
 }
 
 export function formatTime(seconds: number): string {

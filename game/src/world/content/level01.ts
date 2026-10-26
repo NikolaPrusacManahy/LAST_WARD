@@ -3,6 +3,10 @@ import { LevelDef } from '../level';
 
 export const LEVEL_01: LevelDef = {
   name: "St. Brigid's — Ward 13",
+  id: 'ward13',
+  short: 'Ward 13',
+  blurb: 'Tight halls, small rooms.',
+  theme: 'hospital',
   map: [
     '#########################',
     '#.....#..F..#...M.#....N#',

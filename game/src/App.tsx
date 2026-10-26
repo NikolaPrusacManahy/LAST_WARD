@@ -8,6 +8,7 @@ import { EndScreen } from './screens/EndScreen';
 import { SettingsPanel } from './screens/SettingsPanel';
 import { CreditsPanel } from './screens/CreditsPanel';
 import { DifficultyPanel } from './screens/DifficultyPanel';
+import { MapPanel } from './screens/MapPanel';
 import { CoopPanel } from './screens/CoopPanel';
 import { CoopClient, CoopStart } from './net/room';
 import { connectCoop } from './net/backend';
@@ -21,13 +22,11 @@ import { useUiSounds } from './hooks/useUiSounds';
 import { CreditIntro } from './screens/CreditIntro';
 import { setMenuAmbience } from './audio/menuAmbience';
 import { wantsMenuAmbience } from './state/menuAudio';
-import { chooseStartLevel, showCredits, startLevelIndex } from './state/devTools';
-import { LEVELS } from './world/content/levels';
-
-const PICK_KEY = 'lw-tester-level';
+import { showCredits, startLevelIndex } from './state/devTools';
+import { LEVELS, levelIndexOf } from './world/content/levels';
 
 type Screen = 'menu' | 'game';
-type Overlay = null | 'pause' | 'settings' | 'credits' | 'difficulty' | 'coop' | { end: 'dead' | 'escaped'; time: number; coop?: CoopEnd };
+type Overlay = null | 'pause' | 'settings' | 'credits' | 'map' | 'difficulty' | 'coop' | { end: 'dead' | 'escaped'; time: number; coop?: CoopEnd };
 
 export default function App() {
   const [save, setSave] = useState<SaveData>(loadSave);
@@ -49,27 +48,11 @@ export default function App() {
   // Update 0.6.5 — only in dev; the public build always shows it.
   const [credits, setCredits] = useState(() => showCredits(import.meta.env.DEV, location.search));
 
-  // Update 0.7.1 — tester level picker (dev build only): ?level=N, else the last pick in this browser.
-  const [startLevel, setStartLevel] = useState(() => {
-    if (!import.meta.env.DEV) return 0;
-    let saved = 0;
-    try {
-      saved = Number(localStorage.getItem(PICK_KEY) ?? 0);
-    } catch {
-      /* storage blocked: start at level 1 */
-    }
-    return startLevelIndex(true, location.search, LEVELS.length) || chooseStartLevel(true, saved, LEVELS.length);
-  });
-  const pickLevel = import.meta.env.DEV
-    ? (n: number) => {
-        setStartLevel(n);
-        try {
-          localStorage.setItem(PICK_KEY, String(n));
-        } catch {
-          /* fine: just not remembered */
-        }
-      }
-    : () => {};
+  // Update 1.0.1 — the map a solo run starts on: your pick (Begin → map), or ?level=N in the dev build.
+  // A co-op run plays the room's map.
+  const [devLevel] = useState(() => startLevelIndex(import.meta.env.DEV, location.search, LEVELS.length));
+  const runLevel = coopRun ? levelIndexOf(coopRun.level) : devLevel ?? levelIndexOf(save.settings.map);
+  const pickMaps = LEVELS.length > 1;
 
   useEffect(() => writeSave(save), [save]);
   // Closing the tab drops you out of any room straight away (the host's room closes with them).
@@ -92,6 +75,12 @@ export default function App() {
     setRunId((n) => n + 1);
     setOverlay(null);
     setScreen('game');
+  };
+
+  // Update 1.0.1 — Begin asks for a map first (when there's more than one), then the difficulty.
+  const pickMap = (map: string) => {
+    setSave((x) => ({ ...x, settings: { ...x.settings, map } }));
+    setOverlay('difficulty');
   };
 
   // Update 0.9.3 — Begin asks for a difficulty first; the pick is saved and used for this run (and retries).
@@ -152,7 +141,7 @@ export default function App() {
 
   const onEnd = useCallback((end: 'dead' | 'escaped', time: number, coopEnd?: CoopEnd) => {
     // Co-op runs stay out of the solo record (escapes, deaths, best time).
-    if (!coopRunRef.current) setSave((d) => (end === 'escaped' ? recordEscape(d, time) : { ...d, deaths: d.deaths + 1 }));
+    if (!coopRunRef.current) setSave((d) => (end === 'escaped' ? recordEscape(d, time, d.settings.map) : { ...d, deaths: d.deaths + 1 }));
     if (coopEnd) clearTicket(); // the run is over: nothing to rejoin
     setOverlay({ end, time, coop: coopEnd });
   }, []);
@@ -174,17 +163,18 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Escape') return;
       if (overlay === 'settings') setOverlay(settingsFrom === 'pause' ? 'pause' : null);
-      if (overlay === 'credits' || overlay === 'difficulty') setOverlay(null); // co-op handles its own Esc
+      if (overlay === 'credits' || overlay === 'map') setOverlay(null); // co-op handles its own Esc
+      if (overlay === 'difficulty') setOverlay(pickMaps ? 'map' : null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [overlay, settingsFrom]);
+  }, [overlay, settingsFrom, pickMaps]);
 
   return (
     <div className="lw-app">
-      {screen === 'menu' && overlay !== 'settings' && overlay !== 'credits' && overlay !== 'difficulty' && overlay !== 'coop' && <MainMenu save={save} rejoin={ticket ? { code: ticket.code, busy: rejoining } : null} rejoinError={rejoinError} onRejoin={() => void rejoin()} onStart={() => setOverlay('difficulty')} onCoop={() => (forgetTicket(), setOverlay('coop'))} onSettings={() => openSettings('menu')} onCredits={() => setOverlay('credits')} startLevel={startLevel} onPickLevel={pickLevel} />}
+      {screen === 'menu' && overlay !== 'settings' && overlay !== 'credits' && overlay !== 'map' && overlay !== 'difficulty' && overlay !== 'coop' && <MainMenu save={save} rejoin={ticket ? { code: ticket.code, busy: rejoining } : null} rejoinError={rejoinError} onRejoin={() => void rejoin()} onStart={() => setOverlay(pickMaps ? 'map' : 'difficulty')} onCoop={() => (forgetTicket(), setOverlay('coop'))} onSettings={() => openSettings('menu')} onCredits={() => setOverlay('credits')} />}
       {screen === 'game' && (
-        <GameView key={runId} ref={game} settings={save.settings} onEnd={onEnd} onPause={onPause} paused={overlay !== null} startLevel={startLevel} coop={coopRun} />
+        <GameView key={runId} ref={game} settings={save.settings} onEnd={onEnd} onPause={onPause} paused={overlay !== null} level={runLevel} coop={coopRun} />
       )}
       {overlay === 'pause' && (
         <PauseMenu
@@ -202,7 +192,8 @@ export default function App() {
         />
       )}
       {overlay === 'credits' && <CreditsPanel onClose={() => setOverlay(null)} />}
-      {overlay === 'difficulty' && <DifficultyPanel current={save.settings.difficulty} onPick={startWith} onBack={() => setOverlay(null)} />}
+      {overlay === 'map' && <MapPanel current={save.settings.map} best={save.bestTimes} onPick={pickMap} onBack={() => setOverlay(null)} />}
+      {overlay === 'difficulty' && <DifficultyPanel current={save.settings.difficulty} onPick={startWith} onBack={() => setOverlay(pickMaps ? 'map' : null)} />}
       {overlay === 'coop' && (
         <CoopPanel
           client={coop}

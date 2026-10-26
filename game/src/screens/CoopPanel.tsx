@@ -1,10 +1,12 @@
 // Update 0.9.9 — Co-op from the main menu: your name, then Create room (you get a code to send) or Join
 // with code; then the lobby: who's in, ready, the host's difficulty, a 3-second countdown into the run.
+// Update 1.0.1 — and the host's map.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CoopClient, CoopStart } from '../net/room';
 import { currentMic, getMic, micAnswer } from '../net/voice';
 import { CODE_LENGTH, COOP_DIFFICULTIES, COOP_DIFFICULTY, CoopDifficulty, MAX_PLAYERS, NAME_MAX, Room, countdownLeft, lobbyHint, normalizeCode } from '../state/coop';
 import { MIMIC } from '../state/coopRun';
+import { LEVELS, levelId, levelIndexOf } from '../world/content/levels';
 
 interface Props {
   client: CoopClient;
@@ -137,6 +139,7 @@ function Lobby({ client, room, me, local, busy }: { client: CoopClient; room: Ro
     });
   };
   const pick = (d: CoopDifficulty) => void client.setDifficulty(d);
+  const map = levelIndexOf(room.level);
 
   return (
     <div className="lw-overlay">
@@ -176,6 +179,20 @@ function Lobby({ client, room, me, local, busy }: { client: CoopClient; room: Ro
             );
           })}
         </ol>
+
+        {/* Update 1.0.1 — the host picks the map, like the difficulty. */}
+        {LEVELS.length > 1 && (
+          <div className="lw-lobby-diff">
+            <span className="lw-coop-label">Map{host ? '' : ' · the host picks'}</span>
+            <div className="lw-set-seg" role="radiogroup" aria-label="Map">
+              {LEVELS.map((l, i) => (
+                <button key={levelId(l)} role="radio" aria-checked={map === i} className={`lw-set-seg-btn ${map === i ? 'lw-set-seg-on' : ''}`} disabled={!host || room.status !== 'lobby'} onClick={() => void client.setLevel(levelId(l))}>
+                  {l.short ?? l.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         </div>
 
         <div className="lw-lobby-col">

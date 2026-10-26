@@ -5,7 +5,7 @@
 // power), through `CoopSide`.
 import * as THREE from 'three';
 import type { Level, Vec2 } from '../world/level';
-import { dist } from '../world/level';
+import { dist, stairRise } from '../world/level';
 import { ENEMY, EnemyState, LockerSpot, Noise, PlayerSense, stepEnemy, teleportAway } from '../world/enemyAI';
 import { Hunted, NOBODY, catchable, catchesYou, nearestPos, pickTarget } from '../world/enemyTargets';
 import { moveWithCollision } from '../world/collision';
@@ -40,6 +40,11 @@ export interface CoopSide {
   /** The host's Patient has you. */
   caught(): void;
   toWorld(p: Vec2): V3;
+  /** Update 1.0.1 — where a logic position is drawn, seen from the floor you're on (its floor's height and
+   *  place, no stairs). */
+  rel(p: Vec2): V3;
+  /** Update 1.0.1 — what the scene is moved by for your floor: scene + shift = where it really is. */
+  shift(): V3;
 }
 
 interface Mate {
@@ -139,7 +144,7 @@ export class CoopRuntime {
     this.host = link.host;
     this.me = link.me;
     this.sync = new RunSync(link.store, link.code, link.me, link.host);
-    this.pings = createPingMarkers(scene);
+    this.pings = createPingMarkers(scene, (p) => this.side.rel(p)); // 1.0.1: on its floor, seen from yours
     this.clips = link.voice && link.mimic ? new VoiceClips(audio.ctx) : null;
     this.mimicIn = nextMimic(true, Math.random);
     // Their flashlights: made now and kept (see createTeamLight).
@@ -506,7 +511,12 @@ export class CoopRuntime {
         })
         .catch((err) => console.warn('Teammate model failed to load', err));
     }
-    m.view?.update(m.now!, dt, performance.now() / 1000 < m.talkUntil, this.revivingWho(m.id, mine));
+    // Update 1.0.1 — drawn where they really are, seen from your floor (another floor, or up the stairs).
+    const s = m.now!;
+    const at = this.side.rel(s.pos);
+    const rev = this.revivingWho(m.id, mine);
+    const revAt = rev ? this.side.rel(rev.pos) : null;
+    m.view?.update({ ...s, pos: { x: at.x, z: at.z }, rise: at.y + stairRise(this.level, s.pos) }, dt, performance.now() / 1000 < m.talkUntil, rev && revAt ? { ...rev, pos: { x: revAt.x, z: revAt.z } } : null);
     if (m.view && m.id === this.watched) m.view.root.visible = false;
   }
 
@@ -514,7 +524,8 @@ export class CoopRuntime {
     const s = m.now!;
     if (m.view) {
       m.view.head(this.tmp);
-      return { x: this.tmp.x, y: this.tmp.y, z: this.tmp.z };
+      const o = this.side.shift(); // the view is drawn from your floor; sounds go where it really is
+      return { x: this.tmp.x + o.x, y: this.tmp.y + o.y, z: this.tmp.z + o.z };
     }
     const w = this.side.toWorld(s.pos);
     return { x: w.x, y: w.y + (s.crouching ? PLAYER.crouchEyeHeight : PLAYER.eyeHeight), z: w.z };
@@ -560,7 +571,10 @@ export class CoopRuntime {
     if (m.voice) {
       const ok = hears(myLife, s.life);
       const spatial = IN_PLAY.includes(s.life);
-      const d = dist(s.pos, listener);
+      // Update 1.0.1 — how far apart you really are (a floor apart is 3 m up, not rows across the grid).
+      const a = this.side.toWorld(s.pos);
+      const b = this.side.toWorld(listener);
+      const d = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
       const g = !ok ? 0 : spatial ? voiceDistanceGain(d) : 1;
       m.voice.set(this.headOf(m), g, 16000, spatial);
       if (ok && m.voice.level() > -45) {

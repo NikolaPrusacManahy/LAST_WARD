@@ -1,7 +1,7 @@
 // Game façade: owns the renderer and frame loop, wires world rules → visuals → audio → HUD.
 // Keep it a façade: new mechanics go in their own module.
 import * as THREE from 'three';
-import { LEVELS } from '../world/content/levels';
+import { LEVELS, levelIndexOf } from '../world/content/levels';
 import { Level, Vec2, WALL_HEIGHT, cellCenter, crossPortal, dist, floorAt, floorOffset, floorStride, itemPos, parseLevel, stairRise, worldToCell } from '../world/level';
 import { ENEMY, EnemyState, Noise, PlayerSense, chaseSees, dropFromCeiling, spawnAtCorner, stepEnemy, summonToGenerator, teleportAway, visibility } from '../world/enemyAI';
 import { CRAWL_LIFT, crawlPose } from './enemyAnim';
@@ -31,7 +31,7 @@ import type { ItemNet, PanelNet, PowerNet } from '../net/runSync';
 import { DOWN, KNEEL, LifeState, LiveState, MIMIC, MIMIC_SOLO_TEST, Member, ResumeState, catchOutcome, kneelAt, mimicNow, nextWatch, reviveFree, runOver, teamEscaped, watchable } from '../state/coopRun';
 import { wakeTimes } from '../state/wakeSequence';
 import { RunPhase, closesNote, guardLeave, worldTimeScale } from '../state/session';
-import { chooseStartLevel, debugFlag, devToolsEnabled } from '../state/devTools';
+import { debugFlag, devToolsEnabled } from '../state/devTools';
 import { Progress, allPanelsOn, createProgress, finishRepair, fitFuse, objectiveDetail, objectiveText, startGenerator, throwPanelSwitch, tryExit } from '../state/objectives';
 import { RepairState, SKILL, cancelCheck, createRepair, stepRepair } from '../state/skillCheck';
 import { lockerSpots, panelSpots, panelSwitches, propFront } from '../world/props';
@@ -216,7 +216,7 @@ export class Game {
     private settings: Settings,
     private hud: HudStore,
     private cb: GameCallbacks,
-    /** Update 0.7.1 — tester level picker / ?level=N; the public build always starts at 0. */
+    /** Update 1.0.1 — the map you picked (LEVELS index; ?level=N in the dev build). A co-op run plays the room's. */
     startLevel = 0,
     /** Update 0.9.9 — a co-op run: the room's difficulty, and where in the spawn room you wake up. */
     private coop: CoopStart | null = null,
@@ -242,8 +242,8 @@ export class Game {
     this.scene.add(this.ambient);
 
     // Update 0.5.4 — fuses, batteries and notes land on different tables every run.
-    // Update 0.7 — level 1, or the tester's pick in the dev build (main menu picker / ?level=N).
-    this.levelIndex = chooseStartLevel(import.meta.env.DEV, startLevel, LEVELS.length);
+    // Update 1.0.1 — the map picked before the run (Begin → map), or the one the co-op host picked.
+    this.levelIndex = coop ? levelIndexOf(coop.level) : LEVELS[startLevel] ? startLevel : 0;
     // Update 0.9.9 — co-op: the room's seed, so everyone's tables hold the same things.
     this.level = shuffleItems(parseLevel(LEVELS[this.levelIndex]), coop ? createRng(coop.seed) : this.rng);
     this.scene.add(this.world);
@@ -336,6 +336,7 @@ export class Game {
   /**
    * Update 0.7 — escaped: the next level. Same run (lives, injury, battery and the clock carry over);
    * you wake up on the floor again with that level's intro text.
+   * Update 1.0.1 — only the debug skip uses this now: each map is a run of its own (picked on the menu).
    */
   private loadLevel(index: number) {
     this.world.remove(this.view.root);
@@ -1484,11 +1485,7 @@ export class Game {
     if (k > 2.2 && this.phase === 'escaping') {
       // Update 0.9.9 — co-op: you're out; you watch the others until the run is over.
       if (this.rt) return this.goOut('escaped');
-      // Update 0.7 — out of this level: wake up in the next one. Out of the last: you escaped.
-      if (this.levelIndex + 1 < LEVELS.length) {
-        this.loadLevel(this.levelIndex + 1);
-        return;
-      }
+      // Update 1.0.1 — out: you escaped. Each map is a run of its own (it used to wake you up in the next).
       this.phase = 'over';
       if (document.pointerLockElement) document.exitPointerLock();
       this.cb.onEnd('escaped', this.playTime);
@@ -1630,6 +1627,15 @@ export class Game {
         power: (p) => this.netPower(p),
         caught: () => this.coopCaught(),
         toWorld: this.toWorld,
+        rel: (p) => {
+          const o = floorOffset(this.level, floorAt(this.level, p));
+          const c = floorOffset(this.level, this.curFloor);
+          return { x: p.x, y: o.y - c.y, z: p.z + o.z - c.z };
+        },
+        shift: () => {
+          const c = floorOffset(this.level, this.curFloor);
+          return { x: 0, y: c.y, z: c.z };
+        },
       },
       c.difficulty === 'hard',
     );

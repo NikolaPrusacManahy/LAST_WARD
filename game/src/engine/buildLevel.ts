@@ -4,7 +4,13 @@
 // you're on sits at the logic coordinates the rules use.
 import * as THREE from 'three';
 import { Level, TILE, WALL_HEIGHT, Vec2, cellCenter, isSolid, Cell, itemPos, FACE_DIR, floorOfRow, floorOffset, portalAt } from '../world/level';
-import { ceilingTexture, floorTexture, noteTexture, signTexture, wallNoteTexture, wallTexture, WallVariant } from './textures';
+import { ceilingTexture, factoryCeilingTexture, factoryFloorTexture, factoryWallTexture, floorTexture, noteTexture, signTexture, wallNoteTexture, wallTexture, WallVariant } from './textures';
+
+/** Update 1.0.1 — each map's look: the hospital's tiles, or the factory's brick, concrete and tin roof. */
+const LOOK = {
+  hospital: { wall: wallTexture, floor: floorTexture, ceiling: ceilingTexture, ceilingRepeat: 2 },
+  factory: { wall: factoryWallTexture, floor: factoryFloorTexture, ceiling: factoryCeilingTexture, ceilingRepeat: 1 },
+};
 
 export interface LampView {
   light: THREE.PointLight;
@@ -20,6 +26,8 @@ export interface LampView {
 
 export interface LevelView {
   root: THREE.Group;
+  /** Update 1.0.1 — the plain floor, ceiling and stair blocks: hidden once the factory kit's are in. */
+  plain: THREE.Object3D[];
   lamps: LampView[];
   items: Map<string, THREE.Object3D>;
   spinners: THREE.Object3D[];
@@ -55,6 +63,7 @@ function openSide(level: Level, cell: Cell): { dc: number; dr: number } {
 export function buildLevel(level: Level): LevelView {
   const root = new THREE.Group();
   const disposables: { dispose(): void }[] = [];
+  const look = LOOK[level.theme];
   const track = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x);
   // Update 0.7 — logic position → where it really is (its floor lifted up / slid back).
   const at = (p: Vec2, y: number, row = Math.floor(p.z / TILE)) => {
@@ -96,7 +105,7 @@ export function buildLevel(level: Level): LevelView {
   (Object.keys(byVariant) as WallVariant[]).forEach((v, i) => {
     const list = byVariant[v];
     if (!list.length) return;
-    const mat = track(new THREE.MeshStandardMaterial({ map: track(wallTexture(v, 11 + i)), roughness: 0.92 }));
+    const mat = track(new THREE.MeshStandardMaterial({ map: track(look.wall(v, 11 + i)), roughness: 0.92 }));
     const mesh = new THREE.InstancedMesh(wallGeo, mat, list.length);
     list.forEach((m, k) => mesh.setMatrixAt(k, m));
     mesh.receiveShadow = true;
@@ -122,17 +131,18 @@ export function buildLevel(level: Level): LevelView {
     }
   }
   const tileGeo = track(new THREE.PlaneGeometry(TILE, TILE));
-  const fTex = track(floorTexture());
+  const fTex = track(look.floor());
   const floor = new THREE.InstancedMesh(tileGeo, track(new THREE.MeshStandardMaterial({ map: fTex, roughness: 0.75, metalness: 0.05 })), floorTiles.length);
   floorTiles.forEach((m, k) => floor.setMatrixAt(k, m));
   floor.receiveShadow = true;
   root.add(floor);
-  const cTex = track(ceilingTexture());
-  cTex.repeat.set(2, 2);
+  const cTex = track(look.ceiling());
+  cTex.repeat.set(look.ceilingRepeat, look.ceilingRepeat);
   const ceiling = new THREE.InstancedMesh(tileGeo, track(new THREE.MeshStandardMaterial({ map: cTex, roughness: 1 })), ceilTiles.length);
   ceilTiles.forEach((m, k) => ceiling.setMatrixAt(k, m));
   root.add(ceiling);
 
+  const plain: THREE.Object3D[] = [floor, ceiling];
   // --- Update 0.7: stairs (a block per step) and railings round the stairwell upstairs.
   if (level.stairs.length) {
     const stepGeo = track(new THREE.BoxGeometry(1, 1, 1));
@@ -157,6 +167,7 @@ export function buildLevel(level: Level): LevelView {
     steps.forEach((m, k) => stairMesh.setMatrixAt(k, m));
     stairMesh.castShadow = stairMesh.receiveShadow = true;
     root.add(stairMesh);
+    plain.push(stairMesh);
 
     const railMat = track(new THREE.MeshStandardMaterial({ color: 0x2a1d14, roughness: 0.7 }));
     const rails: THREE.Matrix4[] = [];
@@ -270,7 +281,7 @@ export function buildLevel(level: Level): LevelView {
     );
     mat.emissiveMap = mat.map;
     const paper = new THREE.Mesh(wallNoteGeo, mat);
-    paper.position.set(cc.x + d.dc * (TILE / 2 + 0.015), cc.y + 1.55, cc.z + d.dr * (TILE / 2 + 0.015));
+    paper.position.set(cc.x + d.dc * (TILE / 2 + 0.03), cc.y + 1.55, cc.z + d.dr * (TILE / 2 + 0.03)); // 1.0.1: clear of the factory panels
     paper.lookAt(paper.position.x + d.dc, paper.position.y, paper.position.z + d.dr);
     paper.rotation.z += 0.04;
     root.add(paper);
@@ -280,6 +291,7 @@ export function buildLevel(level: Level): LevelView {
 
   return {
     root,
+    plain,
     lamps,
     items,
     spinners,

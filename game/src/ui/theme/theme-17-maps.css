@@ -1,0 +1,17 @@
+/* theme-17 — Update 1.0.1: the map picker after Begin. A card per map, side by side: its floor plan,
+   its name, a line about it and your best escape there. Picks like the difficulty cards. */
+.lw-maps { width: min(860px, calc(94vw / var(--lw-ui))); }
+.lw-map-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 28px; }
+.lw-map {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px 18px 18px;
+  text-align: left; border: 1px solid rgba(216, 210, 188, 0.14); background: rgba(216, 210, 188, 0.03);
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.lw-map:hover, .lw-map:focus-visible { border-color: var(--lw-blood); background: rgba(163, 18, 15, 0.12); transform: translateY(-3px); outline: none; }
+.lw-map-current { border-color: rgba(216, 210, 188, 0.4); }
+.lw-map-plan { width: 100%; height: auto; margin-bottom: 8px; background: rgba(0, 0, 0, 0.35); }
+.lw-map-plan rect { fill: rgba(216, 210, 188, 0.32); }
+.lw-map:hover .lw-map-plan rect, .lw-map:focus-visible .lw-map-plan rect { fill: rgba(216, 210, 188, 0.5); }
+.lw-map-name { font-family: var(--lw-type); font-size: 24px; letter-spacing: 0.04em; color: var(--lw-bone); }
+.lw-map-blurb { font-size: 13px; line-height: 1.5; color: var(--lw-bone-dim); }
+.lw-map-best { font-family: var(--lw-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--lw-sick); }

@@ -29,5 +29,7 @@ import './test-crawl';
 import './test-slots';
 import './test-coop';
 import './test-coop-run';
+import './test-maps';
+import './test-factory';
 
 process.exit(summary() > 0 ? 1 : 0);

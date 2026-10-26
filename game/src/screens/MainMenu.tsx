@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import { SaveData, formatTime } from '../state/settings';
 import { MicAnswer, askMicOnce, micAnswer } from '../net/voice';
 import { MenuScene } from './MenuScene';
-import { TesterLevelPicker } from './TesterLevelPicker';
-import { LEVELS } from '../world/content/levels';
 import { GAME_STAGE, GAME_VERSION } from '../state/version';
 
 interface Props {
@@ -18,12 +16,9 @@ interface Props {
   onSettings(): void;
   /** Update 0.8 — the Credits screen. */
   onCredits(): void;
-  /** Update 0.7.1 — tester level picker (dev build only). */
-  startLevel: number;
-  onPickLevel(level: number): void;
 }
 
-export function MainMenu({ save, onStart, onCoop, rejoin, rejoinError, onRejoin, onSettings, onCredits, startLevel, onPickLevel }: Props) {
+export function MainMenu({ save, onStart, onCoop, rejoin, rejoinError, onRejoin, onSettings, onCredits }: Props) {
   // Update 0.9.9 — the microphone is asked for here, once, so no prompt comes up mid-run (it would take the
   // mouse away). The browser remembers the answer; the run opens the mic only if you said yes.
   const [mic, setMic] = useState<MicAnswer | 'asking' | null>(micAnswer);
@@ -33,7 +28,6 @@ export function MainMenu({ save, onStart, onCoop, rejoin, rejoinError, onRejoin,
   return (
     <div className="lw-menu">
       <MenuScene />
-      {import.meta.env.DEV && LEVELS.length > 1 && <TesterLevelPicker level={startLevel} onPick={onPickLevel} />}
       <div className="lw-menu-inner">
         <p className="lw-menu-kicker">St. Brigid's Hospital · Ward 13</p>
         <h1 className="lw-title">LAST WARD</h1>

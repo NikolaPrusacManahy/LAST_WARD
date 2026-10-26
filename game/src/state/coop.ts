@@ -5,6 +5,7 @@
 // Room JSON, under rooms/{code}:
 //   host: uid · created: ms · status: 'lobby' | 'starting' | 'playing' · startAt: ms (0 = no countdown)
 //   difficulty: 'normal' | 'hard' · seed: number · voice, hear: booleans (proximity chat, it hears you talk)
+//   level: the map's id (Update 1.0.1; missing = the first map, the hospital)
 //   slots: { s0: uid, s1: uid, s2: uid }      (s-keys: numbered keys come back as arrays from Firebase)
 //   players: { [uid]: { name, ready, slot } }
 import type { Rng } from '../world/rng';
@@ -45,6 +46,8 @@ export interface Room {
   startAt: number;
   difficulty: CoopDifficulty;
   seed: number;
+  /** Update 1.0.1 — the map the host picked (a level id; '' = the first map). */
+  level: string;
   /** Update 0.9.9 — the host's lobby options: proximity chat, The Patient hearing you talk, and it mimicking
    *  your voices (both need chat). */
   voice: boolean;
@@ -55,6 +58,8 @@ export interface Room {
 }
 
 export const slotKey = (slot: number) => `s${slot}`;
+/** Update 1.0.1 — what a map id looks like (the database rules check the same). */
+export const LEVEL_ID = /^[a-z0-9_-]{1,24}$/;
 
 export function makeRoomCode(rng: Rng): string {
   let code = '';
@@ -102,6 +107,7 @@ export function parseRoom(code: string, raw: unknown): Room | null {
     startAt: typeof raw.startAt === 'number' ? raw.startAt : 0,
     difficulty: raw.difficulty === 'hard' ? 'hard' : 'normal',
     seed: typeof raw.seed === 'number' ? raw.seed : 1,
+    level: typeof raw.level === 'string' && LEVEL_ID.test(raw.level) ? raw.level : '',
     voice: raw.voice === true,
     hear: raw.voice === true && raw.hear === true,
     mimic: raw.voice === true && raw.mimic === true,

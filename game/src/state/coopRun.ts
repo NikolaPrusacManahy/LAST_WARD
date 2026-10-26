@@ -207,6 +207,9 @@ export function addToTrack(tr: Track, s: LiveState, now: number, keep = 12): voi
 }
 
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+/** Update 1.0.1 — further than this between two updates is a jump (the top of a stair puts you on the floor
+ *  above, rows away in the level's grid; a rejoin), not a walk: no blending across it. */
+export const TRACK_JUMP = 4;
 const lerpAngle = (a: number, b: number, k: number) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
 
 /** Where they were `delay` ago (our clock `now`): blended between the two updates around then;
@@ -220,6 +223,7 @@ export function sampleTrack(tr: Track, now: number, delay = tr.delay): LiveState
     if (at <= s[i].t) {
       const a = s[i - 1];
       const b = s[i];
+      if (Math.hypot(b.pos.x - a.pos.x, b.pos.z - a.pos.z) > TRACK_JUMP) return b;
       const k = (at - a.t) / (b.t - a.t || 1);
       return {
         ...b,

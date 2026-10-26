@@ -4,10 +4,11 @@
 // Update 0.9.9 — and every other thing you pick in a menu: the difficulty cards, switches (the lobby's
 // difficulty, graphics), the lobby's voice options and Copy, the settings tabs, the key buttons. They had
 // no sound. Greyed out (not the host, say): silent.
+// Update 1.0.1 — the map cards.
 import { useEffect } from 'react';
 import { setUiVolume, uiClick, uiHover, unlockUi } from '../audio/uiSounds';
 
-const PICK = '.lw-menu-btn, .lw-diff, .lw-set-seg-btn, .lw-set-tab, .lw-opt, .lw-room-copy, button.lw-keys-btn, .lw-keys-reset';
+const PICK = '.lw-menu-btn, .lw-diff, .lw-map, .lw-set-seg-btn, .lw-set-tab, .lw-opt, .lw-room-copy, button.lw-keys-btn, .lw-keys-reset';
 const HOVER = PICK;
 const CLICK = `${PICK}, .lw-intro, .lw-set-row input[type="checkbox"]`;
 

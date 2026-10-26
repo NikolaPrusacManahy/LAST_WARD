@@ -5,7 +5,9 @@ import { Cell, FACE_DIR, Level, TILE, Vec2, WALL_HEIGHT, WallFace, cellCenter, i
 export type PropKind =
   | 'hospital_bed' | 'privacy_screen' | 'bedside_flowers' | 'bedside_drawing' | 'bedside_meds' | 'side_table'
   | 'medicine_shelf' | 'portrait' | 'child_drawing' | 'generator' | 'electrical_wall' | 'brick_wall' | 'breaker_box'
-  | 'power_switch' | 'radiator' | 'barrel' | 'barrel_lying' | 'toilet' | 'fluorescent' | 'locker' | 'item_table';
+  | 'power_switch' | 'radiator' | 'barrel' | 'barrel_lying' | 'toilet' | 'fluorescent' | 'locker' | 'item_table'
+  // Update 1.0.1 — Harrow Mill's props, from the factory kit (KIT_URL).
+  | 'console' | 'crate' | 'crate_tall' | 'tank' | 'electric_box' | 'sign_caution' | 'sign_warning' | 'blueprint';
 
 /** Local axis a model's front points along. */
 type Front = 'x' | '-x' | 'z' | '-z';
@@ -16,7 +18,12 @@ interface PropSpec {
   front: Front;
   /** Stands on the floor and stops you (and is kept off the enemy's walking lines). */
   blocks: boolean;
+  /** Update 1.0.1 — a piece of the factory kit (a node of KIT_URL named after the kind), not a file of its own. */
+  kit?: boolean;
 }
+
+/** Update 1.0.1 — the Abandoned Factory Modules kit, one file (tools/prepare-kit.mjs). */
+export const KIT_URL = '/models/props/factory_kit.glb';
 
 export const PROPS: Record<PropKind, PropSpec> = {
   hospital_bed: { size: [2.12, 1.08, 1.08], front: 'z', blocks: true },
@@ -40,6 +47,16 @@ export const PROPS: Record<PropKind, PropSpec> = {
   fluorescent: { size: [1.52, 0.22, 0.66], front: 'z', blocks: false },
   locker: { size: [0.68, 2.0, 0.75], front: 'z', blocks: true }, // 0.9.5: you can hide in it (state/hiding.ts)
   item_table: { size: [1.18, 0.69, 0.92], front: 'z', blocks: false }, // 0.9.6: what items lie on (drawn at ITEM_TABLE_SCALE; collision is the item's own)
+  // Update 1.0.1 — the factory kit. Wall things are 6 cm deep at least, so they stand clear of the kit's
+  // wall panels (their face 1 cm proud of the wall: world/factory.ts).
+  console: { size: [0.92, 1.71, 0.91], front: 'x', blocks: true, kit: true },
+  crate: { size: [0.67, 0.61, 1.15], front: 'x', blocks: true, kit: true },
+  crate_tall: { size: [0.83, 0.75, 0.82], front: 'x', blocks: true, kit: true },
+  tank: { size: [0.3, 0.99, 0.31], front: 'x', blocks: true, kit: true },
+  electric_box: { size: [0.29, 1.11, 0.7], front: 'x', blocks: false, kit: true },
+  sign_caution: { size: [0.06, 0.36, 1.51], front: 'x', blocks: false, kit: true },
+  sign_warning: { size: [0.06, 0.84, 1.5], front: 'x', blocks: false, kit: true },
+  blueprint: { size: [0.1, 1.12, 0.78], front: 'x', blocks: false, kit: true },
 };
 
 /** How a level places a prop. `wall`: the side of the cell it backs onto (it faces away from it).

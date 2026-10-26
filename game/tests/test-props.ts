@@ -21,7 +21,8 @@ const placed = placedProps(level);
 
 section('Props in Ward 13 (0.8)');
 {
-  check('every prop kind has its model in public/models/props', (Object.keys(PROPS) as PropKind[]).every((k) => existsSync(new URL(`../public/models/props/${k}.glb`, import.meta.url))));
+  // Update 1.0.1 — the factory kit's props are pieces of one file (tests/test-factory.ts checks them).
+  check('every prop kind has its model in public/models/props', (Object.keys(PROPS) as PropKind[]).every((k) => PROPS[k].kit || existsSync(new URL(`../public/models/props/${k}.glb`, import.meta.url))));
   check('every wall-mounted prop really has a wall behind it', level.props.every((p) => backedByWall(level, p)), level.props.filter((p) => !backedByWall(level, p)).map((p) => `${p.kind}@${p.cell.col},${p.cell.row}`).join(' '));
   const floorProps = placed.filter((p) => PROPS[p.kind].blocks && p.y < 0.5);
   const centreGap = (p: (typeof placed)[0]) => {

@@ -11,6 +11,7 @@ import { wantsLocalCoop } from '../src/net/backend';
 import { createRng } from '../src/world/rng';
 import { parseLevel, cellCenter } from '../src/world/level';
 import { LEVEL_01 } from '../src/world/content/level01';
+import { levelIndexOf } from '../src/world/content/levels';
 import { overlapsWall } from '../src/world/collision';
 import { placedProps, propBlockers } from '../src/world/props';
 import { PLAYER } from '../src/state/playerRules';
@@ -18,7 +19,7 @@ import { defaultSave, hydrateSave } from '../src/state/settings';
 import { MIMIC } from '../src/state/coopRun';
 
 const room = (over: Partial<Room> = {}): Room => ({
-  code: 'K7Q2M', host: 'a', status: 'lobby', startAt: 0, difficulty: 'normal', seed: 1, voice: true, hear: false, mimic: true,
+  code: 'K7Q2M', host: 'a', status: 'lobby', startAt: 0, difficulty: 'normal', seed: 1, level: '', voice: true, hear: false, mimic: true,
   players: [{ id: 'a', name: 'Ann', ready: false, slot: 0 }],
   ...over,
 });
@@ -44,14 +45,15 @@ section('Co-op: reading a room (0.9.9)');
 {
   check('nothing there → no room', parseRoom('K7Q2M', null) === null && parseRoom('K7Q2M', { players: {} }) === null);
   const r = parseRoom('K7Q2M', {
-    host: 'a', status: 'starting', startAt: 5000, difficulty: 'hard', seed: 9,
+    host: 'a', status: 'starting', startAt: 5000, difficulty: 'hard', seed: 9, level: 'factory',
     slots: { s0: 'a', s2: 'c' },
     players: { c: { name: 'Cy', ready: true, slot: 2 }, a: { name: 'Ann', ready: false, slot: 0 }, junk: 'x' },
   })!;
   check('players come in slot order, junk skipped', r.players.map((p) => p.id).join() === 'a,c');
-  check('fields read back', r.status === 'starting' && r.startAt === 5000 && r.difficulty === 'hard' && r.seed === 9);
+  check('fields read back', r.status === 'starting' && r.startAt === 5000 && r.difficulty === 'hard' && r.seed === 9 && r.level === 'factory');
   const d = parseRoom('K7Q2M', { host: 'a', status: 'weird', difficulty: 'easy' })!;
   check('missing or odd fields get safe defaults (lobby, Normal, no countdown)', d.status === 'lobby' && d.difficulty === 'normal' && d.startAt === 0 && d.players.length === 0);
+  check('no map (a room from before 1.0.1) or an odd one: the first map', d.level === '' && parseRoom('K7Q2M', { host: 'a', level: '../x' })!.level === '' && levelIndexOf(d.level) === 0);
   check('free slots skip the host and anyone in', freeSlots(r).join() === '1' && freeSlots(room()).join() === '1,2');
 }
 
@@ -143,6 +145,9 @@ section('Co-op: three players through the lobby (0.9.9)');
   check('only the host picks the difficulty', (await bo.setDifficulty('hard'), ann.getSnapshot().room!.difficulty === 'normal'));
   await ann.setDifficulty('hard');
   check('the host picks Hard: everyone sees it', cy.getSnapshot().room!.difficulty === 'hard');
+  check('the room starts on the first map; only the host picks another (1.0.1)', ann.getSnapshot().room!.level === '' && (await bo.setLevel('factory'), ann.getSnapshot().room!.level === ''));
+  await ann.setLevel('factory');
+  check('the host picks the factory: everyone sees it', cy.getSnapshot().room!.level === 'factory' && levelIndexOf(bo.getSnapshot().room!.level) === 1);
 
   await ann.setReady(true);
   await bo.setReady(true);
@@ -150,6 +155,7 @@ section('Co-op: three players through the lobby (0.9.9)');
   await cy.setReady(true);
   check('all three ready → the countdown starts for everyone', bo.getSnapshot().room!.status === 'starting' && countdownLeft(bo.getSnapshot().room!, clock) === 3);
   check('…and the difficulty is locked', (await ann.setDifficulty('normal'), ann.getSnapshot().room!.difficulty === 'hard'));
+  check('…and the map', (await ann.setLevel('ward13'), ann.getSnapshot().room!.level === 'factory'));
   clock += 1500;
   await bo.setReady(false);
   check('Bo un-readies mid-countdown → it stops', cy.getSnapshot().room!.status === 'lobby');
@@ -165,7 +171,7 @@ section('Co-op: three players through the lobby (0.9.9)');
   ann.tick();
   const runs = [ann, bo, cy].map((c) => c.startInfo());
   check('time is up → everyone starts together', runs.every((r) => r !== null));
-  check('each run knows its slot, the difficulty and the seed', runs.map((r) => r!.slot).join() === '0,1,2' && runs.every((r) => r!.difficulty === 'hard' && r!.seed === runs[0]!.seed));
+  check('each run knows its slot, the difficulty and the seed', runs.map((r) => r!.slot).join() === '0,1,2' && runs.every((r) => r!.difficulty === 'hard' && r!.seed === runs[0]!.seed && r!.level === 'factory'));
   check('one host among them', runs.filter((r) => r!.host).length === 1 && runs[0]!.host);
   check('the mimic is off for now: no run gets it, whatever the room says (0.9.9)', !MIMIC.enabled && ann.getSnapshot().room!.mimic && runs.every((r) => !r!.link.mimic));
   check('too late to join a run that started', !(await dee.join(code, 'Dee')) && dee.getSnapshot().error === COOP_ERRORS.started);

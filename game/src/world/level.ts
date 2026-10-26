@@ -63,8 +63,18 @@ export interface ThrowableSpawn {
   at?: [number, number];
 }
 
+/** Update 1.0.1 — how a level looks: the hospital's tiles, or the factory's concrete and brick. */
+export type LevelTheme = 'hospital' | 'factory';
+
 export interface LevelDef {
   name: string;
+  /** Update 1.0.1 — the map's key: saved as your last pick, sent to a co-op room. Defaults to the name. */
+  id?: string;
+  /** Update 1.0.1 — one line under the name on the map picker. */
+  blurb?: string;
+  /** Update 1.0.1 — a short name for the co-op lobby's map switch. */
+  short?: string;
+  theme?: LevelTheme;
   /** One floor (level 1). */
   map?: string[];
   /** Update 0.7 — several floors, ground floor first, all the same size. Stairs: ^ v < > on the floor
@@ -108,6 +118,8 @@ export const DEFAULT_INTRO: LevelIntro = {
 
 export interface Level {
   name: string;
+  id: string;
+  theme: LevelTheme;
   cols: number;
   rows: number;
   /** true = wall / solid. Index: row * cols + col. */
@@ -304,6 +316,8 @@ export function parseLevel(def: LevelDef): Level {
 
   return {
     name: def.name,
+    id: def.id ?? def.name,
+    theme: def.theme ?? 'hospital',
     cols,
     rows,
     solid,

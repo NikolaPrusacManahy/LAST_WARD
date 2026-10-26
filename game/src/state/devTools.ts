@@ -18,17 +18,11 @@ export function showCredits(isDev: boolean, search: string): boolean {
   return !debugFlag(isDev, search) || new URLSearchParams(search).has('credits');
 }
 
-/** Update 0.7 — ?level=N starts on that level (1 = the hospital). Dev build only; public always starts at 1. */
-export function startLevelIndex(isDev: boolean, search: string, count: number): number {
-  if (!isDev) return 0;
+/** Update 0.7 — ?level=N starts on that level (1 = the hospital). Dev build only: null when not asked for
+ *  (Update 1.0.1: the map you picked is played then). */
+export function startLevelIndex(isDev: boolean, search: string, count: number): number | null {
+  if (!isDev) return null;
   const n = Number(new URLSearchParams(search).get('level'));
-  return Number.isInteger(n) && n >= 1 && n <= count ? n - 1 : 0;
+  return Number.isInteger(n) && n >= 1 && n <= count ? n - 1 : null;
 }
 
-/**
- * Update 0.7.1 — the tester level picker on the main menu (dev build only). The public build always
- * starts at level 1, whatever is picked or saved.
- */
-export function chooseStartLevel(isDev: boolean, picked: number, count: number): number {
-  return isDev && Number.isInteger(picked) && picked >= 0 && picked < count ? picked : 0;
-}

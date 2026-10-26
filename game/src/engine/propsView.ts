@@ -5,8 +5,14 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Level, floorAt, floorOffset, itemPos } from '../world/level';
-import { ITEM_TABLE_SCALE, PlacedProp, PropKind, brickLining, panelSpots, placedProps } from '../world/props';
+import { ITEM_TABLE_SCALE, PROPS, PlacedProp, PropKind, brickLining, panelSpots, placedProps } from '../world/props';
 import type { LevelView } from './buildLevel';
+import { kitPiece } from './factoryKit';
+import { createFactoryView } from './factoryView';
+
+/** Update 1.0.1 — Harrow Mill's item tables: the kit's long steel shelf, cut down to a small bench whose top
+ *  is where the hospital table's is, its long side along the wall. */
+const SHELF_TABLE_SCALE: [number, number, number] = [0.73, 1.03, 0.45];
 
 export const PROP_URL = (kind: PropKind) => `/models/props/${kind}.glb`;
 
@@ -42,6 +48,11 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
 
   const load = (kind: PropKind) => {
     let p = cache.get(kind);
+    // Update 1.0.1 — factory kit pieces are shared copies (engine/factoryKit.ts): nothing to dispose here.
+    if (!p && PROPS[kind].kit) {
+      p = kitPiece(kind);
+      cache.set(kind, p);
+    }
     if (!p) {
       p = loader.loadAsync(PROP_URL(kind)).then((g) => {
         g.scene.traverse((o) => {
@@ -106,8 +117,13 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
   }
 
   // Update 0.9.6 — a real table under every item (fuses, batteries, notes), replacing the grey boxes.
+  // Update 1.0.1 — in the factory, a steel bench from the kit; and the factory itself (walls, floors,
+  // roof, stairs, lamps) from the kit.
+  const factory = level.theme === 'factory';
+  const building = factory ? createFactoryView(level, view) : null;
+  if (building) root.add(building.root);
   if (level.items.length) {
-    load('item_table')
+    (factory ? kitPiece('shelf') : load('item_table'))
       .then((scene) => {
         if (disposed) return;
         for (const item of level.items) {
@@ -115,8 +131,8 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
           const obj = scene.clone(true);
           const at = lift(p.x, p.z);
           obj.position.set(p.x, at.y, at.z);
-          obj.rotation.y = Math.atan2(p.face.x, p.face.z);
-          obj.scale.set(...ITEM_TABLE_SCALE);
+          obj.rotation.y = Math.atan2(p.face.x, p.face.z) + (factory ? Math.PI / 2 : 0);
+          obj.scale.set(...(factory ? SHELF_TABLE_SCALE : ITEM_TABLE_SCALE));
           root.add(obj);
         }
         view.itemCabinets.forEach((c) => (c.visible = false));
@@ -125,7 +141,8 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
   }
 
   // Fluorescent fixtures at every ceiling lamp: the housing glows with the lamp's flicker.
-  if (view.lamps.length) {
+  // Update 1.0.1 — not in the factory: its own round lamps (engine/factoryView.ts).
+  if (view.lamps.length && !factory) {
     load('fluorescent')
       .then((scene) => {
         if (disposed) return;
@@ -198,6 +215,7 @@ export function createPropsView(level: Level, view: LevelView): PropsView {
     },
     dispose() {
       disposed = true;
+      building?.dispose();
       spark.dispose();
       owned.forEach((d) => d.dispose());
     },

@@ -16,13 +16,13 @@ interface Props {
   paused: boolean;
   onEnd(result: 'dead' | 'escaped', seconds: number, coop?: CoopEnd): void;
   onPause(): void;
-  /** Update 0.7.1 — level to start on (tester picker; ignored by the public build). */
-  startLevel: number;
+  /** Update 1.0.1 — the map (LEVELS index): your pick, or the co-op room's. */
+  level: number;
   /** Update 0.9.9 — set when the run came from a co-op room (its difficulty, your spawn slot). */
   coop?: CoopStart | null;
 }
 
-export const GameView = forwardRef<GameHandle, Props>(function GameView({ settings, paused, onEnd, onPause, startLevel, coop = null }, ref) {
+export const GameView = forwardRef<GameHandle, Props>(function GameView({ settings, paused, onEnd, onPause, level, coop = null }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const game = useRef<Game | null>(null);
   const hud = useMemo(() => createHudStore(), []);
@@ -37,7 +37,7 @@ export const GameView = forwardRef<GameHandle, Props>(function GameView({ settin
       game.current = new Game(host.current, settings, hud, {
         onEnd: (r, s, c) => cbs.current.onEnd(r, s, c),
         onPause: () => cbs.current.onPause(),
-      }, startLevel, coop);
+      }, level, coop);
     });
     return () => {
       disposed = true;

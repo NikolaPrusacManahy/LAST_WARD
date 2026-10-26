@@ -2,14 +2,15 @@
 // floor system on a tiny two-floor test level (kept ready for a future level that needs stairs).
 import { check, section } from './harness';
 import { LEVEL_01 } from '../src/world/content/level01';
-import { LEVELS } from '../src/world/content/levels';
+import { LEVEL_02 } from '../src/world/content/level02';
+import { LEVELS, levelId, levelIndexOf } from '../src/world/content/levels';
 import { Cell, LevelDef, Vec2, WALL_HEIGHT, cellCenter, crossPortal, dist, floorAt, floorOffset, floorStride, isSolid, parseLevel, stairRise, worldToCell } from '../src/world/level';
 import { findPath, reachable } from '../src/world/pathfinding';
 import { moveWithCollision } from '../src/world/collision';
 import { lineOfSight } from '../src/world/lineOfSight';
 import { ENEMY, cornerCells, generatorApproach, spawnAtCorner, stepEnemy, summonToGenerator, tuningFor } from '../src/world/enemyAI';
 import { PLAYER } from '../src/state/playerRules';
-import { chooseStartLevel, startLevelIndex } from '../src/state/devTools';
+import { startLevelIndex } from '../src/state/devTools';
 import { createRng } from '../src/world/rng';
 
 // One flight of stairs at column 5 going up (north) from the ground floor to the floor above.
@@ -45,9 +46,11 @@ const real = (p: Vec2) => {
   return { x: p.x, y: o.y + stairRise(level, p), z: p.z + o.z };
 };
 
-section('The game is the hospital (0.7.2)');
+section('The maps: the hospital, then the factory (1.0.1)');
 {
-  check('one level: Ward 13', LEVELS.length === 1 && LEVELS[0] === LEVEL_01);
+  check('two maps: Ward 13 first, Harrow Mill second', LEVELS.length === 2 && LEVELS[0] === LEVEL_01 && LEVELS[1] === LEVEL_02);
+  check('each map has its own id; looked up by it', new Set(LEVELS.map(levelId)).size === LEVELS.length && levelIndexOf('factory') === 1 && levelIndexOf('ward13') === 0);
+  check('an unknown id (an old save, an old room) → the hospital', levelIndexOf('mansion') === 0 && levelIndexOf('') === 0 && levelIndexOf(undefined) === 0);
   const l1 = parseLevel(LEVEL_01);
   check('one floor, no stairs, same size as ever', l1.floors === 1 && l1.stairs.length === 0 && l1.portals.length === 0 && l1.rows === 19);
   check('four corner spawn points', cornerCells(l1).length === 4);
@@ -143,9 +146,8 @@ section('The Patient on stairs (engine, test level)');
   check('a level can make it track longer', tuningFor(parseLevel({ ...TWO_FLOORS, ai: { memorySeconds: 5 } })).memorySeconds === 5);
 }
 
-section('Tester start level (dev only)');
+section('?level=N (dev only)');
 {
-  check('?level=N picks a level only when running locally', startLevelIndex(true, '?level=2', 2) === 1 && startLevelIndex(false, '?level=2', 2) === 0);
-  check('the public build always starts at level 1', chooseStartLevel(false, 1, 2) === 0 && chooseStartLevel(true, 1, 2) === 1);
-  check('a bad pick falls back to level 1', chooseStartLevel(true, 7, 2) === 0 && chooseStartLevel(true, NaN, 2) === 0);
+  check('?level=N picks a map only when running locally', startLevelIndex(true, '?level=2', 2) === 1 && startLevelIndex(false, '?level=2', 2) === null);
+  check('no ?level, or a map that is not there: the picked map is played', startLevelIndex(true, '', 2) === null && startLevelIndex(true, '?level=7', 2) === null);
 }

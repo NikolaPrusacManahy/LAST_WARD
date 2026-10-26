@@ -49,7 +49,12 @@ interface Marker {
   text: string;
 }
 
-export function createPingMarkers(scene: THREE.Scene) {
+export function createPingMarkers(scene: THREE.Scene, rel: (p: { x: number; z: number }) => { x: number; y: number; z: number } = (p) => ({ x: p.x, y: 0, z: p.z })) {
+  // Update 1.0.1 — a mark is on its own floor (logic position): drawn from whichever floor you're on now.
+  const at = (p: { x: number; y: number; z: number }) => {
+    const r = rel(p);
+    return { x: r.x, y: r.y + p.y, z: r.z };
+  };
   const markers = new Map<string, Marker>();
   const make = (): Marker => {
     const canvas = document.createElement('canvas');
@@ -73,7 +78,8 @@ export function createPingMarkers(scene: THREE.Scene) {
       m.who = who;
       m.until = now + PING.seconds;
       m.text = '';
-      m.sprite.position.set(mark.pos.x, mark.pos.y + 0.35, mark.pos.z);
+      const p = at(mark.pos);
+      m.sprite.position.set(p.x, p.y + 0.35, p.z);
     },
     /** Each frame: fade, and the distance from `eye`. */
     update(eye: { x: number; y: number; z: number }, now: number) {
@@ -81,7 +87,9 @@ export function createPingMarkers(scene: THREE.Scene) {
         const left = m.until - now;
         m.sprite.visible = left > 0;
         if (left <= 0) continue;
-        const d = Math.hypot(m.mark.pos.x - eye.x, m.mark.pos.y - eye.y, m.mark.pos.z - eye.z);
+        const p = at(m.mark.pos);
+        m.sprite.position.set(p.x, p.y + 0.35, p.z);
+        const d = Math.hypot(p.x - eye.x, p.y - eye.y, p.z - eye.z);
         const text = pingText(m.mark.label, d, m.who);
         if (text !== m.text) {
           m.text = text;
