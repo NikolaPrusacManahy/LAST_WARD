@@ -66,6 +66,8 @@ export const LEVEL_02: LevelDef = {
   ],
   // Facing the office door (east).
   startYaw: -Math.PI / 2,
+  // Update 1.0.2 — The Patient's pace here (Nikola): patrols half as fast again, crawls 5–10 s longer.
+  ai: { patrolSpeed: 1.5, crawlExtra: [5, 10] },
   intro: {
     time: '02:47 AM',
     lines: ['You wake up on the floor of the old Harrow Mill office.', 'The last crate from St. Brigid’s came in tonight. It was empty.'],
@@ -91,11 +93,16 @@ export const LEVEL_02: LevelDef = {
     { kind: 'brick', cell: up(10, 1), at: [0, -1.15] },
     { kind: 'bottle', cell: up(16, 1), at: [0.3, -1.15] },
   ],
+  // Update 1.0.2 — the side corridors run on up their stairs (Nikola: it crawls on up the stairwell, turned
+  // upright up the wall, then over onto the ceiling upstairs): the stair, the block under the landing and the
+  // stairwell above are corridor too, so its crawl joins both floors.
   corridors: [
-    { from: { col: 7, row: 3 }, to: { col: 7, row: 17 } }, // west corridor
-    { from: { col: 19, row: 3 }, to: { col: 19, row: 17 } }, // east corridor
+    { from: { col: 7, row: 1 }, to: { col: 7, row: 17 } }, // west corridor, up its stair
+    { from: { col: 19, row: 1 }, to: { col: 19, row: 17 } }, // east corridor, up its stair
     { from: { col: 8, row: 17 }, to: { col: 18, row: 17 } }, // south corridor
-    { from: up(8, 1), to: up(18, 1) }, // the gantry upstairs
+    { from: up(7, 1), to: up(19, 1) }, // the gantry upstairs, landing to landing
+    { from: up(7, 2), to: up(7, 2) }, // the two stairwells (down from the gantry)
+    { from: up(19, 2), to: up(19, 2) },
   ],
   props: [
     // Boiler room: the generator facing its door, pipes and boxes on the walls, drums, a warning.

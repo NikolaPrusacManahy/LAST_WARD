@@ -119,6 +119,7 @@ export function createEnemyView(): EnemyView {
       yaw += d * 0.25;
       root.rotation.y = yaw;
       spin.rotation.z = (crawl?.flip ?? 0) * Math.PI; // Update 0.9.7 — upside down on the ceiling
+      spin.rotation.x = crawl?.tilt ?? 0; // Update 1.0.2 — upright up a stairwell's wall
 
       stride += moved * 2.2;
       const chasing = mode === 'chase';

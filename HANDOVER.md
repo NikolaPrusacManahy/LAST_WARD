@@ -1,6 +1,14 @@
 # HANDOVER.md: where things stand
 
-## Current version: 1.0.1: a second map, Harrow Mill
+## Current version: 1.0.2: The Patient's pace in Harrow Mill, and its crawl up the stairwells
+
+The main menu shows **v1.0.2**.
+
+- **Its pace on this map** (Nikola: "new rules for AI on this map"): patrol ×1.5, each crawl 5–10 s longer (20–30 s). A level's `ai` now takes `patrolSpeed` and `crawlExtra` (`world/level.ts` `AiTuning`, `tuningFor`, `enemySpeed(e, patrolSpeed)`); Ward 13 is unchanged.
+- **Crawling on up the stairs** (Nikola: "rotate his crawl position up, then normal and continue crawl upstairs"): Harrow Mill's side corridors run on up their stairs (the stair, the block under the landing and the stairwell above are corridor), so a crawl sweeps both floors. The route goes through a stair's portal like walking does (`planCrawlRoute`). Drawn (`crawlShaft` in `engine/enemyAnim.ts`, `tilt` on its turning group): it swings round the edge where the corridor ceiling stops, climbs the stairwell's end wall upright, turns over in the top corner and crawls on along the ceiling upstairs; coming down the same backwards, head first. It climbs at 45% of its crawl speed (`CRAWL.shaftSpeed`) so it can be seen. It never goes up on the ceiling from a stair, a noise never calls it down into a stairwell (`inShaft`), and called down mid-climb (it saw you) it climbs on out first (`shaftExit`). Worked out from its position, so every co-op screen draws it the same.
+- Checked in the browser from the upstairs landing (where Nikola's screenshot was taken), going up and coming down. Tests in `tests/test-factory.ts`.
+
+## 1.0.1: a second map, Harrow Mill
 
 The main menu shows **v1.0.1** (`state/version.ts`, `package.json` and its lock file; `tests/test-version.ts`).
 

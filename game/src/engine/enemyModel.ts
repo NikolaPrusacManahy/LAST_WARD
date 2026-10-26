@@ -97,6 +97,7 @@ export async function loadEnemyModel(url = PATIENT_URL): Promise<EnemyView> {
       yaw += d * Math.min(1, dt * 10);
       root.rotation.y = yaw;
       spin.rotation.z = (crawl?.flip ?? 0) * Math.PI; // Update 0.9.7 — upside down on the ceiling
+      spin.rotation.x = crawl?.tilt ?? 0; // Update 1.0.2 — upright up a stairwell's wall (tipped after the roll)
       // A teleport (metres in one frame) isn't running: don't let it spike the gait.
       if (dt > 0) speed += ((moved > 2 ? 0 : moved) / dt - speed) * Math.min(1, dt * 8);
       if (crawl) {
@@ -116,6 +117,7 @@ export async function loadEnemyModel(url = PATIENT_URL): Promise<EnemyView> {
       yaw = yawNow;
       root.rotation.y = yawNow;
       spin.rotation.z = 0;
+      spin.rotation.x = 0;
       play((actions.has(clip as EnemyClip) ? clip : 'idle') as EnemyClip, timeScale, from);
       mixer.update(dt);
     },

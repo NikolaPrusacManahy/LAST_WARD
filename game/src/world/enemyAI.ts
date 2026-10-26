@@ -1,7 +1,7 @@
 // "The Patient" — enemy brain. Pure state machine: patrol → investigate → chase → search.
 // Update 0.9.7 — and now and then, from a corridor patrol: crawl (up on the ceiling, see CRAWL).
 // The engine calls stepEnemy() every frame and only renders the result.
-import { Cell, Level, TILE, Vec2, cellCenter, crossPortal, dist, floorCells, floorOfRow, floorStride, isCorridor, isSolid, worldToCell, sameCell } from './level';
+import { Cell, FACE_DIR, Level, TILE, Vec2, cellCenter, crossPortal, dist, floorCells, floorOfRow, floorStride, isCorridor, isSolid, portalAt, stairRunAt, worldToCell, sameCell } from './level';
 import { findPath } from './pathfinding';
 import { lineOfSight } from './lineOfSight';
 import { clearLine, moveWithCollision, overlapsWall } from './collision';
@@ -108,6 +108,9 @@ export const CRAWL = {
   cooldownMax: 70,
   /** Chance per second while it patrols a corridor once the cooldown is over (~12 s on average). */
   chancePerSecond: 0.08,
+  /** Update 1.0.2 — up a stairwell (a corridor that runs on up the stairs, Harrow Mill): this much slower,
+   *  so the climb up the wall and over onto the next ceiling can be seen (engine/enemyAnim.ts crawlShaft). */
+  shaftSpeed: 0.45,
 };
 export const crawlUpSeconds = CRAWL.screamSeconds + CRAWL.jumpTop;
 export const crawlDownSeconds = CRAWL.jumpTop;
@@ -243,6 +246,9 @@ export function tuningFor(level: Level) {
     memorySeconds: level.ai.memorySeconds ?? ENEMY.memorySeconds,
     searchSeconds: level.ai.searchSeconds ?? ENEMY.searchSeconds,
     searchRadiusTiles: level.ai.searchRadiusTiles ?? 3,
+    // Update 1.0.2 — a map's own pace: a faster patrol, longer crawls.
+    patrolSpeed: level.ai.patrolSpeed ?? 1,
+    crawlExtra: level.ai.crawlExtra ?? ([0, 0] as [number, number]),
   };
 }
 
@@ -561,7 +567,8 @@ export function nearestCorridorCell(level: Level, p: Vec2): Cell {
     const k = c.row * level.cols + c.col;
     if (seen.has(k)) continue;
     seen.add(k);
-    if (isCorridor(level, c)) return c;
+    // Update 1.0.2 — never a stair, or the cell a stair's portal is in: it doesn't drop into a stairwell.
+    if (isCorridor(level, c) && !inShaft(level, c)) return c;
     for (const [dc, dr] of FOUR) {
       const n = { col: c.col + dc, row: c.row + dr };
       if (open(n)) queue.push(n);
@@ -578,9 +585,27 @@ function goToCorridor(level: Level, e: EnemyState, cell: Cell) {
   e.repath = ENEMY.repathSeconds;
 }
 
-function startCrawl(e: EnemyState, rng: Rng) {
+/** Update 1.0.2 — a stair, or a stair's portal cell: the stairwell it climbs through, never up or down there. */
+export function inShaft(level: Level, c: Cell): boolean {
+  return !!stairRunAt(level, c) || !!portalAt(level, c);
+}
+
+/** Update 1.0.2 — where it climbs out of the stairwell it's in: the landing on the floor above when it's
+ *  climbing, the corridor below the bottom step when it's coming down. */
+function shaftExit(level: Level, e: EnemyState): Cell {
+  const run = stairRunAt(level, worldToCell(e.pos))!;
+  const d = FACE_DIR[run.dir];
+  const top = run.cells[run.cells.length - 1];
+  const up = e.dir.x * d.dc + e.dir.z * d.dr > 0;
+  if (up) return portalAt(level, { col: top.col + d.dc, row: top.row + d.dr })?.to ?? top;
+  return { col: run.cells[0].col - d.dc, row: run.cells[0].row - d.dr };
+}
+
+function startCrawl(e: EnemyState, rng: Rng, extra: [number, number] = [0, 0]) {
   setMode(e, 'crawl');
-  e.crawl = { phase: 'up', t: 0, left: CRAWL.minSeconds + rng() * (CRAWL.maxSeconds - CRAWL.minSeconds), then: 'patrol', noise: null };
+  // Update 1.0.2 — a map can make it crawl longer (Harrow Mill: 5–10 s more).
+  const left = CRAWL.minSeconds + rng() * (CRAWL.maxSeconds - CRAWL.minSeconds) + extra[0] + rng() * (extra[1] - extra[0]);
+  e.crawl = { phase: 'up', t: 0, left, then: 'patrol', noise: null };
   e.path = [];
   e.goal = null;
   e.idle = 0;
@@ -631,25 +656,36 @@ function stepCrawl(level: Level, e: EnemyState, input: StepInput, seen: boolean,
       }
       break;
     case 'on': {
+      // Update 1.0.2 — up a stairwell it climbs slower (the climb can be seen), and it never drops in one:
+      // wanting down there, it climbs on out first (to the landing or the corridor below).
+      const shaft = !!stairRunAt(level, worldToCell(e.pos));
+      const speed = enemySpeed(e) * (shaft ? CRAWL.shaftSpeed : 1);
+      if (shaft && (c.then === 'chase' || c.then === 'generator' || c.left <= 0)) {
+        const exit = shaftExit(level, e);
+        if (!e.goal || !sameCell(worldToCell(e.goal), exit)) goToCorridor(level, e, exit);
+        c.left -= dt;
+        followPath(level, e, speed, dt);
+        break;
+      }
       if (c.then === 'chase' || c.then === 'generator') {
         c.phase = 'down';
         c.t = 0;
         break;
       }
-      const speed = enemySpeed(e);
       if (c.noise) {
-        if (followPath(level, e, speed, dt)) {
+        if (followPath(level, e, speed, dt) && !shaft) {
           c.phase = 'down';
           c.t = 0;
         }
         break;
       }
       c.left -= dt;
-      // Its time is up, or (just in case) the route ran out: down it comes.
-      if (c.left <= 0 || followPath(level, e, speed, dt)) {
+      // Its time is up, or (just in case) the route ran out: down it comes (out of a stairwell first).
+      const done = followPath(level, e, speed, dt);
+      if ((c.left <= 0 || done) && !stairRunAt(level, worldToCell(e.pos))) {
         c.phase = 'down';
         c.t = 0;
-      }
+      } else if (done) c.left = 0;
       break;
     }
     case 'down':
@@ -667,7 +703,9 @@ function stepCrawl(level: Level, e: EnemyState, input: StepInput, seen: boolean,
 export function planCrawlRoute(level: Level, from: Cell, metres: number, rng: Rng): Cell[] {
   const key = (c: Cell) => c.row * level.cols + c.col;
   const cellOf = (k: number) => ({ col: k % level.cols, row: Math.floor(k / level.cols) });
-  const total = level.corridor.filter(Boolean).length;
+  // Update 1.0.2 — a corridor can run on up a stair: stepping into a stair's portal cell is the floor above
+  // (as for walking: world/pathfinding.ts), and that portal cell is never a stop of its own.
+  const total = level.corridor.filter((on, i) => on && !portalAt(level, { col: i % level.cols, row: Math.floor(i / level.cols) })).length;
   const cells = Math.ceil(metres / TILE) + 1;
   const route: Cell[] = [from];
   const crawled = new Set([key(from)]);
@@ -681,7 +719,10 @@ export function planCrawlRoute(level: Level, from: Cell, metres: number, rng: Rn
     for (let i = 0; i < queue.length && found < 0; i++) {
       const ways = [...FOUR].sort(() => rng() - 0.5);
       for (const [dc, dr] of ways) {
-        const n = { col: queue[i].col + dc, row: queue[i].row + dr };
+        let n = { col: queue[i].col + dc, row: queue[i].row + dr };
+        if (!isCorridor(level, n)) continue;
+        const portal = portalAt(level, n);
+        if (portal) n = portal.to;
         const k = key(n);
         if (!isCorridor(level, n) || back.has(k)) continue;
         back.set(k, key(queue[i]));
@@ -744,8 +785,9 @@ function land(level: Level, e: EnemyState, input: StepInput, events: EnemyEvent[
  * every mode, four fuses put its chase past your sprint and its patrol past your walk. Rushing somewhere
  * (the generator, a blown panel, a thrown thing) is plain chase speed.
  */
-export function enemySpeed(e: Pick<EnemyState, 'mode' | 'rush' | 'rage'>): number {
-  return ENEMY.speed[e.rush ? 'chase' : e.mode] * (e.mode === 'chase' ? 1 + e.rage : 1);
+export function enemySpeed(e: Pick<EnemyState, 'mode' | 'rush' | 'rage'>, patrolSpeed = 1): number {
+  // Update 1.0.2 — `patrolSpeed`: a map's faster patrol (tuningFor).
+  return ENEMY.speed[e.rush ? 'chase' : e.mode] * (e.mode === 'chase' ? 1 + e.rage : 1) * (e.mode === 'patrol' && !e.rush ? patrolSpeed : 1);
 }
 
 /** Advances the enemy one frame. Mutates `e`, returns what happened. */
@@ -831,7 +873,7 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
   }
 
   // Update 0.6.4 — rushing to the generator (0.9.1: or to a panel that blew): chase speed.
-  const speed = enemySpeed(e); // Update 0.9.6.2 — the fuses only speed up the chase
+  const speed = enemySpeed(e, tune.patrolSpeed); // Update 0.9.6.2 — the fuses only speed up the chase
 
   switch (e.mode) {
     case 'chase': {
@@ -933,8 +975,10 @@ export function stepEnemy(level: Level, e: EnemyState, input: StepInput, rng: Rn
     }
     case 'patrol': {
       // Update 0.9.7 — now and then, patrolling a corridor, it screams and goes up on the ceiling.
-      if (e.crawlCooldown <= 0 && isCorridor(level, worldToCell(e.pos)) && rng() < CRAWL.chancePerSecond * (input.crawlBoost ?? 1) * dt) {
-        startCrawl(e, rng);
+      // Update 1.0.2 — not from a stair (a corridor can run up one).
+      const here = worldToCell(e.pos);
+      if (e.crawlCooldown <= 0 && isCorridor(level, here) && !inShaft(level, here) && rng() < CRAWL.chancePerSecond * (input.crawlBoost ?? 1) * dt) {
+        startCrawl(e, rng, tune.crawlExtra);
         events.push('crawlUp');
         break;
       }

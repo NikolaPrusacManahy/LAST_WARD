@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { LEVELS, levelIndexOf } from '../world/content/levels';
 import { Level, Vec2, WALL_HEIGHT, cellCenter, crossPortal, dist, floorAt, floorOffset, floorStride, itemPos, parseLevel, stairRise, worldToCell } from '../world/level';
 import { ENEMY, EnemyState, Noise, PlayerSense, chaseSees, dropFromCeiling, spawnAtCorner, stepEnemy, summonToGenerator, teleportAway, visibility } from '../world/enemyAI';
-import { CRAWL_LIFT, crawlPose } from './enemyAnim';
+import { CRAWL_LIFT, crawlPose, crawlShaft } from './enemyAnim';
 import { CAUGHT, ENEMY_THROW_SPEED, LIVES, caughtTimes, eyelids, injuredTint, nextGruntDelay } from '../state/caughtSequence';
 import { CaughtScene, createCaughtScene } from './caughtScene';
 import { HitScene, createHitScene } from './hitScene';
@@ -410,6 +410,15 @@ export class Game {
   private drawEnemy(moved: number) {
     const r = this.enemyRel();
     const crawl = crawlPose(this.enemy.crawl); // Update 0.9.7 — up on the ceiling
+    // Update 1.0.2 — crawling on through a stairwell: round the edge, up the wall, over onto the next ceiling.
+    const shaft = crawl && this.enemy.crawl?.phase === 'on' ? crawlShaft(this.level, this.enemy.pos, this.enemy.dir) : null;
+    if (crawl && shaft) {
+      const oe = floorOffset(this.level, floorAt(this.level, this.enemy.pos));
+      const oc = floorOffset(this.level, this.curFloor);
+      this.enemyView.update({ x: shaft.x, z: shaft.z + oe.z - oc.z }, this.enemy.dir, this.enemy.mode, moved, this.worldT, false, { ...crawl, tilt: shaft.tilt });
+      this.enemyView.root.position.y = oe.y - oc.y + shaft.y;
+      return;
+    }
     this.enemyView.update({ x: r.x, z: r.z }, this.enemy.dir, this.enemy.mode, moved, this.worldT, this.enemy.windup > 0, crawl);
     this.enemyView.root.position.y = r.y + (crawl ? crawl.lift * CRAWL_LIFT : 0);
   }

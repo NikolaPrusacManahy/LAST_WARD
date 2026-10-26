@@ -4,14 +4,14 @@ A first-person horror game that runs in the browser, by NIKO GAME COLLECTION.
 
 You wake up on the floor of Ward 13 at St. Brigid's hospital. The power is out and something called The Patient is walking the halls. To get out, you find four fuses, bring four electrical panels back to life, restart the generator and reach the exit door, which stays mag-locked until the power is back. You can't fight. You can hide, crouch, run and stay out of its sight.
 
-Current version: 1.0.1: a second map, Harrow Mill, and a map picker. A student work (1.0.0 was the first public release). The full patch history is in `HANDOVER.md`.
+Current version: 1.0.2: Harrow Mill's own pace for The Patient, and its crawl up the stairwells (1.0.1 added the map and the map picker). A student work (1.0.0 was the first public release). The full patch history is in `HANDOVER.md`.
 
 ## Maps
 
 After **Begin** you pick a map, then the difficulty:
 
 - **St. Brigid's — Ward 13**: the hospital. One floor, tight halls, small rooms.
-- **Harrow Mill**: an abandoned factory on two floors. A machine hall, a warehouse of shelf aisles, a loading bay with the way out; a steel stair at each end leads up to the gantry, the records office, the drafting loft and the control room (one of the panels is up there). The Patient follows you up the stairs.
+- **Harrow Mill**: an abandoned factory on two floors. A machine hall, a warehouse of shelf aisles, a loading bay with the way out; a steel stair at each end leads up to the gantry, the records office, the drafting loft and the control room (one of the panels is up there). The Patient follows you up the stairs. Here it patrols faster (×1.5) and crawls the ceilings 5 to 10 seconds longer, and its crawl goes on up the stairwells: upright up the end wall, then over onto the ceiling upstairs (head first on the way down).
 
 Each map is a run of its own, with its own best time. In co-op the host picks the map in the lobby.
 

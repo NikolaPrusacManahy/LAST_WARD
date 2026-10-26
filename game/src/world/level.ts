@@ -53,6 +53,10 @@ export interface AiTuning {
   memorySeconds?: number;
   searchSeconds?: number;
   searchRadiusTiles?: number;
+  /** Update 1.0.2 — its patrol walk, times this (Harrow Mill: 1.5). */
+  patrolSpeed?: number;
+  /** Update 1.0.2 — seconds added to each crawl on the ceiling, between these two (Harrow Mill: 5–10). */
+  crawlExtra?: [number, number];
 }
 
 /** Update 0.9.6 — something to throw, lying on the floor. */
@@ -371,6 +375,11 @@ export function floorOffset(level: Level, f: number): { y: number; z: number } {
 /** The portal whose entry cell this is, if any. */
 export function portalAt(level: Level, cell: Cell): Portal | undefined {
   return level.portals.find((p) => p.from.col === cell.col && p.from.row === cell.row);
+}
+
+/** Update 1.0.2 — the flight of stairs this cell is a step of (on the floor it goes up from), if any. */
+export function stairRunAt(level: Level, cell: Cell): StairRun | undefined {
+  return level.stairs.find((s) => s.cells.some((c) => c.col === cell.col && c.row === cell.row));
 }
 
 /** Update 0.7 — stepping into a portal cell moves you to the same spot on the other floor. */

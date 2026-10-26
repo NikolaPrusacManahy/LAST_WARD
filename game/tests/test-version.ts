@@ -7,5 +7,5 @@ section('Version');
 {
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
   check('main menu version matches package.json', pkg.version === GAME_VERSION, `${GAME_VERSION} vs ${pkg.version}`);
-  check('1.0.1: the map picker and Harrow Mill; still student work', GAME_VERSION === '1.0.1' && GAME_STAGE === 'Student Work');
+  check('1.0.2: Harrow Mill\'s pace and the crawl up the stairwells; still student work', GAME_VERSION === '1.0.2' && GAME_STAGE === 'Student Work');
 }

@@ -1,6 +1,6 @@
 // Update 0.2 — which Mixamo clip The Patient plays, and how fast. Pure (no three.js) so it's tested.
 import { CRAWL, CrawlState, EnemyMode } from '../world/enemyAI';
-import { WALL_HEIGHT } from '../world/level';
+import { FACE_DIR, Level, TILE, Vec2, WALL_HEIGHT, cellCenter, stairRunAt, worldToCell } from '../world/level';
 
 /** 'stare' is menu-only (Update 0.4.3b). */
 /** 'grab' / 'throw' — Update 0.6, the first time it catches you. */
@@ -64,6 +64,72 @@ export interface CrawlPose {
   /** Jump clip time (s), set directly (it runs forwards going up, backwards coming down). */
   time?: number;
   timeScale: number;
+  /** Update 1.0.2 — tipped about its sideways axis (rad): upright up a stairwell's wall (crawlShaft). */
+  tilt?: number;
+}
+
+/** Update 1.0.2 — climbing a stairwell on its crawl: where it is drawn (logic x / z on the floor the stairs go
+ *  up from), how high its feet are above that floor, and how far it's tipped. */
+export interface ShaftPose {
+  x: number;
+  z: number;
+  y: number;
+  tilt: number;
+}
+
+/** Update 1.0.2 — how long the turn in the top corner (wall onto ceiling) takes, as metres of the climb. */
+const INNER_TURN = 0.6;
+
+/**
+ * Update 1.0.2 — Nikola: crawling on through a stairwell, "rotate his crawl position up, then normal and
+ * continue crawl upstairs". Its middle (the turning point, CRAWL_FLIP_PIVOT from the surface it's on)
+ * swings round the edge where the ceiling below stops, climbs the stairwell's end wall upright, turns over
+ * in the top corner onto the ceiling upstairs and crawls on along it; coming down, the same backwards, head
+ * first. Worked out from how far up the flight it is, so it's the same on every screen (co-op) and both
+ * ends meet the ceiling crawl exactly. null when it isn't on a flight of stairs.
+ */
+export function crawlShaft(level: Level, pos: Vec2, dir: Vec2): ShaftPose | null {
+  const run = stairRunAt(level, worldToCell(pos));
+  if (!run) return null;
+  const d = FACE_DIR[run.dir];
+  const L = run.cells.length * TILE;
+  const first = cellCenter(run.cells[0]);
+  // The bottom edge of the flight: where the ceiling below stops and the stairwell's end wall goes up.
+  const bx = first.x - (d.dc * TILE) / 2;
+  const bz = first.z - (d.dr * TILE) / 2;
+  const along = (pos.x - bx) * d.dc + (pos.z - bz) * d.dr;
+  const side = { x: pos.x - bx - d.dc * along, z: pos.z - bz - d.dr * along };
+  const P = CRAWL_FLIP_PIVOT;
+  const H = WALL_HEIGHT;
+  // The path its middle takes: round the edge (a quarter circle), up the wall, the turn in the top corner,
+  // along the ceiling upstairs to the far end of the flight.
+  const round = (P * Math.PI) / 2;
+  const climb = H - P;
+  const ceiling = L - P;
+  const s = (Math.max(0, Math.min(L, along)) / L) * (round + climb + INNER_TURN + ceiling);
+  let turn: number; // 0 = upside down on a ceiling, 1 = upright on the wall
+  let out: number; // its middle, this far into the stairwell from the end wall
+  let up: number; // and this high above the floor below
+  if (s < round) {
+    turn = s / round;
+    out = P * Math.sin((turn * Math.PI) / 2);
+    up = H - P * Math.cos((turn * Math.PI) / 2);
+  } else if (s < round + climb) {
+    turn = 1;
+    out = P;
+    up = H + (s - round);
+  } else if (s < round + climb + INNER_TURN) {
+    turn = 1 - (s - round - climb) / INNER_TURN;
+    out = P;
+    up = 2 * H - P;
+  } else {
+    turn = 0;
+    out = P + (s - round - climb - INNER_TURN);
+    up = 2 * H - P;
+  }
+  // Going up it tips head up; coming down, head first.
+  const climbing = dir.x * d.dc + dir.z * d.dr > 0;
+  return { x: bx + side.x + d.dc * out, z: bz + side.z + d.dr * out, y: up - P, tilt: ((climbing ? -1 : 1) * turn * Math.PI) / 2 };
 }
 
 export function crawlPose(c: Pick<CrawlState, 'phase' | 't'> | null): CrawlPose | null {
